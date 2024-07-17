@@ -4,7 +4,7 @@ This file holds the main function for the eBonFetcher application.
 import os
 from dotenv import load_dotenv, find_dotenv
 import logging
-from email.client import Client
+from email.client import Client as Mailclient
 
 
 def main():
@@ -15,14 +15,20 @@ def main():
     # Load environment variables
     load_dotenv(find_dotenv())
 
-    # Create a mailbox object
-    box = mail(
+    print(os.getenv('IMAP_HOST'))
+    print(os.getenv('IMAP_PORT'))
+
+    # Initialize the mail client
+    mailbox = Mailclient(
         imap_server=os.getenv('IMAP_HOST'),
-        imap_port=os.getenv('IMAP_PORT'),
+        imap_port=int(os.getenv('IMAP_PORT')),
         username=os.getenv('IMAP_USER'),
         password=os.getenv('IMAP_PASS'),
-        mailbox='INBOX'
+        inbox='INBOX'
     )
+
+    for box in mailbox.list_inboxes():
+        print(box, '\n')
 
 
 if __name__ == '__main__':
