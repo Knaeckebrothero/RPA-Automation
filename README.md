@@ -1,6 +1,7 @@
-# Project Title
+# Document Fetcher
 
-One Paragraph of project description goes here. Explain what the project is about, what it does, and the value it provides to users.
+This is a simple tool to fetch documents from emails and store them in a local directory.
+It utilizes the ocr tool tessaract to extract text from pdfs so that they can be processed.
 
 ## Table of Contents
 
