@@ -1,9 +1,7 @@
 """
 This module holds the mail.Client class.
 """
-import os
 import imaplib
-import email
 
 
 class Client:
