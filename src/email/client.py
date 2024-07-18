@@ -1,7 +1,9 @@
 """
 This module holds the mail.Client class.
 """
+import os
 import imaplib
+from config.custom_logger import configure_custom_logger
 
 
 class Client:
@@ -21,21 +23,36 @@ class Client:
         :param password: The user's password.
         :param inbox: Inbox to connect to. Defaults to None.
         """
+        # Check environment variables for log level
+        if os.getenv('LOG_LEVEL'):
+            log_level = int(os.environ['LOG_LEVEL'])
+        else:
+            log_level = 30
+
+        # Initialize the logger
+        self.logger = configure_custom_logger(module_name='main', console_level=log_level, file_level=log_level)
+        self.logger.debug('Logger initialized')
+
+        # Set the class attributes
         self._imap_server = imap_server
         self._imap_port = imap_port
         self._username = username
         self._password = password
         self.mail = None
         self.inbox = None
+        self.logger.debug('Class attributes set')
 
         # Connect to the inbox
+        self.logger.debug('Connecting to the mail server...')
         self.connect()
+        self.logger.debug('Connected!')
 
     def __del__(self):
         """
         Destructor for the mailbox class.
         Automatically closes the connection to the server when the class is destroyed.
         """
+        self.logger.info('Closing the connection to the mail server...')
         self.close()
 
     def connect(self):
