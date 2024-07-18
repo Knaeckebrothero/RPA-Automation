@@ -1,5 +1,8 @@
 # Projecspecific contents go here
 
+# Logs
+/src/config/logs/
+/logs/
 
 # Local environment
 .env
