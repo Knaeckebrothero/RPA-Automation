@@ -11,7 +11,7 @@ def configure_custom_logger(
         console_level: int = 20,
         file_level: int = 10,
         logging_format: str = '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        logging_directory: str = './config/logs/'
+        logging_directory: str | None = None
         ) -> logging.Logger:
     """
     This function configures a custom logger for printing and saving logs in a logfile.
@@ -28,7 +28,9 @@ def configure_custom_logger(
     logger.setLevel(logging.DEBUG)
     formatter = logging.Formatter(logging_format)
 
-    # Create the logging directory if it does not exist
+    # Set and create the logging directory if it does not exist
+    if logging_directory is None:
+        logging_directory = './config/logs/'
     if not os.path.exists(logging_directory):
         os.makedirs(logging_directory)
 

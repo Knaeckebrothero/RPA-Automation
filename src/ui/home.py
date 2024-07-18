@@ -3,14 +3,19 @@ This module holds the main ui page for the application.
 """
 import logging
 import streamlit as st
+import pandas as pd
+
+# Custom imports
+from src.email.client import Client
 
 
-def home(logger: logging.Logger):
+def home(logger: logging.Logger, mailclient: Client):
     """
     This is the main ui page for the application.
     It serves as a landing page and provides the user with options to navigate the application.
 
     :param logger: The logger object to log messages to.
+    :param mailclient: The mail client object to interact with the mail server.
     """
     logger.debug('Rendering home page')
 
@@ -30,6 +35,10 @@ def home(logger: logging.Logger):
     st.sidebar.button('Settings')
     st.sidebar.button('About')
     st.sidebar.button('Exit')
+
+    # Get the mails
+    mails = mailclient.list_mails()
+    print(mails)
 
     # TEST STUFF REMOVE LATER!!!
     import pandas as pd
