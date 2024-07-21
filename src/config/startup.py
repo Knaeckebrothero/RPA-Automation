@@ -25,7 +25,7 @@ def streamlit_session_state():
     )
 
     # Initialize the mail client
-    st.session_state['mailbox'] = Client(
+    st.session_state['mailbox'] = Client.get_instance(
         imap_server=os.getenv('IMAP_HOST'),
         imap_port=int(os.getenv('IMAP_PORT')),
         username=os.getenv('IMAP_USER'),

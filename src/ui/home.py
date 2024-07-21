@@ -38,7 +38,6 @@ def home(logger: logging.Logger, mailclient: Client):
 
     # Get the mails
     mails = mailclient.list_mails()
-    print(mails)
 
     # TEST STUFF REMOVE LATER!!!
     import pandas as pd

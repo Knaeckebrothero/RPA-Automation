@@ -3,19 +3,26 @@ This module holds the mail.Client class.
 """
 import os
 import imaplib
+import email
+from email.header import decode_header
+from bs4 import BeautifulSoup
 import pandas as pd
-
 # Custom imports
 from config.custom_logger import configure_custom_logger
+from config.singleton import Singleton
 
 
-class Client:
+class Client(Singleton):
     """
     This class is used to connect and interact with the mail server.
+    It uses the custom singleton class to ensure only one instance of the class is created.
+
+    The class uses the imaplib library to connect to the mail server and offers
+    a bunch of methods to interact with the mailbox.
     """
 
     def __init__(self, imap_server: str, imap_port: int, username: str,
-                 password: str, inbox: str = None):
+                 password: str, inbox: str = None, *args, **kwargs):
         """
         Automatically connects to the mailclient, using the provided credentials,
         once the class is instantiated.
@@ -49,6 +56,7 @@ class Client:
         self._password = password
         self.mail = None
         self.inbox = inbox
+
         self.logger.debug('Class attributes set')
 
         # Connect to the inbox
@@ -136,35 +144,46 @@ class Client:
         email_ids = response[0].split()
         emails_data = []
 
+        # Loop through email ids
         for email_id in email_ids:
+            # Fetch the email
             _, msg_data = self.mail.fetch(email_id, '(RFC822)')
+
+            # Loop through the parts of the email
             for response_part in msg_data:
                 if isinstance(response_part, tuple):
-                    email_body = response_part[1]
-                    email_message = email.message_from_bytes(email_body)
+                    email_message = email.message_from_bytes(response_part[1])
 
+                    # Get the subject
                     subject = decode_header(email_message['Subject'])[0][0]
                     if isinstance(subject, bytes):
                         subject = subject.decode()
 
+                    # Get the sender and date
                     sender = email_message['From']
                     date = email_message['Date']
 
                     # Get email body
                     if email_message.is_multipart():
                         for part in email_message.walk():
+
+                            # If the email part is text/plain, extract the body
                             if part.get_content_type() == "text/plain":
                                 body = part.get_payload(decode=True).decode()
                                 break
+
+                            # If the email part is html, use BeautifulSoup to extract text
                             elif part.get_content_type() == "text/html":
                                 body = BeautifulSoup(part.get_payload(decode=True).decode(), 'html.parser').get_text()
                                 break
                     else:
+                        # If the email is not multipart, extract the body
                         body = email_message.get_payload(decode=True).decode()
 
                     # Truncate body to a snippet
                     body_snippet = body[:100] + '...' if len(body) > 100 else body
 
+                    # Append the email data to the list
                     emails_data.append({
                         'ID': email_id.decode(),
                         'Subject': subject,
@@ -173,6 +192,7 @@ class Client:
                         'Body Snippet': body_snippet
                     })
 
+        # Return the emails in a pandas DataFrame
         df = pd.DataFrame(emails_data)
         self.logger.info(f'Retrieved {len(df)} emails')
         return df
