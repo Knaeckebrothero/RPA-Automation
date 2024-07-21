@@ -1,60 +1,42 @@
 """
-This file holds the main function for the eBonFetcher application.
+This file holds the main function for the application.
+
+https://docs.streamlit.io/
 """
-import os
-import streamlit as st
 from dotenv import load_dotenv, find_dotenv
-
+import streamlit as st
 # Custom imports
-from src.config.custom_logger import configure_custom_logger
-from src.email.client import Client
 import src.ui.home as ui
-
-
-
-# Create a configuration method and move the initialization logic to it
-# Also include env variables in the method so they don't get loaded every time the script runs
-
-
-
+import config.startup as startup
 
 
 def main():
-    # Load the environment variables
-    load_dotenv(find_dotenv())
+    if 'initialized' not in st.session_state:
+        load_dotenv(find_dotenv())
+        startup.streamlit_session_state()
+        startup.streamlit_page()
 
-    # Initialize the logger
-    if 'logger' not in st.session_state:
-        st.session_state.logger = configure_custom_logger(
-            module_name='main',
-            console_level=int(os.getenv('LOG_LEVEL')),
-            file_level=int(os.getenv('LOG_LEVEL')),
-            logging_directory=os.getenv('LOG_PATH') if os.getenv('LOG_PATH') else None
-        )
-    logger = st.session_state.logger
+        # Mark the session as initialized
+        st.session_state.initialized = True
+        st.session_state.logger.info('Initialized the session')
 
-    # Initialize the counter in session state if it doesn't exist
-    if 'rerun_counter' not in st.session_state:
-        st.session_state.rerun_counter = 0
-
-    # Initialize the mail client
-    if 'mailbox' not in st.session_state:
-        st.session_state.mailbox = Client(
-            imap_server=os.getenv('IMAP_HOST'),
-            imap_port=int(os.getenv('IMAP_PORT')),
-            username=os.getenv('IMAP_USER'),
-            password=os.getenv('IMAP_PASSWORD'),
-            inbox=os.getenv('INBOX')
-        )
+    # Set the logger and mailbox to variables for easy access
+    log = st.session_state.logger
     mailbox = st.session_state.mailbox
 
-    # Start the UI
-    logger.debug('Starting the UI')
-    ui.home(logger, mailbox)
+    # Set the page configuration and start the UI
+    log.debug('Starting the UI')
+    ui.home(log, mailbox)
+    log.debug('UI started')
 
     # Log end of script execution to track streamlit reruns
     st.session_state.rerun_counter += 1
-    logger.info(f'script executed {st.session_state.rerun_counter} times')
+    log.debug(f'script executed {st.session_state.rerun_counter} times')
+    if st.session_state.rerun_counter % 5 == 0:
+        log.info(f'script executed {st.session_state.rerun_counter} times')
+
+    for var in st.session_state:
+        log.error(f'{var} = {st.session_state[var]}')
 
 
 if __name__ == '__main__':
