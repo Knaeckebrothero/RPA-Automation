@@ -22,7 +22,7 @@ class Client(Singleton):
     """
 
     def __init__(self, imap_server: str, imap_port: int, username: str,
-                 password: str, inbox: str = None, *args, **kwargs):
+                 password: str, inbox: str, *args, **kwargs):
         """
         Automatically connects to the mailclient, using the provided credentials,
         once the class is instantiated.
@@ -54,8 +54,8 @@ class Client(Singleton):
         self._imap_port = imap_port
         self._username = username
         self._password = password
-        self.mail = None
         self.inbox = inbox
+        self.mail = None
 
         self.logger.debug('Class attributes set')
 
@@ -108,13 +108,16 @@ class Client(Singleton):
         :param inbox: The inbox to select.
         """
         self.logger.debug('Selecting inbox...')
-        if not inbox:
+        if not inbox and not self.inbox:
             self.mail.select('INBOX')
             self.inbox = 'INBOX'
             self.logger.debug('No inbox provided, defaulting to "INBOX"')
+        elif not inbox and self.inbox:
+            self.mail.select(self.inbox)
+            self.logger.debug(f'No inbox provided, defaulting to {self.inbox}')
         else:
             self.mail.select(inbox)
-            self.inbox = inbox
+            self.inbox = f'"{inbox}"'
             self.logger.debug(f'Selected inbox: {inbox}')
 
     def list_inboxes(self):

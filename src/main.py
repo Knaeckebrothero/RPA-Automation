@@ -35,9 +35,6 @@ def main():
     if st.session_state.rerun_counter % 5 == 0:
         log.info(f'script executed {st.session_state.rerun_counter} times')
 
-    for var in st.session_state:
-        log.error(f'{var} = {st.session_state[var]}')
-
 
 if __name__ == '__main__':
     main()

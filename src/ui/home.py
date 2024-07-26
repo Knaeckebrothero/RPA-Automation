@@ -37,7 +37,10 @@ def home(logger: logging.Logger, mailclient: Client):
     st.sidebar.button('Exit')
 
     # Get the mails
-    mails = mailclient.list_mails()
+    mails = mailclient.get_mails()
+
+    # Display the mails
+    st.dataframe(mails)
 
     # TEST STUFF REMOVE LATER!!!
     import pandas as pd
