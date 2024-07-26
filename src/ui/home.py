@@ -55,3 +55,16 @@ def home(logger: logging.Logger, mailclient: Client):
     st.table(data)
     st.json({"foo": "bar", "fu": "ba"})
     st.metric("My metric", 42, 2)
+
+    attachments = mailclient.get_attachment(b'1')
+    if attachments:
+        for attachment in attachments:
+            filename = attachment['filename']
+            data = attachment['data']
+
+            # Save the attachment
+            with open(filename, 'wb') as f:
+                f.write(data)
+            print(f"Saved attachment: {filename}")
+    else:
+        print("No attachments found or error occurred.")

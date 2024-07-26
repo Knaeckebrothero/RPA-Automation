@@ -199,3 +199,59 @@ class Client(Singleton):
         df = pd.DataFrame(emails_data)
         self.logger.info(f'Retrieved {len(df)} emails')
         return df
+
+    def get_attachment(self, email_id) -> list:
+        """
+        Method to get the attachments of an email.
+
+        :param email_id: The id of the email to get the attachments from.
+        :return: A list of attachments or an empty list if no attachments are found.
+        """
+        try:
+            # Fetch the email
+            _, msg_data = self.mail.fetch(email_id, '(RFC822)')
+            raw_email = msg_data[0][1]
+
+            # Parse the email
+            email_message = email.message_from_bytes(raw_email)
+
+            # List to store attachments in
+            attachments = []
+
+            # Walk through email parts and look for attachments
+            for part in email_message.walk():
+                if part.get_content_maintype() == 'multipart':
+                    continue
+                if part.get('Content-Disposition') is None:
+                    continue
+
+                # Get the filename
+                filename = part.get_filename()
+                if not filename:
+                    continue
+
+                # Decode the filename
+                filename = decode_header(filename)[0][0]
+                if isinstance(filename, bytes):
+                    filename = filename.decode()
+
+                # Get the attachment data
+                attachment_data = part.get_payload(decode=True)
+
+                # Append the attachment to the list
+                attachments.append({
+                    'filename': filename,
+                    'data': attachment_data
+                })
+
+            if attachments:
+                self.logger.info(f'Found {len(attachments)} attachments in email {email_id}')
+            else:
+                self.logger.warning(f'No attachments found in email {email_id}')
+
+            # Return the attachments, if non are found list will be empty
+            return attachments
+
+        except Exception as e:
+            self.logger.error(f"Error processing email {email_id}: {str(e)}")
+            return []
