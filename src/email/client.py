@@ -22,7 +22,7 @@ class Client(Singleton):
     """
 
     def __init__(self, imap_server: str, imap_port: int, username: str,
-                 password: str, inbox: str, *args, **kwargs):
+                 password: str, inbox: str = None, *args, **kwargs):
         """
         Automatically connects to the mailclient, using the provided credentials,
         once the class is instantiated.

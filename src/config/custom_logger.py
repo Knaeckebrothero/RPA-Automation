@@ -9,9 +9,10 @@ import logging
 def configure_custom_logger(
         module_name: str,  # = __name__,
         console_level: int = 20,
-        file_level: int = 10,
+        file_level: int = 20,
         logging_format: str = '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        logging_directory: str | None = None
+        logging_directory: str | None = None,
+        separate_log_file: bool = False
         ) -> logging.Logger:
     """
     This function configures a custom logger for printing and saving logs in a logfile.
@@ -21,6 +22,7 @@ def configure_custom_logger(
     :param file_level: The logging level for logging in the logfile.
     :param logging_format: Format used for logging.
     :param logging_directory: Path for the directory where the log files should be saved to.
+    :param separate_log_file: If True, a separate log file will be created for this logger.
 
     :return: A configured logger object.
     """
@@ -35,7 +37,11 @@ def configure_custom_logger(
         os.makedirs(logging_directory)
 
     # File handler for writing logs to a file
-    file_handler = logging.FileHandler(logging_directory + module_name + '.log')
+    if separate_log_file:
+        file_handler = logging.FileHandler(logging_directory + module_name + '.log')
+    else:
+        file_handler = logging.FileHandler(logging_directory + 'main_log.log')
+
     file_handler.setFormatter(formatter)
     file_handler.setLevel(file_level)
     logger.addHandler(file_handler)
