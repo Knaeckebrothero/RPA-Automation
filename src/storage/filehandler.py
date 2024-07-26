@@ -19,21 +19,26 @@ class Filehandler(Singleton):
         Constructor for the filehandler class.
         """
         self.logger = configure_custom_logger(__name__)
+
+        # Set the base path for the filehandler and ensure that it exists
         self.base_path = base_path if base_path else './filesystem/'
+        self._ensure_directory(base_path)
+
+        # Scan the directory for files and store them in a list
+        self.files = self._scan_directory()
 
         self.logger.info("Filehandler initialized.")
 
     def __del__(self):
         """
         Destructor for the filehandler class.
-
         """
         self.logger.info('Filehandler destroyed.')
+        # TODO: Implement saving of self.files to database
 
     def create_file(self, file_name: str, path: str, content: str | bytes):
         """
         Create a file with the given name and content.
-
 
         :param file_name: The name of the file to create.
         :param path: The path to the file.
@@ -87,3 +92,56 @@ class Filehandler(Singleton):
 
         except Exception as e:
             self.logger.error(f"Error: {e} while attempting to update file: {file_name}.")
+
+    def delete_file(self, file_name: str, path: str):
+        """
+        Delete a file.
+
+        :param file_name: The name of the file to delete.
+        :param path: The path to the file.
+        """
+        try:
+            os.remove(self.base_path + path + file_name)
+            self.logger.info(f"File {file_name} deleted.")
+
+        except Exception as e:
+            self.logger.error(f"Error: {e} while attempting to delete file: {file_name}.")
+
+    def _ensure_directory(self, path: str):
+        """
+        Ensure that the directory exists.
+
+        :param path: The path to the directory.
+        """
+        try:
+            if not os.path.exists(self.base_path + path + '/'):
+                os.makedirs(self.base_path + path + '/')
+                self.logger.debug(f"Path {path} created.")
+            elif not os.path.exists(self.base_path):
+                self.logger.debug(f"Issue with base path: {self.base_path}")
+            else:
+                self.logger.debug(f"Path {path} already exists.")
+
+        except Exception as e:
+            self.logger.error(f"Error: {e} while attempting to create directory: {path}.")
+
+    def _scan_directory(self) -> list[str]:
+        """
+        Scan the directory and return a list of all files.
+
+        :return: A list of string paths for all files in the directory.
+        """
+        files = []
+        try:
+            for root, _, file_list in os.walk(self.base_path):
+                for file in file_list:
+                    files.append(os.path.join(root, file))
+
+            self.logger.debug("Directory scan ran successfully")
+
+        except Exception as e:
+            self.logger.error(f"Error: {e} while attempting to scan directory")
+
+        finally:
+            self.logger.debug("Done scanning directory")
+            return files

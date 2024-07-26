@@ -1,18 +1,22 @@
 """
 This module holds the startup configuration for the application.
 """
-import logging
 import os
 import streamlit as st
 # Custom imports
 from config.custom_logger import configure_custom_logger
 from src.email.client import Client
+from src.storage.filehandler import Filehandler
 
 
 def streamlit_session_state():
     """
     This function initializes the session state for the Streamlit application.
     """
+
+    # TODO: Add a check for the existence of the .env file
+    # TODO: Add json configuration file to load the non-sensitive configuration from
+
     # Initialize the counter in session state if it doesn't exist
     st.session_state['rerun_counter'] = 0
 
@@ -31,6 +35,10 @@ def streamlit_session_state():
         username=os.getenv('IMAP_USER'),
         password=os.getenv('IMAP_PASSWORD'),
         inbox=os.getenv('INBOX')
+    )
+
+    st.session_state['filehandler'] = Filehandler.get_instance(
+        base_path=os.getenv('FILESYSTEM_PATH')
     )
 
 

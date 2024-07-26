@@ -23,6 +23,7 @@ def main():
     # Set the logger and mailbox to variables for easy access
     log = st.session_state.logger
     mailbox = st.session_state.mailbox
+    filehandler = st.session_state.filehandler
 
     # Set the page configuration and start the UI
     log.debug('Starting the UI')

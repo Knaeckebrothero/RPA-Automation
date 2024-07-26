@@ -46,6 +46,8 @@ def configure_custom_logger(
     file_handler.setLevel(file_level)
     logger.addHandler(file_handler)
 
+    # TODO: Store logs in database log level
+
     # Console (stream) handler
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)

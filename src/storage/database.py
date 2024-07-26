@@ -11,3 +11,4 @@ class Database(Singleton):
 
     """
     pass
+    # TODO: Store logs in database db level
