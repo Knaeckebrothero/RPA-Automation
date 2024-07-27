@@ -18,16 +18,24 @@ class Filehandler(Singleton):
         """
         Constructor for the filehandler class.
         """
-        self.logger = configure_custom_logger(__name__)
+        self.logger = configure_custom_logger(
+            module_name='filehandler',
+            console_level=int(os.getenv('LOG_LEVEL_CONSOLE')),
+            file_level=int(os.getenv('LOG_LEVEL_FILE')),
+            logging_directory=os.getenv('LOG_PATH') if os.getenv('LOG_PATH') else None
+        )
+        self.logger.debug('Logger initialized')
 
         # Set the base path for the filehandler and ensure that it exists
         self.base_path = base_path if base_path else './filesystem/'
-        self._ensure_directory(base_path)
+        if not self.base_path.endswith('/'):
+            self.base_path += '/'
+        self._ensure_directory()
 
         # Scan the directory for files and store them in a list
         self.files = self._scan_directory()
 
-        self.logger.info("Filehandler initialized.")
+        self.logger.info("Filehandler initialized, base path: " + self.base_path)
 
     def __del__(self):
         """
@@ -36,7 +44,7 @@ class Filehandler(Singleton):
         self.logger.info('Filehandler destroyed.')
         # TODO: Implement saving of self.files to database
 
-    def create_file(self, file_name: str, path: str, content: str | bytes):
+    def create_file(self, path: str, file_name: str, content: str | bytes):
         """
         Create a file with the given name and content.
 
@@ -60,7 +68,7 @@ class Filehandler(Singleton):
         except Exception as e:
             self.logger.error(f"Error: {e} while attempting to create file: {file_name}.")
 
-    def read_file(self, file_name: str, path: str):
+    def read_file(self, path: str, file_name: str):
         """
         Read the content of a file.
 
@@ -77,7 +85,7 @@ class Filehandler(Singleton):
                 self.logger.error(f"Error: {e} while attempting to read file: {file_name}.")
                 return None
 
-    def update_file(self, file_name: str, path: str, content: str | bytes):
+    def update_file(self, path: str, file_name: str, content: str | bytes):
         """
         Update the content of a file.
 
@@ -107,15 +115,21 @@ class Filehandler(Singleton):
         except Exception as e:
             self.logger.error(f"Error: {e} while attempting to delete file: {file_name}.")
 
-    def _ensure_directory(self, path: str):
+    def _ensure_directory(self, path: str = None):
         """
         Ensure that the directory exists.
 
         :param path: The path to the directory.
         """
+        if path is None:
+            path = ''
+        if not path.endswith('/'):
+            path += '/'
+
+        # Ensure that the path exists within the base directory
         try:
-            if not os.path.exists(self.base_path + path + '/'):
-                os.makedirs(self.base_path + path + '/')
+            if not os.path.exists(self.base_path + path):
+                os.makedirs(self.base_path + path)
                 self.logger.debug(f"Path {path} created.")
             elif not os.path.exists(self.base_path):
                 self.logger.debug(f"Issue with base path: {self.base_path}")

@@ -44,8 +44,10 @@ class Client(Singleton):
 
         # Initialize the logger
         self.logger = configure_custom_logger(
-            module_name='mailclient', console_level=log_level, file_level=log_level,
-            logging_directory=os.environ['LOG_PATH'] if os.getenv('LOG_PATH') else None
+            module_name='mailclient',
+            console_level=int(os.getenv('LOG_LEVEL_CONSOLE')),
+            file_level=int(os.getenv('LOG_LEVEL_FILE')),
+            logging_directory=os.getenv('LOG_PATH') if os.getenv('LOG_PATH') else None
         )
         self.logger.debug('Logger initialized')
 

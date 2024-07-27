@@ -23,8 +23,8 @@ def streamlit_session_state():
     # Initialize the logger
     st.session_state['logger'] = configure_custom_logger(
         module_name='main',
-        console_level=int(os.getenv('LOG_LEVEL')),
-        file_level=int(os.getenv('LOG_LEVEL')),
+        console_level=int(os.getenv('LOG_LEVEL_CONSOLE')),
+        file_level=int(os.getenv('LOG_LEVEL_FILE')),
         logging_directory=os.getenv('LOG_PATH') if os.getenv('LOG_PATH') else None
     )
 

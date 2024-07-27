@@ -5,17 +5,14 @@ import logging
 import streamlit as st
 import pandas as pd
 
-# Custom imports
-from src.email.client import Client
 
-
-def home(logger: logging.Logger, mailclient: Client):
+def home(logger: logging.Logger, mails: pd.DataFrame):
     """
     This is the main ui page for the application.
     It serves as a landing page and provides the user with options to navigate the application.
 
     :param logger: The logger object to log messages to.
-    :param mailclient: The mail client object to interact with the mail server.
+    :param mails: The mails to display on the page.
     """
     logger.debug('Rendering home page')
 
@@ -36,35 +33,10 @@ def home(logger: logging.Logger, mailclient: Client):
     st.sidebar.button('About')
     st.sidebar.button('Exit')
 
-    # Get the mails
-    mails = mailclient.get_mails()
-
     # Display the mails
     st.dataframe(mails)
 
-    # TEST STUFF REMOVE LATER!!!
-    import pandas as pd
-    my_dataframe = pd.DataFrame({
-        'first column': [1, 2, 3, 4],
-        'second column': [10, 20, 30, 40]
-    })
+    # TODO: Store the selected documents in the session state so that we don't have to fetch them every time
 
-    data = {'col1': [1, 2, 3, 4], 'col2': [10, 20, 30, 40]}
-
-    st.dataframe(my_dataframe)
-    st.table(data)
-    st.json({"foo": "bar", "fu": "ba"})
-    st.metric("My metric", 42, 2)
-
-    attachments = mailclient.get_attachment(b'1')
-    if attachments:
-        for attachment in attachments:
-            filename = attachment['filename']
-            data = attachment['data']
-
-            # Save the attachment
-            with open(filename, 'wb') as f:
-                f.write(data)
-            print(f"Saved attachment: {filename}")
-    else:
-        print("No attachments found or error occurred.")
+    # Display a multiselect box to select documents to process
+    st.multiselect('Select documents to process', mails['Subject'])

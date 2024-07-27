@@ -25,9 +25,13 @@ def main():
     mailbox = st.session_state.mailbox
     filehandler = st.session_state.filehandler
 
+    # Get the mails
+    mails = mailbox.get_mails()
+    log.info('Mails fetched')
+
     # Set the page configuration and start the UI
     log.debug('Starting the UI')
-    ui.home(log, mailbox)
+    ui.home(log, mails)
     log.debug('UI started')
 
     # Log end of script execution to track streamlit reruns
