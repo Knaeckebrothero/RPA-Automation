@@ -22,6 +22,7 @@ class Client(Singleton):
     """
     _connection = None  # Connection to the mail server
     _log = None  # Logger for the class
+    _decoding_format = 'utf-8'  # 'iso-8859-1'
 
     def __init__(self, imap_server: str, imap_port: int, username: str,
                  password: str, inbox: str = None, *args, **kwargs):
@@ -75,6 +76,12 @@ class Client(Singleton):
 
     def get_inbox(self):
         return self._inbox
+
+    def get__decoding_format(self):
+        return self._decoding_format
+
+    def set_decoding_format(self, decoding_format: str):
+        self._decoding_format = decoding_format
 
     def connect(self, imap_server: str, imap_port: int):
         """
@@ -164,6 +171,7 @@ class Client(Singleton):
 
         email_ids = response[0].split()
         emails_data = []
+        decoding_format = 'utf-8'  # 'iso-8859-1'
 
         # Loop through email ids
         for email_id in email_ids:
@@ -178,7 +186,7 @@ class Client(Singleton):
                     # Get the subject
                     subject = decode_header(email_message['Subject'])[0][0]
                     if isinstance(subject, bytes):
-                        subject = subject.decode()
+                        subject = subject.decode(decoding_format)
 
                     # Get the sender and date
                     sender = email_message['From']
@@ -190,23 +198,23 @@ class Client(Singleton):
 
                             # If the email part is text/plain, extract the body
                             if part.get_content_type() == "text/plain":
-                                body = part.get_payload(decode=True).decode()
+                                body = part.get_payload(decode=True).decode(decoding_format)
                                 break
 
                             # If the email part is html, use BeautifulSoup to extract text
                             elif part.get_content_type() == "text/html":
-                                body = BeautifulSoup(part.get_payload(decode=True).decode(), 'html.parser').get_text()
+                                body = BeautifulSoup(part.get_payload(decode=True).decode(decoding_format), 'html.parser').get_text()
                                 break
                     else:
                         # If the email is not multipart, extract the body
-                        body = email_message.get_payload(decode=True).decode()
+                        body = email_message.get_payload(decode=True).decode(decoding_format)
 
                     # Truncate body to a snippet
                     body_snippet = body[:100] + '...' if len(body) > 100 else body
 
                     # Append the email data to the list
                     emails_data.append({
-                        'ID': email_id.decode(),
+                        'ID': email_id.decode(decoding_format),
                         'Subject': subject,
                         'From': sender,
                         'Date': date,
