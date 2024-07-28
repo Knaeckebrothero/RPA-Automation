@@ -1,60 +1,79 @@
 """
-This file holds the main function for the eBonFetcher application.
+This file holds the main function for the application.
+
+https://docs.streamlit.io/
 """
 import os
-import streamlit as st
 from dotenv import load_dotenv, find_dotenv
-
+import streamlit as st
 # Custom imports
-from src.config.custom_logger import configure_custom_logger
-from src.email.client import Client
-import src.ui.home as ui
+import src.ui as ui
+import config.startup as startup
 
 
-
-# Create a configuration method and move the initialization logic to it
-# Also include env variables in the method so they don't get loaded every time the script runs
-
-
-
+@st.cache_data
+def fetch_mails(_mailbox):
+    return _mailbox.get_mails()
 
 
 def main():
-    # Load the environment variables
-    load_dotenv(find_dotenv())
+    st.set_page_config(
+        layout="wide",
+        page_title="Document Fetcher",
+        initial_sidebar_state="collapsed",
+        page_icon=":page_with_curl:",
+        menu_items={
+            'Get Help': 'https://www.extremelycoolapp.com/help',
+            'Report a bug': "https://www.extremelycoolapp.com/bug",
+            'About': "# This is a header. This is an *extremely* cool app!"
+        }
+    )
 
-    # Initialize the logger
-    if 'logger' not in st.session_state:
-        st.session_state.logger = configure_custom_logger(
-            module_name='main',
-            console_level=int(os.getenv('LOG_LEVEL')),
-            file_level=int(os.getenv('LOG_LEVEL')),
-            logging_directory=os.getenv('LOG_PATH') if os.getenv('LOG_PATH') else None
-        )
-    logger = st.session_state.logger
+    with st.spinner(text="Initializing..."):  # TODO: Fix loading spinner not being formatted correctly
+        # Initialize the session if the counter is not set
+        if 'rerun_counter' not in st.session_state:
+            st.session_state['rerun_counter'] = 0
+            load_dotenv(find_dotenv())
 
-    # Initialize the counter in session state if it doesn't exist
-    if 'rerun_counter' not in st.session_state:
-        st.session_state.rerun_counter = 0
+            # TODO: Add a check for the existence of the .env file
+            # TODO: Add json configuration file to load the non-sensitive configuration from
 
-    # Initialize the mail client
-    if 'mailbox' not in st.session_state:
-        st.session_state.mailbox = Client(
-            imap_server=os.getenv('IMAP_HOST'),
-            imap_port=int(os.getenv('IMAP_PORT')),
-            username=os.getenv('IMAP_USER'),
-            password=os.getenv('IMAP_PASSWORD'),
-            inbox=os.getenv('INBOX')
-        )
-    mailbox = st.session_state.mailbox
+        # Initialize the logger, mail client, and file handler
+        log = startup.get_logger('main')
+        mailbox = startup.get_mailclient()
+        filehandler = startup.get_filehandler()
 
-    # Start the UI
-    logger.debug('Starting the UI')
-    ui.home(logger, mailbox)
+    # Fetch the mails
+    mails = fetch_mails(mailbox)
+    log.debug('Mails fetched')
+
+    # Render the navbar and store the selected page in the session
+    st.session_state['page'] = ui.navbar(log)
+
+    # Render the page based on the selected option
+    match st.session_state.page:
+        case 0:
+            log.debug('Home page selected')
+            ui.home(log, mails)
+        case 1:
+            log.debug('Settings page selected')
+            ui.settings(log)
+        case 2:
+            log.debug('About page selected')
+            # TODO: Implement the about page
+            # Display the contents of the log file in a code block (as a placeholder)
+            with open(os.path.join(os.getenv('LOG_PATH', ''), 'main_log.log'), 'r') as file:
+                st.code(file.read())
+        case _:
+            log.warning(f'Invalid page selected: {st.session_state.page}, defaulting to home page.')
+            ui.home(log, mails)
+            st.session_state['page'] = 0
 
     # Log end of script execution to track streamlit reruns
     st.session_state.rerun_counter += 1
-    logger.info(f'script executed {st.session_state.rerun_counter} times')
+    log.debug(f'script executed {st.session_state.rerun_counter} times')
+    if st.session_state.rerun_counter % 5 == 0:
+        log.info(f'script executed {st.session_state.rerun_counter} times')
 
 
 if __name__ == '__main__':

@@ -2,7 +2,7 @@
 
 # Logs
 /src/config/logs/
-/logs/
+/src/config/filesystem/
 
 # Local environment
 .env
@@ -61,7 +61,7 @@ hs_err_pid*
 application.properties
 
 # JavaScript / React
-logs
+src/config/logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
