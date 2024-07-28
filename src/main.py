@@ -3,10 +3,11 @@ This file holds the main function for the application.
 
 https://docs.streamlit.io/
 """
+import os
 from dotenv import load_dotenv, find_dotenv
 import streamlit as st
 # Custom imports
-import src.ui.home as ui
+import src.ui as ui
 import config.startup as startup
 
 
@@ -28,7 +29,7 @@ def main():
         }
     )
 
-    with st.spinner(text="Initializing..."):
+    with st.spinner(text="Initializing..."):  # TODO: Fix loading spinner not being formatted correctly
         # Initialize the session if the counter is not set
         if 'rerun_counter' not in st.session_state:
             st.session_state['rerun_counter'] = 0
@@ -46,10 +47,27 @@ def main():
     mails = fetch_mails(mailbox)
     log.debug('Mails fetched')
 
-    # Start the UI
-    log.debug('Starting the UI')
-    ui.home(log, mails)
-    log.debug('UI started')
+    # Render the navbar and store the selected page in the session
+    st.session_state['page'] = ui.navbar(log)
+
+    # Render the page based on the selected option
+    match st.session_state.page:
+        case 0:
+            log.debug('Home page selected')
+            ui.home(log, mails)
+        case 1:
+            log.debug('Settings page selected')
+            ui.settings(log)
+        case 2:
+            log.debug('About page selected')
+            # TODO: Implement the about page
+            # Display the contents of the log file in a code block (as a placeholder)
+            with open(os.path.join(os.getenv('LOG_PATH', ''), 'main_log.log'), 'r') as file:
+                st.code(file.read())
+        case _:
+            log.warning(f'Invalid page selected: {st.session_state.page}, defaulting to home page.')
+            ui.home(log, mails)
+            st.session_state['page'] = 0
 
     # Log end of script execution to track streamlit reruns
     st.session_state.rerun_counter += 1

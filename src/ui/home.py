@@ -17,26 +17,20 @@ def home(logger: logging.Logger, mails: pd.DataFrame):
     logger.debug('Rendering home page')
 
     # Page title and description
-    logger.debug('Rendering page title and description')
-    st.title('Document Fetcher')
+    st.header('Document Fetcher')
     st.write('Welcome to the Document Fetcher application!')
-
-    # Sidebar description
-    logger.debug('Rendering sidebar')
-    st.sidebar.title('Options')
-    st.sidebar.write('Please select an option from the list below.')
-
-    # Buttons
-    logger.debug('Rendering buttons')
-    st.sidebar.button('Fetch Documents')
-    st.sidebar.button('Settings')
-    st.sidebar.button('About')
-    st.sidebar.button('Exit')
 
     # Display the mails
     st.dataframe(mails)
 
-    # TODO: Store the selected documents in the session state so that we don't have to fetch them every time
-
     # Display a multiselect box to select documents to process
-    st.multiselect('Select documents to process', mails['Subject'])
+    docs_to_process = st.multiselect('Select documents to process', mails['ID'])
+
+    # Process the selected documents
+    if st.button('Process selected documents'):
+        logger.debug('Processing selected documents...')
+
+        # TODO: Implement the processing logic
+        st.write(f'Processing documents: {docs_to_process}')
+        st.balloons()
+
