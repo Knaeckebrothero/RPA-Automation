@@ -10,26 +10,43 @@ import src.ui.home as ui
 import config.startup as startup
 
 
+@st.cache_data
+def fetch_mails(_mailbox):
+    return _mailbox.get_mails()
+
+
 def main():
-    if 'initialized' not in st.session_state:
-        load_dotenv(find_dotenv())
-        startup.streamlit_session_state()
-        startup.streamlit_page()
+    st.set_page_config(
+        layout="wide",
+        page_title="Document Fetcher",
+        initial_sidebar_state="collapsed",
+        page_icon=":page_with_curl:",
+        menu_items={
+            'Get Help': 'https://www.extremelycoolapp.com/help',
+            'Report a bug': "https://www.extremelycoolapp.com/bug",
+            'About': "# This is a header. This is an *extremely* cool app!"
+        }
+    )
 
-        # Mark the session as initialized
-        st.session_state.initialized = True
-        st.session_state.logger.info('Initialized the session')
+    with st.spinner(text="Initializing..."):
+        # Initialize the session if the counter is not set
+        if 'rerun_counter' not in st.session_state:
+            st.session_state['rerun_counter'] = 0
+            load_dotenv(find_dotenv())
 
-    # Set the logger and mailbox to variables for easy access
-    log = st.session_state.logger
-    mailbox = st.session_state.mailbox
-    filehandler = st.session_state.filehandler
+            # TODO: Add a check for the existence of the .env file
+            # TODO: Add json configuration file to load the non-sensitive configuration from
 
-    # Get the mails
-    mails = mailbox.get_mails()
-    log.info('Mails fetched')
+        # Initialize the logger, mail client, and file handler
+        log = startup.get_logger('main')
+        mailbox = startup.get_mailclient()
+        filehandler = startup.get_filehandler()
 
-    # Set the page configuration and start the UI
+    # Fetch the mails
+    mails = fetch_mails(mailbox)
+    log.debug('Mails fetched')
+
+    # Start the UI
     log.debug('Starting the UI')
     ui.home(log, mails)
     log.debug('UI started')

@@ -1,5 +1,6 @@
 """
-This file holds a custom singleton class that can be used to create singleton instances of classes.
+This file holds a custom singleton class implementation that can be used to
+create singleton instances of classes.
 """
 
 

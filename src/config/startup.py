@@ -9,27 +9,19 @@ from src.email.client import Client
 from src.storage.filehandler import Filehandler
 
 
-def streamlit_session_state():
-    """
-    This function initializes the session state for the Streamlit application.
-    """
-
-    # TODO: Add a check for the existence of the .env file
-    # TODO: Add json configuration file to load the non-sensitive configuration from
-
-    # Initialize the counter in session state if it doesn't exist
-    st.session_state['rerun_counter'] = 0
-
-    # Initialize the logger
-    st.session_state['logger'] = configure_custom_logger(
-        module_name='main',
+@st.cache_resource
+def get_logger(module_name: str):
+    return configure_custom_logger(
+        module_name=module_name,
         console_level=int(os.getenv('LOG_LEVEL_CONSOLE')),
         file_level=int(os.getenv('LOG_LEVEL_FILE')),
         logging_directory=os.getenv('LOG_PATH') if os.getenv('LOG_PATH') else None
     )
 
-    # Initialize the mail client
-    st.session_state['mailbox'] = Client.get_instance(
+
+@st.cache_resource
+def get_mailclient():
+    return Client.get_instance(
         imap_server=os.getenv('IMAP_HOST'),
         imap_port=int(os.getenv('IMAP_PORT')),
         username=os.getenv('IMAP_USER'),
@@ -37,23 +29,9 @@ def streamlit_session_state():
         inbox=os.getenv('INBOX')
     )
 
-    st.session_state['filehandler'] = Filehandler.get_instance(
+
+@st.cache_resource
+def get_filehandler():
+    return Filehandler.get_instance(
         base_path=os.getenv('FILESYSTEM_PATH')
-    )
-
-
-def streamlit_page():
-    """
-    This function initializes the webpage for the Streamlit application.
-    """
-    st.set_page_config(
-        layout="wide",
-        page_title="Doc Fetcher",
-        initial_sidebar_state="collapsed",
-        page_icon=":page_with_curl:",
-        menu_items={
-            'Get Help': 'https://www.extremelycoolapp.com/help',
-            'Report a bug': "https://www.extremelycoolapp.com/bug",
-            'About': "# This is a header. This is an *extremely* cool app!"
-        }
     )
