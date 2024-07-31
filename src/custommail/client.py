@@ -171,7 +171,7 @@ class Client(Singleton):
 
         email_ids = response[0].split()
         emails_data = []
-        decoding_format = 'utf-8'  # 'iso-8859-1'
+        decoding_format = 'iso-8859-1'  # 'utf-8' 'iso-8859-1'
 
         # Loop through custommail ids
         for email_id in email_ids:
