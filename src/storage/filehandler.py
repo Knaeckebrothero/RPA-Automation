@@ -3,8 +3,8 @@ This module holds the filehandler class used to interact with the file system.
 """
 import os
 # Custom imports
-from src.config.singleton import Singleton
-from src.config.custom_logger import configure_custom_logger
+from config.singleton import Singleton
+from config.custom_logger import configure_custom_logger
 
 
 class Filehandler(Singleton):
