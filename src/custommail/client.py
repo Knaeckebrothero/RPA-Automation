@@ -173,12 +173,12 @@ class Client(Singleton):
         emails_data = []
         decoding_format = 'utf-8'  # 'iso-8859-1'
 
-        # Loop through email ids
+        # Loop through custommail ids
         for email_id in email_ids:
-            # Fetch the email
+            # Fetch the custommail
             _, msg_data = self._connection.fetch(email_id, '(RFC822)')
 
-            # Loop through the parts of the email
+            # Loop through the parts of the custommail
             for response_part in msg_data:
                 if isinstance(response_part, tuple):
                     email_message = email.message_from_bytes(response_part[1])
@@ -192,27 +192,27 @@ class Client(Singleton):
                     sender = email_message['From']
                     date = email_message['Date']
 
-                    # Get email body
+                    # Get custommail body
                     if email_message.is_multipart():
                         for part in email_message.walk():
 
-                            # If the email part is text/plain, extract the body
+                            # If the custommail part is text/plain, extract the body
                             if part.get_content_type() == "text/plain":
                                 body = part.get_payload(decode=True).decode(decoding_format)
                                 break
 
-                            # If the email part is html, use BeautifulSoup to extract text
+                            # If the custommail part is html, use BeautifulSoup to extract text
                             elif part.get_content_type() == "text/html":
                                 body = BeautifulSoup(part.get_payload(decode=True).decode(decoding_format), 'html.parser').get_text()
                                 break
                     else:
-                        # If the email is not multipart, extract the body
+                        # If the custommail is not multipart, extract the body
                         body = email_message.get_payload(decode=True).decode(decoding_format)
 
                     # Truncate body to a snippet
                     body_snippet = body[:100] + '...' if len(body) > 100 else body
 
-                    # Append the email data to the list
+                    # Append the custommail data to the list
                     emails_data.append({
                         'ID': email_id.decode(decoding_format),
                         'Subject': subject,
@@ -228,23 +228,23 @@ class Client(Singleton):
 
     def get_attachment(self, email_id) -> list:
         """
-        Method to get the attachments of an email.
+        Method to get the attachments of an custommail.
 
-        :param email_id: The id of the email to get the attachments from.
+        :param email_id: The id of the custommail to get the attachments from.
         :return: A list of attachments or an empty list if no attachments are found.
         """
         try:
-            # Fetch the email
+            # Fetch the custommail
             _, msg_data = self._connection.fetch(email_id, '(RFC822)')
             raw_email = msg_data[0][1]
 
-            # Parse the email
+            # Parse the custommail
             email_message = email.message_from_bytes(raw_email)
 
             # List to store attachments in
             attachments = []
 
-            # Walk through email parts and look for attachments
+            # Walk through custommail parts and look for attachments
             for part in email_message.walk():
                 if part.get_content_maintype() == 'multipart':
                     continue
@@ -271,13 +271,13 @@ class Client(Singleton):
                 })
 
             if attachments:
-                self._log.info(f'Found {len(attachments)} attachments in email {email_id}')
+                self._log.info(f'Found {len(attachments)} attachments in custommail {email_id}')
             else:
-                self._log.warning(f'No attachments found in email {email_id}')
+                self._log.warning(f'No attachments found in custommail {email_id}')
 
             # Return the attachments, if non are found list will be empty
             return attachments
 
         except Exception as e:
-            self._log.error(f"Error processing email {email_id}: {str(e)}")
+            self._log.error(f"Error processing custommail {email_id}: {str(e)}")
             return []

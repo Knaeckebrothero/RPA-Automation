@@ -7,7 +7,7 @@ import os
 from dotenv import load_dotenv, find_dotenv
 import streamlit as st
 # Custom imports
-import src.ui as ui
+import ui
 import config.startup as startup
 
 

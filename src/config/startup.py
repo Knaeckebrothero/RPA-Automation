@@ -5,8 +5,8 @@ import os
 import streamlit as st
 # Custom imports
 from config.custom_logger import configure_custom_logger
-from src.email.client import Client
-from src.storage.filehandler import Filehandler
+from custommail.client import Client
+from storage.filehandler import Filehandler
 
 
 @st.cache_resource
