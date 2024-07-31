@@ -1,6 +1,9 @@
 {
     "name": "Python Tesseract Dev Container",
-    "image": "mcr.microsoft.com/vscode/devcontainers/python:3.9",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": ".."
+    },
     "customizations": {
         "vscode": {
             "settings": {
@@ -11,7 +14,6 @@
             ]
         }
     },
-    "postCreateCommand": "sudo apt-get update && sudo apt-get install -y tesseract-ocr && pip install -r requirements.txt",
     "remoteUser": "vscode",
     "mounts": [
         "source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached"
