@@ -54,7 +54,7 @@ def main():
     match st.session_state.page:
         case 0:
             log.debug('Home page selected')
-            ui.home(log, mails)
+            ui.home(log, mails, mailbox, filehandler)
         case 1:
             log.debug('Settings page selected')
             ui.settings(log)
@@ -66,7 +66,7 @@ def main():
                 st.code(file.read())
         case _:
             log.warning(f'Invalid page selected: {st.session_state.page}, defaulting to home page.')
-            ui.home(log, mails)
+            ui.home(log, mails, mailbox, filehandler)
             st.session_state['page'] = 0
 
     # Log end of script execution to track streamlit reruns

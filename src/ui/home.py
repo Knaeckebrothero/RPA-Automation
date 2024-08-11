@@ -4,15 +4,20 @@ This module holds the main ui page for the application.
 import logging
 import streamlit as st
 import pandas as pd
+from custommail import Client
+from storage.filehandler import Filehandler
+from etl.document import Document
 
 
-def home(logger: logging.Logger, mails: pd.DataFrame):
+def home(logger: logging.Logger, mails: pd.DataFrame, mailclient: Client, filehandler: Filehandler):
     """
     This is the main ui page for the application.
     It serves as a landing page and provides the user with options to navigate the application.
 
     :param logger: The logger object to log messages to.
     :param mails: The mails to display on the page.
+    :param mailclient: The mailclient object to interact with the mail server.
+    :param filehandler: The filehandler object to interact with the file system.
     """
     logger.debug('Rendering home page')
 
@@ -31,6 +36,19 @@ def home(logger: logging.Logger, mails: pd.DataFrame):
         logger.debug('Processing selected documents...')
 
         # TODO: Implement the processing logic
-        st.write(f'Processing documents: {docs_to_process}')
-        st.balloons()
+        for mail_id in docs_to_process:
+            attachments = mailclient.get_attachment(mail_id)
 
+            if not attachments:
+                st.error(f'No attachments found for mail with ID {mail_id}')
+                continue
+            elif len(attachments) > 1:  # TODO: Fix issue with logos being treated as attachments
+                st.warning(f'Mail with ID {mail_id} has multiple attachments. Processing the second one.')
+
+            doc = Document(
+                attachments[1]['data'],
+                filetype=attachments[1]['filename'].split('.')[-1],
+                name=attachments[1]['filename'].split('.')[0]
+            )
+
+            print(doc.__str__())
