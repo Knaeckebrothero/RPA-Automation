@@ -4,5 +4,7 @@ pandas  # Data manipulation magic
 beautifulsoup4  # Dealing with HTML in emails
 opencv-python  # cv2
 pytesseract  # OCR magic
-python-poppler  # Dealing with PDFs
-# pdf2image  # Dealing with PDFs if you don't have poppler
+pdf2image  # Dealing with PDFs
+# Might require updating 
+# sudo apt-get updating mesa
+# sudo apt-get install libgl1-mesa-glx

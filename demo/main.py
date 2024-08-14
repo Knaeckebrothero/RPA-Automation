@@ -72,12 +72,12 @@ if __name__ == "__main__":
                        )
 
     # Set page title
-    st.title("Willkommen im unsichersten programm der Bundesrepublik :smiling_imp:")
+    st.title("Willkommen in der Tesseract demo!")
 
     # File upload
-    pdf_document = st.file_uploader("Um ihre daten fahrlässig preiszugeben bitte hier hochladen! :smiling_imp:")
+    pdf_document = st.file_uploader("Datei hochladen", type=["pdf"])
 
-    if pdf_document:
+    if pdf_document is not None:
         images = convert_from_bytes(pdf_document.read())
 
         for i, image in enumerate(images):
