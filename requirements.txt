@@ -1,6 +1,7 @@
 streamlit  # Web app
 python-dotenv  # .env support
 pandas  # Data manipulation magic
+numpy  # Math magic
 beautifulsoup4  # Dealing with HTML in emails
 opencv-python  # cv2
 pytesseract  # OCR magic

@@ -35,20 +35,27 @@ def home(logger: logging.Logger, mails: pd.DataFrame, mailclient: Client, fileha
     if st.button('Process selected documents'):
         logger.debug('Processing selected documents...')
 
-        # TODO: Implement the processing logic
+        # Iterate over the selected documents
         for mail_id in docs_to_process:
+            logger.debug(f'Processing mail with ID {mail_id}')
             attachments = mailclient.get_attachment(mail_id)
 
+            # Check if attachments are present
             if not attachments:
+                logger.warning(f'No attachments found for mail with ID {mail_id}')
                 st.error(f'No attachments found for mail with ID {mail_id}')
                 continue
-            elif len(attachments) > 1:  # TODO: Fix issue with logos being treated as attachments
-                st.warning(f'Mail with ID {mail_id} has multiple attachments. Processing the second one.')
+            elif len(attachments) > 1:  # TODO: Fix issue with embedded logos being treated as attachments
+                logger.warning(f'Mail with ID {mail_id} has multiple attachments. Processing the first one.')
+                st.warning(f'Mail with ID {mail_id} has multiple attachments. Processing the first one.')
 
-            doc = Document(
+            # TODO: Add a way to check for pdfs and only process those
+
+            # Create a document object
+            doc = Document(  # TODO: Change this back to processing all attachments
                 attachments[1]['data'],
                 filetype=attachments[1]['filename'].split('.')[-1],
                 name=attachments[1]['filename'].split('.')[0]
             )
+            logger.info(f'Created document object {doc.__str__()}')
 
-            print(doc.__str__())
