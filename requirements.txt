@@ -1,4 +1,8 @@
-streamlit
-python-dotenv
-pandas
-beautifulsoup4
+streamlit  # Web app
+python-dotenv  # .env support
+pandas  # Data manipulation magic
+beautifulsoup4  # Dealing with HTML in emails
+opencv-python  # cv2
+pytesseract  # OCR magic
+python-poppler  # Dealing with PDFs
+# pdf2image  # Dealing with PDFs if you don't have poppler
