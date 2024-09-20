@@ -6,7 +6,7 @@ import streamlit as st
 import pandas as pd
 from custommail import Client
 from storage.filehandler import Filehandler
-from etl.document import Document
+from storage.document import Document
 
 
 def home(logger: logging.Logger, mails: pd.DataFrame, mailclient: Client, filehandler: Filehandler):
@@ -45,17 +45,22 @@ def home(logger: logging.Logger, mails: pd.DataFrame, mailclient: Client, fileha
                 logger.warning(f'No attachments found for mail with ID {mail_id}')
                 st.error(f'No attachments found for mail with ID {mail_id}')
                 continue
-            elif len(attachments) > 1:  # TODO: Fix issue with embedded logos being treated as attachments
-                logger.warning(f'Mail with ID {mail_id} has multiple attachments. Processing the first one.')
-                st.warning(f'Mail with ID {mail_id} has multiple attachments. Processing the first one.')
+            elif len(attachments) > 1:
+                logger.warning(f'Mail with ID {mail_id} has {len(attachments)} attachments, processing all of them.')
+                st.warning(f'Mail with ID {mail_id} has {len(attachments)} attachments, processing all of them.')
 
-            # TODO: Add a way to check for pdfs and only process those
+                for attachment in attachments:
+                    if attachment['filename'].split('.')[-1] == 'pdf':
+                        logger.info(f'Processing pdf attachment {attachment["filename"]}')
 
-            # Create a document object
-            doc = Document(  # TODO: Change this back to processing all attachments
-                attachments[1]['data'],
-                filetype=attachments[1]['filename'].split('.')[-1],
-                name=attachments[1]['filename'].split('.')[0]
-            )
-            logger.info(f'Created document object {doc.__str__()}')
+                        doc = Document(
+                            file=attachment['data'],
+                            filetype='pdf',
+                            name=attachment['filename'].split('.')[0]
+                        )
+                        logger.info(f'Created document object from mail: {mail_id}')
 
+                        # Extract text from the document
+                        doc.extract_table_attributes()
+                    else:
+                        logger.info(f'Skipping non-pdf attachment {attachment["filename"]}')

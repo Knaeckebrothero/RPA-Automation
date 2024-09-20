@@ -1,6 +1,7 @@
 """
 This module holds the document class.
 """
+from etl.preprocessing import get_images_from_pdf, detect_tables
 
 
 class Document:
@@ -84,3 +85,16 @@ class Document:
                 self._attributes.pop(attribute)
         else:
             self._attributes.clear()
+
+    def extract_table_attributes(self):
+        """
+        Extract the text from the document.
+        """
+        document_images = get_images_from_pdf(self._raw)
+
+        for image in document_images:
+            tables = detect_tables(image)
+            for table in tables:
+                import streamlit  # TODO: Continue implementation
+                streamlit.image(table)
+
