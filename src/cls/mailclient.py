@@ -1,18 +1,17 @@
 """
 This module holds the mail.Client class.
 """
-import os
+import logging
 import imaplib
 import email
 from email.header import decode_header
 from bs4 import BeautifulSoup
 import pandas as pd
 # Custom imports
-from config.custom_logger import configure_custom_logger
-from config.singleton import Singleton
+from singleton import Singleton
 
 
-class Client(Singleton):
+class Mailclient(Singleton):
     """
     This class is used to connect and interact with the mail server.
     It uses the custom singleton class to ensure only one instance of the class is created.
@@ -25,7 +24,7 @@ class Client(Singleton):
     _decoding_format = 'utf-8'  # 'iso-8859-1'
 
     def __init__(self, imap_server: str, imap_port: int, username: str,
-                 password: str, inbox: str = None, *args, **kwargs):
+                 password: str, logger: logging.Logger, inbox: str = None, *args, **kwargs):
         """
         Automatically connects to the mailclient, using the provided credentials,
         once the class is instantiated.
@@ -37,14 +36,10 @@ class Client(Singleton):
         :param imap_port: The port of the imap server.
         :param username: The username/mail to connect to.
         :param password: The user's password.
+        :param logger: The logger to use for the class.
         :param inbox: Inbox to connect to. Defaults to None.
         """
-        self._log = configure_custom_logger(
-            module_name=__name__,
-            console_level=int(os.getenv('LOG_LEVEL_CONSOLE')),
-            file_level=int(os.getenv('LOG_LEVEL_FILE')),
-            logging_directory=os.getenv('LOG_PATH') if os.getenv('LOG_PATH') else None
-        )
+        self._log = logger
         self._log.debug('Logger initialized')
 
         # Connect to the mail server if not connected already
@@ -173,12 +168,12 @@ class Client(Singleton):
         emails_data = []
         decoding_format = 'iso-8859-1'  # 'utf-8' 'iso-8859-1'
 
-        # Loop through custommail ids
+        # Loop through email ids
         for email_id in email_ids:
-            # Fetch the custommail
+            # Fetch the email
             _, msg_data = self._connection.fetch(email_id, '(RFC822)')
 
-            # Loop through the parts of the custommail
+            # Loop through the parts of the email
             for response_part in msg_data:
                 if isinstance(response_part, tuple):
                     email_message = email.message_from_bytes(response_part[1])
@@ -192,27 +187,27 @@ class Client(Singleton):
                     sender = email_message['From']
                     date = email_message['Date']
 
-                    # Get custommail body
+                    # Get email body
                     if email_message.is_multipart():
                         for part in email_message.walk():
 
-                            # If the custommail part is text/plain, extract the body
+                            # If the email part is text/plain, extract the body
                             if part.get_content_type() == "text/plain":
                                 body = part.get_payload(decode=True).decode(decoding_format)
                                 break
 
-                            # If the custommail part is html, use BeautifulSoup to extract text
+                            # If the email part is html, use BeautifulSoup to extract text
                             elif part.get_content_type() == "text/html":
                                 body = BeautifulSoup(part.get_payload(decode=True).decode(decoding_format), 'html.parser').get_text()
                                 break
                     else:
-                        # If the custommail is not multipart, extract the body
+                        # If the email is not multipart, extract the body
                         body = email_message.get_payload(decode=True).decode(decoding_format)
 
                     # Truncate body to a snippet
                     body_snippet = body[:100] + '...' if len(body) > 100 else body
 
-                    # Append the custommail data to the list
+                    # Append the email data to the list
                     emails_data.append({
                         'ID': email_id.decode(decoding_format),
                         'Subject': subject,
@@ -228,23 +223,23 @@ class Client(Singleton):
 
     def get_attachment(self, email_id) -> list:
         """
-        Method to get the attachments of an custommail.
+        Method to get the attachments of an email.
 
-        :param email_id: The id of the custommail to get the attachments from.
+        :param email_id: The id of the email to get the attachments from.
         :return: A list of attachments or an empty list if no attachments are found.
         """
         try:
-            # Fetch the custommail
+            # Fetch the email
             _, msg_data = self._connection.fetch(email_id, '(RFC822)')
             raw_email = msg_data[0][1]
 
-            # Parse the custommail
+            # Parse the email
             email_message = email.message_from_bytes(raw_email)
 
             # List to store attachments in
             attachments = []
 
-            # Walk through custommail parts and look for attachments
+            # Walk through the email parts and look for attachments
             for part in email_message.walk():
                 if part.get_content_maintype() == 'multipart':
                     continue
@@ -279,5 +274,5 @@ class Client(Singleton):
             return attachments
 
         except Exception as e:
-            self._log.error(f"Error processing custommail {email_id}: {str(e)}")
+            self._log.error(f"Error processing email {email_id}: {str(e)}")
             return []

@@ -1,7 +1,7 @@
 """
 This module holds the document class.
 """
-from etl.preprocessing import get_images_from_pdf, detect_tables
+import src.preprocessing.preprocessing as prp
 
 
 class Document:
@@ -90,11 +90,13 @@ class Document:
         """
         Extract the text from the document.
         """
-        document_images = get_images_from_pdf(self._raw)
+        document_images = prp.get_images_from_pdf(self._raw)
 
         for image in document_images:
-            tables = detect_tables(image)
+            tables = prp.detect_tables(image)
             for table in tables:
                 import streamlit  # TODO: Continue implementation
                 streamlit.image(table)
 
+
+# TODO: Implement the Email and PDF classes!

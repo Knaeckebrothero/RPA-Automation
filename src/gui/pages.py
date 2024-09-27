@@ -3,21 +3,18 @@ This module holds the main ui page for the application.
 """
 import logging
 import streamlit as st
-import pandas as pd
-from custommail import Client
-from storage.filehandler import Filehandler
-from storage.document import Document
+# Custom imports
+from src.cfg.cache import get_emails as emails
+from src.cfg.cache import get_mailclient as mailclient
+from src.cls.document import Document  # TODO: Change this to the appropriate class (e.g. Email for mails).
 
 
-def home(logger: logging.Logger, mails: pd.DataFrame, mailclient: Client, filehandler: Filehandler):
+def home(logger: logging.Logger):
     """
     This is the main ui page for the application.
     It serves as a landing page and provides the user with options to navigate the application.
 
     :param logger: The logger object to log messages to.
-    :param mails: The mails to display on the page.
-    :param mailclient: The mailclient object to interact with the mail server.
-    :param filehandler: The filehandler object to interact with the file system.
     """
     logger.debug('Rendering home page')
 
@@ -26,10 +23,10 @@ def home(logger: logging.Logger, mails: pd.DataFrame, mailclient: Client, fileha
     st.write('Welcome to the Document Fetcher application!')
 
     # Display the mails
-    st.dataframe(mails)
+    st.dataframe(emails)
 
     # Display a multiselect box to select documents to process
-    docs_to_process = st.multiselect('Select documents to process', mails['ID'])
+    docs_to_process = st.multiselect('Select documents to process',emails['ID'])
 
     # Process the selected documents
     if st.button('Process selected documents'):
@@ -64,3 +61,15 @@ def home(logger: logging.Logger, mails: pd.DataFrame, mailclient: Client, fileha
                         doc.extract_table_attributes()
                     else:
                         logger.info(f'Skipping non-pdf attachment {attachment["filename"]}')
+
+def settings(logger: logging.Logger):
+    """
+    This is the settings ui page for the application.
+
+    :param logger: The logger object to log messages to.
+    """
+    logger.debug('Rendering settings page')
+
+    # Page title and description
+    st.header('Settings')
+    st.write('Configure the application settings below.')

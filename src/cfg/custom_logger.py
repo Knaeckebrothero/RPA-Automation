@@ -6,7 +6,7 @@ import os
 import logging
 
 
-def configure_custom_logger(
+def _configure_custom_logger(
         module_name: str,  # = __name__,
         console_level: int = 20,
         file_level: int = 20,

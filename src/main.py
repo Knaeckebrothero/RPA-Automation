@@ -7,13 +7,9 @@ import os
 from dotenv import load_dotenv, find_dotenv
 import streamlit as st
 # Custom imports
-import ui
-import config.startup as startup
-
-
-@st.cache_data
-def fetch_mails(_mailbox):
-    return _mailbox.get_mails()
+import gui.pages as page
+from gui.navbar import navbar
+import src.cfg.cache as cache
 
 
 def main():
@@ -39,25 +35,24 @@ def main():
             # TODO: Add json configuration file to load the non-sensitive configuration from
 
         # Initialize the logger, mail client, and file handler
-        log = startup.get_logger('main')
-        mailbox = startup.get_mailclient()
-        filehandler = startup.get_filehandler()
+        log = cache.get_logger('main')
+        mailbox = cache.get_mailclient()
 
     # Fetch the mails
-    mails = fetch_mails(mailbox)
+    mails = cache.get_emails()
     log.debug('Mails fetched')
 
     # Render the navbar and store the selected page in the session
-    st.session_state['page'] = ui.navbar(log)
+    st.session_state['page'] = navbar(log)
 
     # Render the page based on the selected option
     match st.session_state.page:
         case 0:
             log.debug('Home page selected')
-            ui.home(log, mails, mailbox, filehandler)
+            page.home(log, mailbox)
         case 1:
             log.debug('Settings page selected')
-            ui.settings(log)
+            page.settings(log)
         case 2:
             log.debug('About page selected')
             # TODO: Implement the about page
@@ -66,7 +61,7 @@ def main():
                 st.code(file.read())
         case _:
             log.warning(f'Invalid page selected: {st.session_state.page}, defaulting to home page.')
-            ui.home(log, mails, mailbox, filehandler)
+            page.home(log, mailbox)
             st.session_state['page'] = 0
 
     # Log end of script execution to track streamlit reruns
