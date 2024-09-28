@@ -4,9 +4,9 @@ This module holds the main ui page for the application.
 import logging
 import streamlit as st
 # Custom imports
-from src.cfg.cache import get_emails as emails
-from src.cfg.cache import get_mailclient as mailclient
-from src.cls.document import Document  # TODO: Change this to the appropriate class (e.g. Email for mails).
+from cfg.cache import get_emails as emails
+from cfg.cache import get_mailclient as mailclient
+from cls.document import Document  # TODO: Change this to the appropriate class (e.g. Email for emails)
 
 
 def home(logger: logging.Logger):

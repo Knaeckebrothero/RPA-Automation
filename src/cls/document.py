@@ -1,7 +1,7 @@
 """
 This module holds the document class.
 """
-import src.preprocessing.preprocessing as prp
+import preprocessing.preprocessing as prp
 
 
 class Document:

@@ -8,7 +8,7 @@ from email.header import decode_header
 from bs4 import BeautifulSoup
 import pandas as pd
 # Custom imports
-from singleton import Singleton
+from cls.singleton import Singleton
 
 
 class Mailclient(Singleton):

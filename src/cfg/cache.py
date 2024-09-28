@@ -9,8 +9,8 @@ https://docs.streamlit.io/develop/concepts/architecture/caching
 import os
 import streamlit as st
 # Custom imports
-from custom_logger import _configure_custom_logger  # Custom logger is only to be used in this module!!!
-from src.cls import Mailclient
+from cfg.custom_logger import _configure_custom_logger  # Custom logger is only to be used in this module!!!
+import cls
 
 
 @st.cache_resource
@@ -57,7 +57,7 @@ def get_mailclient(
 
     :return: The mail client instance.
     """
-    return Mailclient.get_instance(
+    return cls.Mailclient.get_instance(
         imap_server=imap_server if imap_server else os.getenv('IMAP_HOST'),
         imap_port=imap_port if imap_port else int(os.getenv('IMAP_PORT')),
         username=username if username else os.getenv('IMAP_USER'),

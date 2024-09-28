@@ -9,7 +9,7 @@ import streamlit as st
 # Custom imports
 import gui.pages as page
 from gui.navbar import navbar
-import src.cfg.cache as cache
+import cfg.cache as cache
 
 
 def main():
