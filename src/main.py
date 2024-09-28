@@ -13,6 +13,8 @@ import cfg.cache as cache
 
 
 def main():
+    print('main.py executed')
+
     st.set_page_config(
         layout="wide",
         page_title="Document Fetcher",
@@ -24,6 +26,7 @@ def main():
             'About': "# This is a header. This is an *extremely* cool app!"
         }
     )
+    print('page config set')
 
     with st.spinner(text="Initializing..."):  # TODO: Fix loading spinner not being formatted correctly
         # Initialize the session if the counter is not set
@@ -35,7 +38,7 @@ def main():
             # TODO: Add json configuration file to load the non-sensitive configuration from
 
         # Initialize the logger, mail client, and file handler
-        log = cache.get_logger('main')
+        log = cache.get_logger(module_name='main')
         mailbox = cache.get_mailclient()
 
     # Fetch the mails
@@ -49,7 +52,7 @@ def main():
     match st.session_state.page:
         case 0:
             log.debug('Home page selected')
-            page.home(log, mailbox)
+            page.home(log)
         case 1:
             log.debug('Settings page selected')
             page.settings(log)
@@ -61,7 +64,7 @@ def main():
                 st.code(file.read())
         case _:
             log.warning(f'Invalid page selected: {st.session_state.page}, defaulting to home page.')
-            page.home(log, mailbox)
+            page.home(log)
             st.session_state['page'] = 0
 
     # Log end of script execution to track streamlit reruns

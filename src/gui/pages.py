@@ -4,8 +4,8 @@ This module holds the main ui page for the application.
 import logging
 import streamlit as st
 # Custom imports
-from cfg.cache import get_emails as emails
-from cfg.cache import get_mailclient as mailclient
+from cfg.cache import get_emails
+from cfg.cache import get_mailclient
 from cls.document import Document  # TODO: Change this to the appropriate class (e.g. Email for emails)
 
 
@@ -21,6 +21,10 @@ def home(logger: logging.Logger):
     # Page title and description
     st.header('Document Fetcher')
     st.write('Welcome to the Document Fetcher application!')
+
+    # Fetch the emails and client
+    emails = get_emails()
+    mailclient = get_mailclient()
 
     # Display the mails
     st.dataframe(emails)

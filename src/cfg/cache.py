@@ -30,8 +30,8 @@ def get_logger(module_name: str):
     """
     return _configure_custom_logger(
         module_name=module_name,
-        console_level=int(os.getenv('LOG_LEVEL_CONSOLE')),
-        file_level=int(os.getenv('LOG_LEVEL_FILE')),
+        console_level=int(os.getenv('LOG_LEVEL_CONSOLE')) if os.getenv('LOG_LEVEL_CONSOLE') else 20,
+        file_level=int(os.getenv('LOG_LEVEL_FILE')) if os.getenv('LOG_LEVEL_FILE') else 20,
         logging_directory=os.getenv('LOG_PATH') if os.getenv('LOG_PATH') else None
     )
 
@@ -42,6 +42,7 @@ def get_mailclient(
         imap_port: int = None,
         username: str = None,
         password: str = None,
+        logger=get_logger(module_name='mailclient'),
         inbox: str = None
 ):
     """
@@ -53,6 +54,7 @@ def get_mailclient(
     :param imap_port: The IMAP port.
     :param username: The username.
     :param password: The password.
+    :param logger: The logger.
     :param inbox: The inbox.
 
     :return: The mail client instance.
@@ -62,12 +64,7 @@ def get_mailclient(
         imap_port=imap_port if imap_port else int(os.getenv('IMAP_PORT')),
         username=username if username else os.getenv('IMAP_USER'),
         password=password if password else os.getenv('IMAP_PASSWORD'),
-        logger=get_logger(
-            module_name='Mailclient',
-            console_level=int(os.getenv('LOG_LEVEL_CONSOLE')),
-            file_level=int(os.getenv('LOG_LEVEL_FILE')),
-            logging_directory=os.getenv('LOG_PATH') if os.getenv('LOG_PATH') else None
-        ),
+        logger=logger,
         inbox=inbox if inbox else os.getenv('INBOX')
     )
 
@@ -79,4 +76,4 @@ def get_emails():
 
     :return: The emails fetched from the mail client.
     """
-    return get_mailclient.get_mails()
+    return get_mailclient().get_mails()
