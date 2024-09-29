@@ -9,31 +9,7 @@ https://docs.streamlit.io/develop/concepts/architecture/caching
 import os
 import streamlit as st
 # Custom imports
-from cfg.custom_logger import _configure_custom_logger  # Custom logger is only to be used in this module!!!
 import cls
-
-
-@st.cache_resource
-def get_logger(module_name: str):
-    """
-    Get a logger instance for the specified module.
-
-    This one is particularly important to prevent the logger from being duplicated
-    and therefore causing the log file to be bloated.
-    Since the logger isn't a singleton,
-    it would be re-initialized on every action due to the way Streamlit works.
-    Therefore, the _configure_custom_logger function is only to be used in the module.
-    All other modules should use the get_logger function to cache their logger instances.
-
-    :param module_name: The name of the module.
-    :return: The logger instance.
-    """
-    return _configure_custom_logger(
-        module_name=module_name,
-        console_level=int(os.getenv('LOG_LEVEL_CONSOLE')) if os.getenv('LOG_LEVEL_CONSOLE') else 20,
-        file_level=int(os.getenv('LOG_LEVEL_FILE')) if os.getenv('LOG_LEVEL_FILE') else 20,
-        logging_directory=os.getenv('LOG_PATH') if os.getenv('LOG_PATH') else None
-    )
 
 
 @st.cache_resource
@@ -42,7 +18,6 @@ def get_mailclient(
         imap_port: int = None,
         username: str = None,
         password: str = None,
-        logger=get_logger(module_name='mailclient'),
         inbox: str = None
 ):
     """
@@ -64,7 +39,6 @@ def get_mailclient(
         imap_port=imap_port if imap_port else int(os.getenv('IMAP_PORT')),
         username=username if username else os.getenv('IMAP_USER'),
         password=password if password else os.getenv('IMAP_PASSWORD'),
-        logger=logger,
         inbox=inbox if inbox else os.getenv('INBOX')
     )
 

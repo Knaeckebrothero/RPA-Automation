@@ -6,7 +6,7 @@ import os
 import logging
 
 
-def _configure_custom_logger(
+def configure_custom_logger(
         module_name: str,  # = __name__,
         console_level: int = 20,
         file_level: int = 20,
@@ -32,7 +32,7 @@ def _configure_custom_logger(
 
     # Set and create the logging directory if it does not exist
     if logging_directory is None:
-        logging_directory = './config/logs/'
+        logging_directory = './logs/'
     if not os.path.exists(logging_directory):
         os.makedirs(logging_directory)
 
@@ -40,7 +40,7 @@ def _configure_custom_logger(
     if separate_log_file:
         file_handler = logging.FileHandler(logging_directory + module_name + '.log')
     else:
-        file_handler = logging.FileHandler(logging_directory + 'main_log.log')
+        file_handler = logging.FileHandler(logging_directory + 'log.log')
 
     file_handler.setFormatter(formatter)
     file_handler.setLevel(file_level)

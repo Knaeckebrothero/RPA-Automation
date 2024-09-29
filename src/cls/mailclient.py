@@ -1,6 +1,7 @@
 """
 This module holds the mail.Client class.
 """
+import os
 import logging
 import imaplib
 import email
@@ -9,6 +10,7 @@ from bs4 import BeautifulSoup
 import pandas as pd
 # Custom imports
 from cls.singleton import Singleton
+from cfg.custom_logger import configure_custom_logger
 
 
 class Mailclient(Singleton):
@@ -24,7 +26,7 @@ class Mailclient(Singleton):
     _decoding_format = 'utf-8'  # 'iso-8859-1'
 
     def __init__(self, imap_server: str, imap_port: int, username: str,
-                 password: str, logger: logging.Logger, inbox: str = None, *args, **kwargs):
+                 password: str, inbox: str = None, *args, **kwargs):
         """
         Automatically connects to the mailclient, using the provided credentials,
         once the class is instantiated.
@@ -39,7 +41,11 @@ class Mailclient(Singleton):
         :param logger: The logger to use for the class.
         :param inbox: Inbox to connect to. Defaults to None.
         """
-        self._log = logger
+        self._log = configure_custom_logger(
+            module_name=__name__,
+            console_level=int(os.getenv('LOG_LEVEL_CONSOLE')),
+            file_level=int(os.getenv('LOG_LEVEL_FILE')),
+            logging_directory=os.getenv('LOG_PATH'))
         self._log.debug('Logger initialized')
 
         # Connect to the mail server if not connected already
