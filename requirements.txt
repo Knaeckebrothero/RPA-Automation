@@ -4,8 +4,9 @@ pandas  # Data manipulation magic
 numpy  # Math magic
 beautifulsoup4  # Dealing with HTML in emails
 opencv-python  # cv2
-pytesseract  # OCR magic
 pdf2image  # Dealing with PDFs
+pytesseract  # OCR magic
+# easyocr  # OCR alternative
 # Might require updating 
 # sudo apt-get updating mesa
 # sudo apt-get install libgl1-mesa-glx

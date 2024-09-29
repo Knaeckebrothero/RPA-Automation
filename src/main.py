@@ -7,13 +7,10 @@ import os
 from dotenv import load_dotenv, find_dotenv
 import streamlit as st
 # Custom imports
-import ui
-import config.startup as startup
-
-
-@st.cache_data
-def fetch_mails(_mailbox):
-    return _mailbox.get_mails()
+from cfg.custom_logger import configure_custom_logger
+import gui.pages as page
+from gui.navbar import navbar
+import cfg.cache as cache
 
 
 def main():
@@ -38,35 +35,31 @@ def main():
             # TODO: Add a check for the existence of the .env file
             # TODO: Add json configuration file to load the non-sensitive configuration from
 
-        # Initialize the logger, mail client, and file handler
-        log = startup.get_logger('main')
-        mailbox = startup.get_mailclient()
-        filehandler = startup.get_filehandler()
-
-    # Fetch the mails
-    mails = fetch_mails(mailbox)
-    log.debug('Mails fetched')
+        # Initialize the logger
+        log = configure_custom_logger(
+            module_name=__name__,
+            console_level=int(os.getenv('LOG_LEVEL_CONSOLE', 20)),
+            file_level=int(os.getenv('LOG_LEVEL_FILE', 0)),
+            logging_directory=os.getenv('LOG_PATH', None))
+        log.debug('Logger initialized')
 
     # Render the navbar and store the selected page in the session
-    st.session_state['page'] = ui.navbar(log)
+    st.session_state['page'] = navbar()
 
     # Render the page based on the selected option
     match st.session_state.page:
         case 0:
             log.debug('Home page selected')
-            ui.home(log, mails, mailbox, filehandler)
+            page.home()
         case 1:
             log.debug('Settings page selected')
-            ui.settings(log)
+            page.settings()
         case 2:
             log.debug('About page selected')
-            # TODO: Implement the about page
-            # Display the contents of the log file in a code block (as a placeholder)
-            with open(os.path.join(os.getenv('LOG_PATH', ''), 'main_log.log'), 'r') as file:
-                st.code(file.read())
+            page.about()
         case _:
             log.warning(f'Invalid page selected: {st.session_state.page}, defaulting to home page.')
-            ui.home(log, mails, mailbox, filehandler)
+            page.home()
             st.session_state['page'] = 0
 
     # Log end of script execution to track streamlit reruns

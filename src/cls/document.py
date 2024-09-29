@@ -1,7 +1,10 @@
 """
 This module holds the document class.
 """
-from etl.preprocessing import get_images_from_pdf, detect_tables
+import os
+import preprocessing.preprocessing as prp
+# Custom imports
+from cfg.custom_logger import configure_custom_logger
 
 
 class Document:
@@ -9,6 +12,9 @@ class Document:
     The Document class represents a document.
     It holds the file, text, attributes, name, and type of the document.
     """
+    _logger = None
+
+
     def __init__(self, file: bytes, filetype: str = None, name: str = None):
         """
         The constructor for the Document class.
@@ -17,11 +23,20 @@ class Document:
         :param filetype: The type of the file.
         :param name: The name of the file.
         """
+        if not Document._logger:
+            Document._logger = configure_custom_logger(
+                module_name=__name__,
+                console_level=int(os.getenv('LOG_LEVEL_CONSOLE')),
+                file_level=int(os.getenv('LOG_LEVEL_FILE')),
+                logging_directory=os.getenv('LOG_PATH')
+            )
+            Document._logger.debug('Logger initialized')
         self._filetype: str = filetype
         self._name: str = name
         self._raw: bytes = file
         self._text: str = ""
         self._attributes: dict = {}
+        Document._logger.debug(f"Document created: {self._name}, {self._filetype}")
 
     def __str__(self):
         string_form = f"Document: {self._name}, {self._filetype}, {len(self._attributes.keys())} attributes"
@@ -90,11 +105,13 @@ class Document:
         """
         Extract the text from the document.
         """
-        document_images = get_images_from_pdf(self._raw)
+        document_images = prp.get_images_from_pdf(self._raw)
 
         for image in document_images:
-            tables = detect_tables(image)
+            tables = prp.detect_tables(image)
             for table in tables:
                 import streamlit  # TODO: Continue implementation
                 streamlit.image(table)
 
+
+# TODO: Implement the Email and PDF classes!
