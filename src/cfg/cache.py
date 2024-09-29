@@ -29,7 +29,6 @@ def get_mailclient(
     :param imap_port: The IMAP port.
     :param username: The username.
     :param password: The password.
-    :param logger: The logger.
     :param inbox: The inbox.
 
     :return: The mail client instance.

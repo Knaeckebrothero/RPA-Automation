@@ -5,17 +5,18 @@ import os
 import preprocessing.preprocessing as prp
 # Custom imports
 from cfg.custom_logger import configure_custom_logger
+from document import Document
 
 
-class Document:
+class Pdf(Document):
     """
-    The Document class represents a document.
+    The Pdf class represents a pdf document.
     It holds the file, text, attributes, name, and type of the document.
     """
     _logger = None
 
 
-    def __init__(self, content: bytes, attributes: dict = None):
+    def __init__(self, file: bytes, filetype: str = None, name: str = None):
         """
         The constructor for the Document class.
 
@@ -23,6 +24,7 @@ class Document:
         :param filetype: The type of the file.
         :param name: The name of the file.
         """
+        super().__init__(file, filetype, name)
         if not Document._logger:
             Document._logger = configure_custom_logger(
                 module_name=__name__,
@@ -31,13 +33,15 @@ class Document:
                 logging_directory=os.getenv('LOG_PATH')
             )
             Document._logger.debug('Logger initialized')
-        self._content: bytes = content
-        self._attributes: dict = attributes if attributes else {}
+        self._filetype: str = filetype
+        self._name: str = name
+        self._raw: bytes = file
+        self._text: str = ""
+        self._attributes: dict = {}
         Document._logger.debug(f"Document created: {self._name}, {self._filetype}")
 
     def __str__(self):
-        string_form = (f"Document: of size {len(self._content)} bytes, with: {len(self._attributes.keys())} "
-                       f"number of attributes.")
+        string_form = f"Document: {self._name}, {self._filetype}, {len(self._attributes.keys())} attributes"
         return string_form
 
     def get_type(self) -> str:
@@ -110,6 +114,3 @@ class Document:
             for table in tables:
                 import streamlit  # TODO: Continue implementation
                 streamlit.image(table)
-
-
-# TODO: Implement the Email class!

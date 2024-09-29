@@ -32,6 +32,9 @@ def main():
             st.session_state['rerun_counter'] = 0
             load_dotenv(find_dotenv())
 
+            # Fetch the mails and store them in the cache
+            cache.get_emails()
+
             # TODO: Add a check for the existence of the .env file
             # TODO: Add json configuration file to load the non-sensitive configuration from
 
