@@ -1,8 +1,7 @@
 # Projecspecific contents go here
 
-# Logs
-/src/cfg/logs/
-/src/cfg/filesystem/
+# Logs & working directories
+.filesystem/
 
 # Local environment
 .env

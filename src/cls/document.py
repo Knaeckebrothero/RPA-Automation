@@ -2,15 +2,14 @@
 This module holds the document class.
 """
 import os
-import preprocessing.preprocessing as prp
 # Custom imports
+import preprocessing.preprocessing as prp
 from cfg.custom_logger import configure_custom_logger
 
 
 class Document:
     """
     The Document class represents a document.
-    It holds the file, text, attributes, name, and type of the document.
     """
     _logger = None
 
@@ -19,9 +18,8 @@ class Document:
         """
         The constructor for the Document class.
 
-        :param file: The file to be processed.
-        :param filetype: The type of the file.
-        :param name: The name of the file.
+        :param content: The raw content of the document.
+        :param attributes: A set of attributes for the document.
         """
         if not Document._logger:
             Document._logger = configure_custom_logger(
@@ -33,26 +31,17 @@ class Document:
             Document._logger.debug('Logger initialized')
         self._content: bytes = content
         self._attributes: dict = attributes if attributes else {}
-        Document._logger.debug(f"Document created: {self._name}, {self._filetype}")
+        Document._logger.debug(f"Document created: {len(self._content)}, {len(self._attributes.keys())}")
 
     def __str__(self):
         string_form = (f"Document: of size {len(self._content)} bytes, with: {len(self._attributes.keys())} "
                        f"number of attributes.")
         return string_form
 
-    def get_type(self) -> str:
-        return self._filetype
+    def get_content(self) -> bytes:
+        return self._content
 
-    def get_name(self) -> str:
-        return self._name
-
-    def get_file(self) -> bytes:
-        return self._raw
-
-    def get_text(self) -> str:
-        return self._text
-
-    def get_attributes(self, attributes: list[str] = None) -> dict:
+    def get_attributes(self, attributes: str | list[str] = None) -> dict:
         """
         Get the attributes of the document.
         If a list of attributes is provided, only those attributes will be returned.
@@ -60,16 +49,12 @@ class Document:
         :param attributes: Optional list of attributes to return.
         :return: All attributes of the document. Or only the attributes in the list.
         """
-        if attributes:
+        if attributes and isinstance(attributes, list):
             return {key: value for key, value in self._attributes.items() if key in attributes}
+        elif attributes and isinstance(attributes, str):
+            return {attributes: self._attributes[attributes]}
         else:
             return self._attributes
-
-    def set_type(self, filetype: str):
-        self._filetype = filetype
-
-    def set_name(self, name: str):
-        self._name = name
 
     def add_attributes(self, attributes: dict):
         """
@@ -103,13 +88,10 @@ class Document:
         """
         Extract the text from the document.
         """
-        document_images = prp.get_images_from_pdf(self._raw)
+        document_images = prp.get_images_from_pdf(self._content)
 
         for image in document_images:
             tables = prp.detect_tables(image)
             for table in tables:
                 import streamlit  # TODO: Continue implementation
                 streamlit.image(table)
-
-
-# TODO: Implement the Email class!

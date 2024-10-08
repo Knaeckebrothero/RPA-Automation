@@ -1,5 +1,5 @@
 """
-This module holds the document class.
+This module holds the Pdf class.
 """
 import os
 import preprocessing.preprocessing as prp
@@ -11,7 +11,6 @@ from document import Document
 class Pdf(Document):
     """
     The Pdf class represents a pdf document.
-    It holds the file, text, attributes, name, and type of the document.
     """
     _logger = None
 

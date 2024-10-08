@@ -2,7 +2,6 @@
 This module holds the mail.Client class.
 """
 import os
-import logging
 import imaplib
 import email
 from email.header import decode_header
@@ -10,6 +9,7 @@ from bs4 import BeautifulSoup
 import pandas as pd
 # Custom imports
 from cls.singleton import Singleton
+from cls.document import Document
 from cfg.custom_logger import configure_custom_logger
 
 
@@ -227,7 +227,7 @@ class Mailclient(Singleton):
         self._log.info(f'Retrieved {len(df)} emails')
         return df
 
-    def get_attachment(self, email_id) -> list:
+    def get_attachments(self, email_id) -> list:
         """
         Method to get the attachments of an email.
 
@@ -266,10 +266,16 @@ class Mailclient(Singleton):
                 attachment_data = part.get_payload(decode=True)
 
                 # Append the attachment to the list
-                attachments.append({
-                    'filename': filename,
-                    'data': attachment_data
-                })
+                attachments.append(Document(
+                    content=attachment_data,
+                    attributes={
+                        'filename': filename,
+                        'email_id': email_id,
+                        'content_type': part.get_content_type(),
+                        'sender': email_message['From'],
+                        # 'date': email_message['Date'],
+                    }
+                ))
 
             if attachments:
                 self._log.info(f'Found {len(attachments)} attachments in custommail {email_id}')

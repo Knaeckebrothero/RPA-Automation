@@ -1,5 +1,5 @@
 """
 This package is a collection of classes used by the application.
 """
-from mailclient import Mailclient
-from pdf import Pdf
+from cls.mailclient import Mailclient
+from cls.document import Document

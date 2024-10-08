@@ -48,7 +48,7 @@ def home():
         # Iterate over the selected documents
         for mail_id in docs_to_process:
             log.debug(f'Processing mail with ID {mail_id}')
-            attachments = mailclient.get_attachment(mail_id)
+            attachments = mailclient.get_attachments(mail_id)
 
             # Check if attachments are present
             if not attachments:
@@ -60,18 +60,10 @@ def home():
                 st.warning(f'Mail with ID {mail_id} has {len(attachments)} attachments, processing all of them.')
 
                 for attachment in attachments:
-                    if attachment['filename'].split('.')[-1] == 'pdf':
-                        log.info(f'Processing pdf attachment {attachment["filename"]}')
-
-                        doc = Document(
-                            file=attachment['data'],
-                            filetype='pdf',
-                            name=attachment['filename'].split('.')[0]
-                        )
-                        log.info(f'Created document object from mail: {mail_id}')
-
+                    if attachment.get_attributes('content_type') == 'application/pdf':
+                        log.info(f'Processing pdf attachment {attachment.get_attributes("filename")}')
                         # Extract text from the document
-                        doc.extract_table_attributes()
+                        attachment.extract_table_attributes()
                     else:
                         log.info(f'Skipping non-pdf attachment {attachment["filename"]}')
 
