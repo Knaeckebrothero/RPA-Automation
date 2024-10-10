@@ -3,7 +3,7 @@ This module holds the document class.
 """
 import cv2
 import numpy as np
-import logging as log
+import logging
 from pdf2image import convert_from_bytes
 
 # Custom imports
@@ -12,7 +12,7 @@ from preprocessing.ocr import ocr_cell
 
 
 # Set up logging
-# log  = logging.getLogger(__name__)
+log  = logging.getLogger(__name__)
 
 
 class Document:

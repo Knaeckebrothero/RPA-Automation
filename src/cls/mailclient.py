@@ -2,7 +2,7 @@
 This module holds the mail.Client class.
 """
 import os
-import logging as log
+import logging
 import imaplib
 import email
 from email.header import decode_header
@@ -14,7 +14,7 @@ from cls.document import Document
 
 
 # Set up logging
-# log = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 class Mailclient(Singleton):

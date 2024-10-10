@@ -73,5 +73,5 @@ def about():
     This is the about ui page for the application.
     """
     # Display the contents of the log file in a code block (as a placeholder)
-    with open(os.path.join(os.getenv('LOG_PATH', ''), 'log.log'), 'r') as file:
+    with open(os.path.join(os.getenv('LOG_PATH', ''), 'application.log'), 'r') as file:
         st.code(file.read())
