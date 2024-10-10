@@ -5,6 +5,7 @@ import os
 # Custom imports
 import preprocessing.preprocessing as prp
 from cfg.custom_logger import configure_custom_logger
+from preprocessing.ocr import get_text_from_image_array
 
 
 class Document:
@@ -88,10 +89,30 @@ class Document:
         """
         Extract the text from the document.
         """
-        document_images = prp.get_images_from_pdf(self._content)
+        bgr_images = prp.get_bgr_images_from_pdf(self._content)
 
-        for image in document_images:
-            tables = prp.detect_tables(image)
-            for table in tables:
-                import streamlit  # TODO: Continue implementation
-                streamlit.image(table)
+        for image in bgr_images:
+            table_contours = prp.detect_tables(image)
+            self._logger.debug(f"Number of tables detected: {len(table_contours)}")
+
+            for table in table_contours:
+                rows = prp.detect_rows(image, table)
+                self._logger.debug(f"Number of rows detected: {len(rows)}")
+
+                table_data = []
+
+                # Process each detected row
+                for k, (y1, y2) in enumerate(rows):
+
+
+                    # Detect cells in the row
+                    cells = detect_cells(row_image)
+
+                    row_data = []
+                    for m, (x1, x2) in enumerate(cells):
+                        cell_image = row_image[:, x1:x2]
+                        cell_text = ocr_cell(cell_image)
+                        row_data.append(cell_text)
+
+                    table_data.append(row_data)
+

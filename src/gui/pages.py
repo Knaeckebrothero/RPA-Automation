@@ -7,9 +7,9 @@ import streamlit as st
 from cfg.custom_logger import configure_custom_logger
 from cfg.cache import get_emails
 from cfg.cache import get_mailclient
-from cls.document import Document  # TODO: Change this to the appropriate class (e.g. Email for emails)
 
 
+@st.cache_resource
 def _setup_logger():
     log = configure_custom_logger(
         module_name=__name__,
@@ -18,6 +18,7 @@ def _setup_logger():
         logging_directory=os.getenv('LOG_PATH', None))
     log.debug('Logger initialized')
     return log
+
 
 def home():
     """
@@ -60,12 +61,13 @@ def home():
                 st.warning(f'Mail with ID {mail_id} has {len(attachments)} attachments, processing all of them.')
 
                 for attachment in attachments:
-                    if attachment.get_attributes('content_type') == 'application/pdf':
+                    if attachment.get_attributes('content_type')['content_type'] == 'application/pdf':
                         log.info(f'Processing pdf attachment {attachment.get_attributes("filename")}')
                         # Extract text from the document
                         attachment.extract_table_attributes()
                     else:
-                        log.info(f'Skipping non-pdf attachment {attachment["filename"]}')
+                        log.info(f'Skipping non-pdf attachment {attachment.get_attributes("content_type")['content_type']}')
+
 
 def settings():
     """
@@ -77,6 +79,7 @@ def settings():
     # Page title and description
     st.header('Settings')
     st.write('Configure the application settings below.')
+
 
 def about():
     """
