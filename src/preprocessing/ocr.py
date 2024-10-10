@@ -4,7 +4,6 @@ This module holds methods to extract text from images.
 import cv2
 import pytesseract
 from PIL import Image
-from preprocessing.preprocessing import detect_cells
 
 
 def ocr_cell(cell_image):
@@ -13,5 +12,3 @@ def ocr_cell(cell_image):
     # Perform OCR
     text = pytesseract.image_to_string(pil_image)  # , config='--psm 6'
     return text.strip()
-
-

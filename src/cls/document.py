@@ -1,11 +1,14 @@
 """
 This module holds the document class.
 """
+import cv2
+import numpy as np
 import os
 # Custom imports
 import preprocessing.preprocessing as prp
 from cfg.custom_logger import configure_custom_logger
-from preprocessing.ocr import get_text_from_image_array
+from preprocessing.ocr import ocr_cell
+
 
 
 class Document:
@@ -89,24 +92,55 @@ class Document:
         """
         Extract the text from the document.
         """
-        bgr_images = prp.get_bgr_images_from_pdf(self._content)
+        import streamlit as st
 
-        for image in bgr_images:
-            table_contours = prp.detect_tables(image)
-            self._logger.debug(f"Number of tables detected: {len(table_contours)}")
+        images = prp.convert_from_bytes(self._content)
 
-            for table in table_contours:
-                rows = prp.detect_rows(image, table)
-                self._logger.debug(f"Number of rows detected: {len(rows)}")
+        for i, image in enumerate(images):
+            np_image = np.array(image)
+            bgr_image = cv2.cvtColor(np_image, cv2.COLOR_RGB2BGR)
+
+            # Detect tables
+            table_contours = prp.detect_tables(bgr_image)
+
+            # Draw table boundaries
+            result_image = bgr_image.copy()
+            cv2.drawContours(result_image, table_contours, -1, (0, 255, 0), 3)
+
+            # Display original and processed images (keep your existing display code)
+            st.image(image, caption=f"Original - Page {i + 1}", use_column_width=False, width=500)
+            st.image(cv2.cvtColor(result_image, cv2.COLOR_BGR2RGB),
+                     caption=f"Detected Tables - Page {i + 1}",
+                     use_column_width=False, width=500)
+
+            st.write(f"Number of tables detected on page {i + 1}: {len(table_contours)}")
+
+            # Process each detected table
+            for j, contour in enumerate(table_contours):
+                x, y, w, h = cv2.boundingRect(contour)
+                table_roi = bgr_image[y:y + h, x:x + w]
+
+                st.write(f"Table {j + 1} on Page {i + 1}")
+                st.image(cv2.cvtColor(table_roi, cv2.COLOR_BGR2RGB),
+                         caption=f"Table {j + 1}",
+                         use_column_width=False, width=500)
+
+                # Detect rows in the table
+                rows = prp.detect_rows(table_roi)
+
+                st.write(f"Number of rows detected: {len(rows)}")
 
                 table_data = []
 
                 # Process each detected row
                 for k, (y1, y2) in enumerate(rows):
-
+                    row_image = table_roi[y1:y2, :]
+                    st.image(cv2.cvtColor(row_image, cv2.COLOR_BGR2RGB),
+                             caption=f"Row {k + 1}",
+                             use_column_width=False)
 
                     # Detect cells in the row
-                    cells = detect_cells(row_image)
+                    cells = prp.detect_cells(row_image)
 
                     row_data = []
                     for m, (x1, x2) in enumerate(cells):
@@ -116,3 +150,8 @@ class Document:
 
                     table_data.append(row_data)
 
+                # Display extracted data in a Streamlit table
+                st.write("Extracted Table Data:")
+                st.table(table_data)
+
+                st.write("---")  # Separator between tables

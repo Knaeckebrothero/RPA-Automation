@@ -1,11 +1,12 @@
-streamlit  # Web app
-python-dotenv  # .env support
-pandas  # Data manipulation magic
-numpy  # Math magic
-beautifulsoup4  # Dealing with HTML in emails
-opencv-python  # cv2
-pdf2image  # Dealing with PDFs
-pytesseract  # OCR magic
+streamlit
+python-dotenv
+pandas
+numpy
+beautifulsoup4
+opencv-python
+pdf2image
+pytesseract
+pillow
 # easyocr  # OCR alternative
 # Might require updating 
 # sudo apt-get updating mesa
