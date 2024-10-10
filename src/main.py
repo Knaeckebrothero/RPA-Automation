@@ -3,11 +3,12 @@ This file holds the main function for the application.
 
 https://docs.streamlit.io/
 """
-import os
 from dotenv import load_dotenv, find_dotenv
 import streamlit as st
+import logging as log
+import os
 # Custom imports
-from cfg.custom_logger import configure_custom_logger
+from cfg.custom_logger import configure_global_logger
 import gui.pages as page
 from gui.navbar import navbar
 import cfg.cache as cache
@@ -31,20 +32,18 @@ def main():
         if 'rerun_counter' not in st.session_state:
             st.session_state['rerun_counter'] = 0
             load_dotenv(find_dotenv())
+            # Configure the global logger
+            configure_global_logger(
+                console_level=int(os.getenv('LOG_LEVEL_CONSOLE')),
+                file_level=int(os.getenv('LOG_LEVEL_FILE')),
+                logging_directory=os.getenv('LOG_PATH')
+            )
 
             # Fetch the mails and store them in the cache
             cache.get_emails()
 
             # TODO: Add a check for the existence of the .env file
             # TODO: Add json configuration file to load the non-sensitive configuration from
-
-        # Initialize the logger
-        log = configure_custom_logger(
-            module_name=__name__,
-            console_level=int(os.getenv('LOG_LEVEL_CONSOLE', 20)),
-            file_level=int(os.getenv('LOG_LEVEL_FILE', 0)),
-            logging_directory=os.getenv('LOG_PATH', None))
-        log.debug('Logger initialized')
 
     # Render the navbar and store the selected page in the session
     st.session_state['page'] = navbar()

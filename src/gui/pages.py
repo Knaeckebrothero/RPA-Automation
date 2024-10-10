@@ -3,21 +3,10 @@ This module holds the main ui page for the application.
 """
 import os
 import streamlit as st
+import logging as log
 # Custom imports
-from cfg.custom_logger import configure_custom_logger
 from cfg.cache import get_emails
 from cfg.cache import get_mailclient
-
-
-@st.cache_resource
-def _setup_logger():
-    log = configure_custom_logger(
-        module_name=__name__,
-        console_level=int(os.getenv('LOG_LEVEL_CONSOLE', 20)),
-        file_level=int(os.getenv('LOG_LEVEL_FILE', 0)),
-        logging_directory=os.getenv('LOG_PATH', None))
-    log.debug('Logger initialized')
-    return log
 
 
 def home():
@@ -25,7 +14,6 @@ def home():
     This is the main ui page for the application.
     It serves as a landing page and provides the user with options to navigate the application.
     """
-    log = _setup_logger()
     log.debug('Rendering home page')
 
     # Page title and description
@@ -64,7 +52,7 @@ def home():
                     if attachment.get_attributes('content_type')['content_type'] == 'application/pdf':
                         log.info(f'Processing pdf attachment {attachment.get_attributes("filename")}')
                         # Extract text from the document
-                        attachment.extract_table_attributes()
+                        attachment.extract_table_data()
                     else:
                         log.info(f'Skipping non-pdf attachment {attachment.get_attributes("content_type")['content_type']}')
 
@@ -73,7 +61,6 @@ def settings():
     """
     This is the settings ui page for the application.
     """
-    log = _setup_logger()
     log.debug('Rendering settings page')
 
     # Page title and description

@@ -6,27 +6,6 @@ import numpy as np
 from pdf2image import convert_from_bytes
 
 
-def get_bgr_images_from_pdf(pdf_bytes: bytes) -> list[np.ndarray]:
-    """
-    Convert a pdf file to a list of images. Each page in the pdf is converted to an image.
-    The images are stored as numpy arrays and are converted to BGR format.
-    BGR format is used as OpenCV uses BGR format for images.
-    It is essentially RGB with the channels reversed.
-
-    :param pdf_bytes: The pdf file as bytes.
-    :return: A list of numpy arrays representing the images.
-    """
-    images = []
-
-    # Convert all the pages into bgr images and append them to the list
-    for image in convert_from_bytes(pdf_bytes):
-        np_image = np.array(image)
-        bgr_image = cv2.cvtColor(np_image, cv2.COLOR_RGB2BGR)
-        images.append(bgr_image)
-
-    return images
-
-
 def detect_tables(image):
     # Convert to grayscale
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)

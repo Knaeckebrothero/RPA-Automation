@@ -1,20 +1,10 @@
 """
 This module holds the sidebar ui page for the application.
 """
-import os
 import streamlit
+import logging as log
 # Custom imports
-from cfg.custom_logger import configure_custom_logger
 
-
-def _setup_logger():
-    log = configure_custom_logger(
-        module_name=__name__,
-        console_level=int(os.getenv('LOG_LEVEL_CONSOLE', 20)),
-        file_level=int(os.getenv('LOG_LEVEL_FILE', 0)),
-        logging_directory=os.getenv('LOG_PATH', None))
-    log.debug('Logger initialized')
-    return log
 
 def navbar() -> int:
     """
@@ -22,9 +12,6 @@ def navbar() -> int:
 
     :return: The selected page number.
     """
-    log = _setup_logger()
-    log.debug('Initializing navbar')
-
     # Initialize the page number
     page = 0
 

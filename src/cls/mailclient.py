@@ -2,6 +2,7 @@
 This module holds the mail.Client class.
 """
 import os
+import logging as log
 import imaplib
 import email
 from email.header import decode_header
@@ -10,7 +11,10 @@ import pandas as pd
 # Custom imports
 from cls.singleton import Singleton
 from cls.document import Document
-from cfg.custom_logger import configure_custom_logger
+
+
+# Set up logging
+# log = logging.getLogger(__name__)
 
 
 class Mailclient(Singleton):
@@ -22,7 +26,6 @@ class Mailclient(Singleton):
     a bunch of methods to interact with the mailbox.
     """
     _connection = None  # Connection to the mail server
-    _log = None  # Logger for the class
     _decoding_format = 'utf-8'  # 'iso-8859-1'
 
     def __init__(self, imap_server: str, imap_port: int, username: str,
@@ -41,25 +44,18 @@ class Mailclient(Singleton):
         :param logger: The logger to use for the class.
         :param inbox: Inbox to connect to. Defaults to None.
         """
-        self._log = configure_custom_logger(
-            module_name=__name__,
-            console_level=int(os.getenv('LOG_LEVEL_CONSOLE')),
-            file_level=int(os.getenv('LOG_LEVEL_FILE')),
-            logging_directory=os.getenv('LOG_PATH'))
-        self._log.debug('Logger initialized')
-
         # Connect to the mail server if not connected already
         if not self._connection:
             self.connect(imap_server, imap_port)
             self.login(username, password)
         else:
-            self._log.debug('Instance already connected, skipping connection and login.')
+            log.debug('Instance already connected, skipping connection and login.')
 
         # Select the inbox
         self._inbox = inbox
         self.select_inbox(inbox)
 
-        self._log.debug('Mail client initialized')
+        log.debug('Mail client initialized')
 
     def __del__(self):
         """
@@ -69,7 +65,7 @@ class Mailclient(Singleton):
         if self._connection:
             self.close()
 
-        self._log.debug('Mail client destroyed')
+        log.debug('Mail client destroyed')
 
     # Getters
     def get_connection(self):
@@ -92,10 +88,10 @@ class Mailclient(Singleton):
         """
         try:
             self._connection = imaplib.IMAP4_SSL(host=imap_server, port=imap_port)
-            self._log.debug(f'Successfully connected to mailbox at {imap_server}:{imap_port}')
+            log.debug(f'Successfully connected to mailbox at {imap_server}:{imap_port}')
 
         except Exception as e:
-            self._log.error(f'Error connecting to the mail server: {e}')
+            log.error(f'Error connecting to the mail server: {e}')
 
     def login(self, username: str, password: str):
         """
@@ -105,23 +101,23 @@ class Mailclient(Singleton):
         :param password: The password to login with.
         """
         if not self._connection:
-            self._log.error('Not connected to any mail server at the moment, cannot login!')
+            log.error('Not connected to any mail server at the moment, cannot login!')
             return
 
         self._connection.login(user=username, password=password)
-        self._log.debug(f'Successfully logged in to the mail server using {username[:3]}, password {password[0]}')
+        log.debug(f'Successfully logged in to the mail server using {username[:3]}, password {password[0]}')
 
     def close(self):
         """
         Closes the mailclient and logs out of the server.
         Sets the mail attribute to None.
         """
-        self._log.debug('Closing the connection to the mail server...')
+        log.debug('Closing the connection to the mail server...')
 
         self._connection.logout()
         self._connection = None
 
-        self._log.debug('Connection server closed, mail set to none.')
+        log.debug('Connection server closed, mail set to none.')
 
     def select_inbox(self, inbox: str = None):
         """
@@ -130,45 +126,45 @@ class Mailclient(Singleton):
         :param inbox: The inbox to select.
         """
         if not self._connection:
-            self._log.error('Not connected to any mail server at the moment, cannot select inbox!')
+            log.error('Not connected to any mail server at the moment, cannot select inbox!')
             return
 
-        self._log.debug('Selecting inbox...')
+        log.debug('Selecting inbox...')
         if not inbox and not self._inbox:
             self._connection.select('INBOX')
             self._inbox = 'INBOX'
-            self._log.debug('No inbox provided, defaulting to "INBOX"')
+            log.debug('No inbox provided, defaulting to "INBOX"')
         elif not inbox and self._inbox:
             self._connection.select(self._inbox)
-            self._log.debug(f'No inbox provided, defaulting to {self._inbox}')
+            log.debug(f'No inbox provided, defaulting to {self._inbox}')
         else:
             self._connection.select(inbox)
             self._inbox = f'"{inbox}"'  # TODO: Check if quotation marks are necessary
-            self._log.debug(f'Selected inbox: {inbox}')
+            log.debug(f'Selected inbox: {inbox}')
 
     def list_inboxes(self):
         """
         Method to get a list of possible inboxes.
         """
-        self._log.debug('Listing inboxes...')
+        log.debug('Listing inboxes...')
         return self._connection.list()[1]
 
     def list_mails(self):
         """
         Method to list the mails in the selected inbox.
         """
-        self._log.debug('Listing mails...')
+        log.debug('Listing mails...')
         status, response = self._connection.search(None, 'ALL')
-        self._log.info('Requested mails, server responded with: %s', status)
+        log.info('Requested mails, server responded with: %s', status)
         return response
 
     def get_mails(self):
         """
         Method to list the mails in the selected inbox and return them as a pandas DataFrame.
         """
-        self._log.debug('Listing mails...')
+        log.debug('Listing mails...')
         status, response = self._connection.search(None, 'ALL')
-        self._log.info('Requested mails, server responded with: %s', status)
+        log.info('Requested mails, server responded with: %s', status)
 
         email_ids = response[0].split()
         emails_data = []
@@ -224,7 +220,7 @@ class Mailclient(Singleton):
 
         # Return the emails in a pandas DataFrame
         df = pd.DataFrame(emails_data)
-        self._log.info(f'Retrieved {len(df)} emails')
+        log.info(f'Retrieved {len(df)} emails')
         return df
 
     def get_attachments(self, email_id) -> list:
@@ -278,13 +274,13 @@ class Mailclient(Singleton):
                 ))
 
             if attachments:
-                self._log.info(f'Found {len(attachments)} attachments in custommail {email_id}')
+                log.info(f'Found {len(attachments)} attachments in custommail {email_id}')
             else:
-                self._log.warning(f'No attachments found in custommail {email_id}')
+                log.warning(f'No attachments found in custommail {email_id}')
 
             # Return the attachments, if non are found list will be empty
             return attachments
 
         except Exception as e:
-            self._log.error(f"Error processing email {email_id}: {str(e)}")
+            log.error(f"Error processing email {email_id}: {str(e)}")
             return []
