@@ -64,7 +64,7 @@ def structure_table_data(table_data):
     return structured_data
 
 
-if __name__ == "__main__":
+if __name__ == "__demo__":
     # Config & initialisation
     st.set_page_config(layout="wide",
                        page_title="ChineseSpyware.prism",

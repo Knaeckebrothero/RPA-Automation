@@ -101,31 +101,50 @@ class Document:
                 for j, contour in enumerate(table_contours):
                     x, y, w, h = cv2.boundingRect(contour)
                     table_roi = bgr_image[y:y + h, x:x + w]
-
+                    table_data = []
                     log.debug(f"Table {j + 1} on Page {i + 1}")
 
                     # Detect rows in the table
                     rows = prp.detect_rows(table_roi)
                     log.debug(f"Number of rows detected: {len(rows)}")
 
-                    table_data = []
-
                     # Process each detected row
                     for k, (y1, y2) in enumerate(rows):
                         row_image = table_roi[y1:y2, :]
+                        row_data = []
 
                         # Detect cells in the row
                         cells = prp.detect_cells(row_image)
                         log.debug(f"Number of cells detected: {len(cells)}")
 
-                        row_data = []
                         for m, (x1, x2) in enumerate(cells):
                             cell_image = row_image[:, x1:x2]
                             cell_text = ocr_cell(cell_image)
                             row_data.append(cell_text)
 
                         table_data.append(row_data)
+                        log.debug(f"Row {k + 1} Data: {row_data}")
 
-                        # Display extracted data in a Streamlit table
-                        log.info("Extracted Table Data")
-                        log.debug(table_data)
+                        # Add the extracted table data to the document attributes
+                        if len(row_data) > 2:
+                            if row_data[1] != '' and row_data[2] != '':
+                                # Add the extracted row as an attribute
+                                self.add_attributes({row_data[1]: row_data[2]})
+                            elif row_data[2] != '' and row_data[1] == '':
+                                log.warning(f"There must have been an issue reading the left side of the table: {row_data}")
+                        else:
+                            if row_data[0] != '' and row_data[1] != '':
+                                # Add the extracted row as an attribute
+                                self.add_attributes({row_data[0]: row_data[1]})
+                            elif row_data[1] != '' and row_data[0] == '':
+                                log.warning(f"There must have been an issue reading the left side of the table: {row_data}")
+                            else:
+                                log.debug(f"Table data is not in the expected format {row_data}")
+
+                    # Log the extracted table data
+                    log.info("Extracted Table Data")
+
+            print(self.__str__())
+            for key, value in self.get_attributes().items():
+                print(f"{key}: {value}")
+            # TODO: Fix this (only 30% are actually added)
