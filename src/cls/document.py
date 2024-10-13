@@ -125,26 +125,29 @@ class Document:
                         table_data.append(row_data)
                         log.debug(f"Row {k + 1} Data: {row_data}")
 
+                        """
+                        if row_data[0] == 'Gesamtsumme' and row_data[1] != '':
+                            self.add_attributes({row_data[0]: row_data[1]})
+                        """
                         # Add the extracted table data to the document attributes
-                        if len(row_data) > 2:
-                            if row_data[1] != '' and row_data[2] != '':
-                                # Add the extracted row as an attribute
-                                self.add_attributes({row_data[1]: row_data[2]})
-                            elif row_data[2] != '' and row_data[1] == '':
-                                log.warning(f"There must have been an issue reading the left side of the table: {row_data}")
+                        if row_data[1] != '' and row_data[2] != '':
+                            self.add_attributes({row_data[1]: row_data[2]})
+                        elif row_data[0] != '' and row_data[1] != '':
+                            self.add_attributes({row_data[0]: row_data[1]})
                         else:
-                            if row_data[0] != '' and row_data[1] != '':
-                                # Add the extracted row as an attribute
-                                self.add_attributes({row_data[0]: row_data[1]})
-                            elif row_data[1] != '' and row_data[0] == '':
-                                log.warning(f"There must have been an issue reading the left side of the table: {row_data}")
-                            else:
-                                log.debug(f"Table data is not in the expected format {row_data}")
+                            log.debug(f"Table data is not in the expected format {row_data}")
+                        """
+                        elif row_data[2] != '' and row_data[1] == '':
+                            log.warning(f"There must have been an issue reading the left side of the table: {row_data}")
+                        elif row_data[1] != '' and row_data[0] == '':
+                            log.warning(f"There must have been an issue reading the left side of the table: {row_data}")
+                        """
+
 
                     # Log the extracted table data
                     log.info("Extracted Table Data")
 
             print(self.__str__())
             for key, value in self.get_attributes().items():
-                print(f"{key}: {value}")
+                print(f"\nKey: {key} \n Value: {value}")
             # TODO: Fix this (only 30% are actually added)
