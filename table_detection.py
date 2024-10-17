@@ -64,7 +64,7 @@ def structure_table_data(table_data):
 
 
 # File upload
-pdf_document = st.file_uploader(label="", type=["pdf"])
+pdf_document = st.file_uploader(label="Upload PDF here", type=["pdf"])
 if pdf_document is not None:
     images = convert_from_bytes(pdf_document.read())
     st.image(images, width=350) # use_column_width="auto"
