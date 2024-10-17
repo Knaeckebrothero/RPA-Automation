@@ -4,7 +4,9 @@ This module holds the main ui page for the application.
 import os
 import streamlit as st
 import logging as log
+
 # Custom imports
+import gui.visuals as visuals
 from cfg.cache import get_emails
 from cfg.cache import get_mailclient
 
@@ -23,6 +25,9 @@ def home():
     # Fetch the emails and client
     emails = get_emails()
     mailclient = get_mailclient()
+
+    # Pie chart showing the submission ratio
+    st.pyplot(visuals.pie_submission_ratio())
 
     # Display the mails
     st.dataframe(emails)

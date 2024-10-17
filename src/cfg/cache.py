@@ -8,6 +8,7 @@ https://docs.streamlit.io/develop/concepts/architecture/caching
 """
 import os
 import streamlit as st
+
 # Custom imports
 import cls
 
@@ -50,3 +51,10 @@ def get_emails():
     :return: The emails fetched from the mail client.
     """
     return get_mailclient().get_mails()
+
+
+"""
+@st.cache_resource
+def get_database():
+    return cls.Database.get_instance()
+"""
