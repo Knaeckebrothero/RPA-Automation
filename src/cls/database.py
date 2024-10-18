@@ -7,7 +7,6 @@ import logging
 # Custom imports
 from cls.singleton import Singleton
 
-
 # Set up logging
 log  = logging.getLogger(__name__)
 
@@ -34,7 +33,7 @@ class Database(Singleton):
         Attempt to connect to the database.
         """
         try:
-            self._conn = sqlite3.connect(self._path)
+            self._conn = sqlite3.connect(self._path, check_same_thread=False)
             self.cursor = self._conn.cursor()
             log.debug("Connected to database.")
         except sqlite3.Error as e:
@@ -111,7 +110,7 @@ class Database(Singleton):
         except sqlite3.Error as e:
             log.error(f"Error creating status table: {e}")
 
-    def query(self, query: str) -> list:
+    def query(self, query: str) -> list[tuple]:
         """
         Execute a query on the database.
         """

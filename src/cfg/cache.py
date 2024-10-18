@@ -53,8 +53,11 @@ def get_emails():
     return get_mailclient().get_mails()
 
 
-"""
 @st.cache_resource
 def get_database():
-    return cls.Database.get_instance()
-"""
+    """
+    Get the database instance.
+
+    :return: The database instance.
+    """
+    return cls.Database().get_instance()

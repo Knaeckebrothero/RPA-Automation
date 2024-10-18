@@ -7,6 +7,7 @@ from dotenv import load_dotenv, find_dotenv
 import streamlit as st
 import logging as log
 import os
+
 # Custom imports
 from cfg.custom_logger import configure_global_logger
 import gui.pages as page
@@ -41,6 +42,7 @@ def main():
 
             # Fetch the mails and store them in the cache
             cache.get_emails()
+            cache.get_database()
 
             # TODO: Add a check for the existence of the .env file
             # TODO: Add json configuration file to load the non-sensitive configuration from
