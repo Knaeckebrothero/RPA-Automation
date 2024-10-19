@@ -39,20 +39,28 @@ class Document:
     def get_content(self) -> bytes:
         return self._content
 
-    def get_attributes(self, attributes: str | list[str] = None) -> dict:
+    def get_attributes(self, key_or_keys: str | list[str] = None) -> dict | str | None:
         """
         Get the attributes of the document.
         If a list of attributes is provided, only those attributes will be returned.
 
-        :param attributes: Optional list of attributes to return.
+        :param key_or_keys: Optional list of attribute keys to return.
         :return: All attributes of the document. Or only the attributes in the list.
         """
-        if attributes and isinstance(attributes, list):
-            return {key: value for key, value in self._attributes.items() if key in attributes}
-        elif attributes and isinstance(attributes, str):
-            return {attributes: self._attributes[attributes]}
-        else:
-            return self._attributes
+        try:
+            if key_or_keys and isinstance(key_or_keys, list):
+                rtn_keys = {key: value for key, value in self._attributes.items() if key in key_or_keys}
+                return rtn_keys if len(rtn_keys) >= 1 else None
+            elif key_or_keys and isinstance(key_or_keys, str):
+                return self._attributes[key_or_keys]
+            else:
+                if len(self._attributes) >= 1:
+                    return self._attributes
+                else:
+                    return None
+        except KeyError as e:
+            log.error(f"KeyError: {e}")
+            return None
 
     def add_attributes(self, attributes: dict):
         """
@@ -142,7 +150,6 @@ class Document:
                         elif row_data[1] != '' and row_data[0] == '':
                             log.warning(f"There must have been an issue reading the left side of the table: {row_data}")
                         """
-
 
                     # Log the extracted table data
                     log.info("Extracted Table Data")

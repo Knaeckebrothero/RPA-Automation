@@ -7,8 +7,8 @@ import logging as log
 
 # Custom imports
 import gui.visuals as visuals
-from cfg.cache import get_emails
-from cfg.cache import get_mailclient
+import cfg.cache as cache
+import processing.data as process
 
 
 def home():
@@ -23,14 +23,22 @@ def home():
     st.write('Welcome to the Document Fetcher application!')
 
     # Fetch the emails and client
-    emails = get_emails()
-    mailclient = get_mailclient()
+    emails = cache.get_emails()
+    mailclient = cache.get_mailclient()
 
-    # Pie chart showing the submission ratio
-    st.pyplot(visuals.pie_submission_ratio(), use_container_width=True)
+    # Configure layout
+    column_left, column_right = st.columns(2)
 
-    # Display the mails
-    st.dataframe(emails)
+    # Display a plot on the right
+    with column_left:
+        # Pie chart showing the submission ratio
+        st.pyplot(visuals.pie_submission_ratio())
+        # TODO: Fix issue with labels overlapping
+
+    # Display a table on the left
+    with column_right:
+        # Display the mails
+        st.dataframe(emails)
 
     # Display a multiselect box to select documents to process
     docs_to_process = st.multiselect('Select documents to process',emails['ID'])
@@ -54,13 +62,25 @@ def home():
                 st.warning(f'Mail with ID {mail_id} has {len(attachments)} attachments, processing all of them.')
 
                 for attachment in attachments:
-                    if attachment.get_attributes('content_type')['content_type'] == 'application/pdf':
+                    if attachment.get_attributes('content_type') == 'application/pdf':
                         log.info(f'Processing pdf attachment {attachment.get_attributes("filename")}')
+
                         # Extract text from the document
                         attachment.extract_table_data()
-                    else:
-                        log.info(f'Skipping non-pdf attachment {attachment.get_attributes("content_type")['content_type']}')
 
+                        # Check if all values match the database
+                        if process.compare_company_values(attachment):
+
+                            # TODO: Create a status column once the documents are getting processed (and simply update
+                            #  it later on)
+                            
+                            cache.get_database.insert(
+                                f"INSERT INTO submissions (document_id, company_id, status) VALUES ({mail_id}, {attachment.get_attributes('BaFin-ID')}, 'submitted')")
+                            log.info(f"Document with ID {mail_id} successfully processed")
+                            # TODO: Let the insert statement be executed by the database class
+
+                    else:
+                        log.info(f'Skipping non-pdf attachment {attachment.get_attributes("content_type")}')
 
 def settings():
     """

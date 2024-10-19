@@ -17,6 +17,7 @@ from cls.document import Document
 log = logging.getLogger(__name__)
 
 
+# TODO: Refactor this class to use pythons email library instead of BeautifulSoup
 class Mailclient(Singleton):
     """
     This class is used to connect and interact with the mail server.

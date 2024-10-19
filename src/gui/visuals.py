@@ -48,7 +48,7 @@ def pie_submission_ratio() -> plt.Figure:
     sizes = [cmp_processed, cmp_processing, cmp_no_submission]
     colors = ['green', 'yellow', 'red']
 
-    fig, ax = plt.subplots(figsize=(8, 3))
+    fig, ax = plt.subplots()
     ax.pie(sizes, labels=labels, colors=colors)
     ax.axis('equal')
 
