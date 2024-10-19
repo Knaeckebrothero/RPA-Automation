@@ -3,9 +3,11 @@ This module holds the database class.
 """
 import sqlite3
 import logging
+import json
 
 # Custom imports
 from cls.singleton import Singleton
+
 
 # Set up logging
 log  = logging.getLogger(__name__)
@@ -23,6 +25,7 @@ class Database(Singleton):
         self.cursor = None
         self.connect()
         self._ensure_tables_exist()
+        self._insert_example_data()
         log.info("Database initialized.")
 
     def __del__(self):
@@ -77,7 +80,23 @@ class Database(Singleton):
                 contact_person TEXT,
                 phone TEXT,
                 fax TEXT,
-                email TEXT NOT NULL
+                email TEXT NOT NULL,
+                p033 INTEGER,
+                p034 INTEGER,
+                p035 INTEGER,
+                p036 INTEGER,
+                ab2s1n01 INTEGER,
+                ab2s1n02 INTEGER,
+                ab2s1n03 INTEGER,
+                ab2s1n04 INTEGER,
+                ab2s1n05 INTEGER,
+                ab2s1n06 INTEGER,
+                ab2s1n07 INTEGER,
+                ab2s1n08 INTEGER,
+                ab2s1n09 INTEGER,
+                ab2s1n10 INTEGER,
+                ab2s1n11 INTEGER,
+                ratio FLOAT
             );
             """)
             self._conn.commit()
@@ -109,6 +128,49 @@ class Database(Singleton):
             log.debug("Status table created or already exists.")
         except sqlite3.Error as e:
             log.error(f"Error creating status table: {e}")
+
+    def _insert_example_data(self):
+        """
+        Insert data from a JSON file into the companies table.
+        """
+        try:
+            # Check if the table is empty
+            if not self.cursor.execute("SELECT COUNT(*) FROM companies").fetchone()[0] == 0:
+                log.debug("Company table already contains data, skipping example data insertion.")
+                return
+
+            # Load the example data from a JSON file
+            with open('./.filesystem/examples.json', 'r') as f:
+                examples = json.load(f)
+
+            # Insert the example data into the companies table
+            for company in examples:
+                # Map JSON data to the columns in the table
+                self.cursor.execute("""
+                INSERT INTO companies (
+                    institut, bafin_id, address, city, contact_person,
+                    phone, fax, email, 
+                    p033, p034, p035, p036,
+                    ab2s1n01, ab2s1n02, ab2s1n03, ab2s1n04, ab2s1n05,
+                    ab2s1n06, ab2s1n07, ab2s1n08, ab2s1n09, ab2s1n10,
+                    ab2s1n11, 
+                    ratio
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    company["Institut"], company["ID"], company["Adresse"], company["PLZ/Ort"],
+                    company["Ansprechpartner"], company["Telefon"], company["Fax"], company["Mail"],
+                    company["N1"], company["N2"], company["N3"], company["N4"], company["N6"],
+                    company["N7"], company["N8"], company["N9"], company["N10"], company["N11"],
+                    company["N12"], company["N13"], company["N14"], company["N15"], company["N16"],
+                    company["N18"]
+                ))
+
+            self._conn.commit()
+            log.info("Example data inserted into companies table.")
+        except sqlite3.Error as e:
+            log.error(f"Error inserting example data: {e}")
+        except Exception as e:
+            log.error(f"Unexpected error: {e}")
 
     def query(self, query: str) -> list[tuple]:
         """

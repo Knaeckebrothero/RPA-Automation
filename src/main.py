@@ -42,6 +42,7 @@ def main():
 
             # Fetch the mails and store them in the cache
             cache.get_emails()
+            # Initialize the database
             cache.get_database()
 
             # TODO: Add a check for the existence of the .env file

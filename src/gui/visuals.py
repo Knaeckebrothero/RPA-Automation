@@ -32,6 +32,7 @@ def pie_submission_ratio() -> plt.Figure:
     FROM companies
     """)[0][0] - cmp_processed - cmp_processing
 
+    # Check if there is no data
     if cmp_processed == 0 and cmp_processing == 0 and cmp_no_submission == 0:
         # Create a pie chart
         labels = ['No data']
@@ -47,7 +48,7 @@ def pie_submission_ratio() -> plt.Figure:
     sizes = [cmp_processed, cmp_processing, cmp_no_submission]
     colors = ['green', 'yellow', 'red']
 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(8, 3))
     ax.pie(sizes, labels=labels, colors=colors)
     ax.axis('equal')
 

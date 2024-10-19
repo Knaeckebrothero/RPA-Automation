@@ -27,7 +27,7 @@ def home():
     mailclient = get_mailclient()
 
     # Pie chart showing the submission ratio
-    st.pyplot(visuals.pie_submission_ratio())
+    st.pyplot(visuals.pie_submission_ratio(), use_container_width=True)
 
     # Display the mails
     st.dataframe(emails)
