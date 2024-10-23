@@ -152,9 +152,10 @@ class Document:
                         """
 
                     # Log the extracted table data
-                    log.info("Extracted Table Data")
+                    log.debug("Extracted Table Data", self.__str__())
 
-            print(self.__str__())
+            """
             for key, value in self.get_attributes().items():
                 print(f"\nKey: {key} \n Value: {value}")
+            """
             # TODO: Fix this (only 30% are actually added)
