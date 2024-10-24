@@ -6,7 +6,7 @@ import streamlit as st
 import logging as log
 
 # Custom imports
-import gui.visuals as visuals
+import ui.visuals as visuals
 import cfg.cache as cache
 import processing.data as process
 

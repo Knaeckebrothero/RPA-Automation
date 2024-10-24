@@ -11,57 +11,112 @@ import numpy as np
 from pdf2image import convert_from_bytes
 import src.preprocessing.detect as dct
 from src.preprocessing.ocr import ocr_cell
+from typing import List, Tuple
 
 
-def detect_table_type(table_image):
-    gray = cv2.cvtColor(table_image, cv2.COLOR_BGR2GRAY)
+def test_cells(row_image: np.array) -> List[Tuple[int, int]]:
+    """
+    Detect the boundaries of individual cells in a row of a table.
+
+    :param row_image: A NumPy array representing the row image in BGR format.
+
+    :return: A list of tuples representing the x-coordinates of the detected cell boundaries.
+    """
+    # Convert row image to grayscale
+    if row_image is None or row_image.size == 0:
+        return []  # Return an empty list if the image is invalid
+
+    gray = cv2.cvtColor(row_image, cv2.COLOR_BGR2GRAY)
+
+    # Apply binary threshold
     _, thresh = cv2.threshold(gray, 240, 255, cv2.THRESH_BINARY_INV)
 
-    # Detect vertical lines
-    vertical_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, table_image.shape[0] // 3))
+    # Detect vertical lines (potential cell separators)
+    vertical_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 20))
     detect_vertical = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, vertical_kernel, iterations=2)
 
     # Find contours of vertical lines
     contours, _ = cv2.findContours(detect_vertical, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    # If we detect more than one vertical line, it's a multi-column table
-    if len(contours) > 1:
-        return "multi-column"
+    # Sort contours by x-coordinate
+    contours = sorted(contours, key=lambda c: cv2.boundingRect(c)[0])
+
+    # Initialize cell boundaries
+    cells = []
+    prev_x = 0
+    zoom_offset = 5  # Amount to trim off each side of a detected cell
+
+    if len(contours) == 0:
+        # If no vertical separators are found, treat the row as potentially multiple cells based on horizontal gaps
+        cells = test_detect_cells_based_on_horizontal_spacing(thresh)
     else:
-        return "single-column"
+        # Loop through the detected contours and add cell boundaries
+        for contour in contours:
+            x, _, w, _ = cv2.boundingRect(contour)
+            if x - prev_x > 10:  # Ignore very close lines
+                # Adjust the cell boundaries to zoom in slightly (remove surrounding lines)
+                cell_start = max(prev_x + zoom_offset, 0)
+                cell_end = min(x - zoom_offset, row_image.shape[1])
 
+                # Ensure start is less than end
+                if cell_start < cell_end:
+                    cells.append((cell_start, cell_end))
 
-def process_single_column_row(row_image):
-    # Use the entire row as one cell
-    text = ocr_cell(row_image)
-    return [text]
+                prev_x = x + w
 
+        # Add the last cell (after the last detected vertical line)
+        last_cell_start = prev_x + zoom_offset
+        last_cell_end = row_image.shape[1] - zoom_offset
 
-def process_multi_column_row(row_image):
-    # Split the row into two parts (left and right)
-    mid = row_image.shape[1] // 2
-    left_part = row_image[:, :mid]
-    right_part = row_image[:, mid:]
+        # Ensure start is less than end for the last cell
+        if last_cell_start < last_cell_end:
+            cells.append((last_cell_start, last_cell_end))
 
-    # OCR both parts
-    left_text = ocr_cell(left_part)
-    right_text = ocr_cell(right_part)
+    # Debug: Print cell boundaries
+    for cell in cells:
+        print("Cell boundaries:", cell)
 
-    return [left_text, right_text]
+    return cells
 
+def test_detect_cells_based_on_horizontal_spacing(thresh_image: np.array) -> List[Tuple[int, int]]:
+    """
+    Detect the boundaries of individual cells in a row based on horizontal spacing.
 
-def structure_table_data(table_data):
-    # Assume first row is header
-    header = table_data[0]
+    :param thresh_image: A binary thresholded image (inverted) of the row.
 
-    # Structure data
-    structured_data = []
-    for row in table_data[1:]:
-        if len(row) == len(header):
-            structured_row = dict(zip(header, row))
-            structured_data.append(structured_row)
+    :return: A list of tuples representing the x-coordinates of the detected cell boundaries.
+    """
+    # Calculate the vertical projection profile (sum of pixel values for each column)
+    projection = np.sum(thresh_image, axis=0)
 
-    return structured_data
+    # Define minimum gap threshold for detecting cell separation
+    gap_threshold = 10  # Adjust as needed to match spacing in the row
+    min_gap_width = 20  # Minimum width of a gap to be considered as cell separator
+
+    cells = []
+    in_gap = False
+    start_index = 0
+
+    for x in range(len(projection)):
+        if projection[x] <= gap_threshold:  # Column with minimal or no content (gap)
+            if not in_gap:
+                # Starting a new gap
+                in_gap = True
+                start_index = x
+        else:
+            if in_gap:
+                # Ending a gap
+                in_gap = False
+                gap_width = x - start_index
+                if gap_width > min_gap_width:
+                    # Add a new cell boundary
+                    cells.append((start_index, x))
+
+    # If the entire row is detected as a single segment, treat the whole row as a cell
+    if len(cells) == 0:
+        cells.append((5, thresh_image.shape[1] - 5))
+
+    return cells
 
 
 # File upload
@@ -111,13 +166,11 @@ if pdf_document is not None:
             for k, (y1, y2) in enumerate(rows):
                 row_image = table_roi[y1:y2, :]
                 row_data = []
-                st.image(cv2.cvtColor(row_image, cv2.COLOR_BGR2RGB),
-                         caption=f"Row {k + 1}",
-                         use_column_width=True)
+                #st.image(cv2.cvtColor(row_image, cv2.COLOR_BGR2RGB),
+                #         caption=f"Row {k + 1}",
+                #         use_column_width=True)
 
                 # Detect cells in the row
-                # TODO: Make everything that has a certain amount of space in between it's own cell. This way we can
-                #  distinguish between the different cells even if the table has no borders.
                 cells = dct.cells(row_image)
 
                 for m, (x1, x2) in enumerate(cells):
@@ -127,12 +180,12 @@ if pdf_document is not None:
                              caption=f"Cell",
                              use_column_width=False, width=350)
 
-                    # cell_text = ocr_cell(cell_image)
-                    # row_data.append(cell_text)
+                    cell_text = ocr_cell(cell_image)
+                    row_data.append(cell_text)
 
                 table_data.append(row_data)
 
-                # Display extracted data in a Streamlit table
-                #st.write("Extracted Table Data:")
-                #st.table(table_data)
-                #st.write("---")
+            # Display extracted data in a Streamlit table
+            st.write("Extracted Table Data:")
+            st.table(table_data)
+            st.write("---")

@@ -10,8 +10,8 @@ import os
 
 # Custom imports
 from cfg.custom_logger import configure_global_logger
-import gui.pages as page
-from gui.navbar import navbar
+import ui.pages as page
+from ui.navbar import navbar
 import cfg.cache as cache
 
 

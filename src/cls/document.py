@@ -5,9 +5,10 @@ import cv2
 import numpy as np
 import logging
 from pdf2image import convert_from_bytes
+from typing import List, Tuple
 
 # Custom imports
-import preprocessing.preprocessing as prp
+import preprocessing.detect as dct
 from preprocessing.ocr import ocr_cell
 
 
@@ -95,43 +96,60 @@ class Document:
         Extract the text from the document.
         """
         if self._content:
+            # Convert the PDF document into a list of images (one image per page)
             images = convert_from_bytes(self._content)
+            log.debug(f"Number of pages in the document: {len(images)}")
 
+            # Loop through each page of the document
             for i, image in enumerate(images):
+                # Convert the image to a NumPy array (shape is height times width times RGB channels)
                 np_image = np.array(image)
+
+                # Convert to BGR format since it is required for OpenCV (BGR is basically RGB reversed)
                 bgr_image = cv2.cvtColor(np_image, cv2.COLOR_RGB2BGR)
 
-                # Detect tables
-                table_contours = prp.detect_tables(bgr_image)
-                log.debug(f"Number of tables detected on page {i + 1}: {len(table_contours)}")
+                # Detect tables in the image
+                table_contours = dct.tables(bgr_image)
 
                 # Process each detected table
                 for j, contour in enumerate(table_contours):
+                    table_data = []
                     x, y, w, h = cv2.boundingRect(contour)
                     table_roi = bgr_image[y:y + h, x:x + w]
-                    table_data = []
                     log.debug(f"Table {j + 1} on Page {i + 1}")
 
                     # Detect rows in the table
-                    rows = prp.detect_rows(table_roi)
+                    rows = dct.rows(table_roi)
                     log.debug(f"Number of rows detected: {len(rows)}")
 
                     # Process each detected row
                     for k, (y1, y2) in enumerate(rows):
-                        row_image = table_roi[y1:y2, :]
                         row_data = []
 
-                        # Detect cells in the row
-                        cells = prp.detect_cells(row_image)
-                        log.debug(f"Number of cells detected: {len(cells)}")
+                        # Crop the row from the table
+                        row_image = table_roi[y1:y2, :]
+                        log.debug(f"Row {k + 1} on Page {i + 1}")
 
+                        # Detect cells in the row
+                        cells = dct.cells(row_image)
+
+                        # Process each detected cell
                         for m, (x1, x2) in enumerate(cells):
+                            # Crop the cell from the row
                             cell_image = row_image[:, x1:x2]
+
+                            # Extract and append the text from the cell
                             cell_text = ocr_cell(cell_image)
                             row_data.append(cell_text)
 
+                        # Add the extracted table data to the document attributes
                         table_data.append(row_data)
                         log.debug(f"Row {k + 1} Data: {row_data}")
+
+
+
+
+                        # TODO: Integrate the new functionality into the existing code
 
                         """
                         if row_data[0] == 'Gesamtsumme' and row_data[1] != '':
