@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 import logging
 from pdf2image import convert_from_bytes
-from typing import List, Tuple
+
 
 # Custom imports
 import preprocessing.detect as dct
@@ -142,38 +142,32 @@ class Document:
                             cell_text = ocr_cell(cell_image)
                             row_data.append(cell_text)
 
-                        # Add the extracted table data to the document attributes
-                        table_data.append(row_data)
+                        # Log and add the extracted row data to the attributes
                         log.debug(f"Row {k + 1} Data: {row_data}")
 
-
-
+                        # Three columns
+                        if len(row_data) > 2:
+                            # Combine the first two columns into one key and add the third column as the value
+                            if (row_data[0], row_data[1], row_data[2]) != '':
+                                self.add_attributes({row_data[0] + ", " + row_data[1] : row_data[2]})
+                            # Add the total sum of the table as an attribute
+                            elif row_data[0] == 'Gesamtsumme' and row_data[2] != '':
+                                self.add_attributes({'Gesamtsumme': row_data[2]})
+                        # Two columns
+                        elif len(row_data) == 2:
+                            # TODO: Add logic for two columns
+                            print("Idk man")
+                        # One column
+                        elif len(row_data) == 1:
+                            # Use the first few characters of the cell text as the key
+                            if row_data[0] != '':
+                                self.add_attributes({row_data[0][:8]: row_data[0]})
+                        else:
+                            log.warning(f"Row data is not in the expected format: {row_data}")
 
                         # TODO: Integrate the new functionality into the existing code
 
-                        """
-                        if row_data[0] == 'Gesamtsumme' and row_data[1] != '':
-                            self.add_attributes({row_data[0]: row_data[1]})
-                        """
-                        # Add the extracted table data to the document attributes
-                        if row_data[1] != '' and row_data[2] != '':
-                            self.add_attributes({row_data[1]: row_data[2]})
-                        elif row_data[0] != '' and row_data[1] != '':
-                            self.add_attributes({row_data[0]: row_data[1]})
-                        else:
-                            log.debug(f"Table data is not in the expected format {row_data}")
-                        """
-                        elif row_data[2] != '' and row_data[1] == '':
-                            log.warning(f"There must have been an issue reading the left side of the table: {row_data}")
-                        elif row_data[1] != '' and row_data[0] == '':
-                            log.warning(f"There must have been an issue reading the left side of the table: {row_data}")
-                        """
-
-                    # Log the extracted table data
-                    log.debug("Extracted Table Data", self.__str__())
-
-            """
             for key, value in self.get_attributes().items():
                 print(f"\nKey: {key} \n Value: {value}")
-            """
+
             # TODO: Fix this (only 30% are actually added)
