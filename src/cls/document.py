@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 import logging
 from pdf2image import convert_from_bytes
-
+import re
 
 # Custom imports
 import preprocessing.detect as dct
@@ -113,7 +113,6 @@ class Document:
 
                 # Process each detected table
                 for j, contour in enumerate(table_contours):
-                    table_data = []
                     x, y, w, h = cv2.boundingRect(contour)
                     table_roi = bgr_image[y:y + h, x:x + w]
                     log.debug(f"Table {j + 1} on Page {i + 1}")
@@ -149,25 +148,31 @@ class Document:
                         if len(row_data) > 2:
                             # Combine the first two columns into one key and add the third column as the value
                             if (row_data[0], row_data[1], row_data[2]) != '':
-                                self.add_attributes({row_data[0] + ", " + row_data[1] : row_data[2]})
+                                #self.add_attributes({row_data[0] + ", " + row_data[1] : row_data[2]})
+                                self.add_attributes({row_data[1].strip() : row_data[2].strip()})
                             # Add the total sum of the table as an attribute
                             elif row_data[0] == 'Gesamtsumme' and row_data[2] != '':
-                                self.add_attributes({'Gesamtsumme': row_data[2]})
+                                self.add_attributes({'Gesamtsumme': row_data[2].strip()})
+                                # TODO: Why is this not working?
                         # Two columns
                         elif len(row_data) == 2:
-                            # TODO: Add logic for two columns
-                            print("Idk man")
+                            # Use the first column as the key and the second column as the value
+                            if row_data[0] != '':
+                                self.add_attributes({row_data[0].strip() : row_data[1].strip()})
                         # One column
                         elif len(row_data) == 1:
+                            # TODO: Fix cheesy way of checking for the BaFin-ID
+                            bafin_id = re.search(r'\b\d{8}\b', row_data[0])
+                            if row_data[0] != '' and bafin_id:
+                                self.add_attributes({"BaFin-ID": bafin_id.group()})
+
                             # Use the first few characters of the cell text as the key
-                            if row_data[0] != '':
-                                self.add_attributes({row_data[0][:8]: row_data[0]})
+                            elif row_data[0] != '':
+                                #self.add_attributes({row_data[0][:8]: row_data[0]})
+                                self.add_attributes({row_data[0]: row_data[0]})
                         else:
                             log.warning(f"Row data is not in the expected format: {row_data}")
 
-                        # TODO: Integrate the new functionality into the existing code
-
-            for key, value in self.get_attributes().items():
-                print(f"\nKey: {key} \n Value: {value}")
-
-            # TODO: Fix this (only 30% are actually added)
+            # TODO: Integrate the new functionality into the existing code
+            #for key, value in self.get_attributes().items():
+            #    print(f"\nKey: {key} \n Value: {value}")

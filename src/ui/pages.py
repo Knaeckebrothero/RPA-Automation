@@ -69,14 +69,18 @@ def home():
                         attachment.extract_table_data()
 
                         # Check if all values match the database
-                        if process.compare_company_values(attachment):
+                        print(process.compare_company_values(attachment))
+                        #if process.compare_company_values(attachment):
+                            #db = cache.get_database()
 
                             # TODO: Create a status column once the documents are getting processed (and simply update
                             #  it later on)
-                            
-                            cache.get_database.insert(
-                                f"INSERT INTO submissions (document_id, company_id, status) VALUES ({mail_id}, {attachment.get_attributes('BaFin-ID')}, 'submitted')")
-                            log.info(f"Document with ID {mail_id} successfully processed")
+
+                            #db.query(
+                            #    f"INSERT INTO submissions (document_id, company_id, status) VALUES ({mail_id},
+                            #    {attachment.get_attributes('BaFin-ID')}, 'submitted')")
+
+                            #log.info(f"Document with ID {mail_id} successfully processed")
                             # TODO: Let the insert statement be executed by the database class
 
                     else:
