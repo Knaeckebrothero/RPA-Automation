@@ -118,7 +118,7 @@ def cells(bgr_image_array: np.array) -> List[Tuple[int, int]]:
     zoom_offset_y = 5  # Amount to trim off the top and bottom of the row (y-axis)
     # TODO: Fix the y axis offset since it is not working as expected
     grey_bgr_image_array = cv2.cvtColor(bgr_image_array, cv2.COLOR_BGR2GRAY)
-    log.debug("Grey image shape:", grey_bgr_image_array.shape)
+    log.debug("Image converted to grayscale")
 
     # Apply cropping to remove lines at the top and bottom of the row (y-axis)
     row_start = zoom_offset_y
@@ -128,31 +128,31 @@ def cells(bgr_image_array: np.array) -> List[Tuple[int, int]]:
     if row_start < row_end:
         # Crop top and bottom to remove lines at the edges
         cut_bgr_image_array = bgr_image_array[row_start:row_end, :]
-        log.debug("Cropped image shape:", bgr_image_array.shape)
+        log.debug("Image cropped to remove top and bottom lines.")
     else:
         cut_bgr_image_array = bgr_image_array
-        log.debug("No cropping applied. Image shape:", bgr_image_array.shape)
+        log.debug("No cropping applied to the image.")
 
     # Create a binary threshold
     _, thresh = cv2.threshold(grey_bgr_image_array, 240, 255, cv2.THRESH_BINARY_INV)
-    log.debug("Thresholded image shape:", thresh.shape)
+    log.debug("Created binary threshold")
 
     # Detect vertical lines (potential cell separators)
     vertical_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 20))
     detect_vertical = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, vertical_kernel, iterations=2)
-    log.debug("Vertical lines shape:", detect_vertical.shape)
+    log.debug("Detected vertical lines")
 
     # Find and sort contours of vertical lines by x-coordinate
     contours, _ = cv2.findContours(detect_vertical, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     contours = sorted(contours, key=lambda c: cv2.boundingRect(c)[0])
-    log.debug("Contours:", contours)
+    log.debug("Sorted contours")
 
     if len(contours) == 0:
         # If no vertical separators are found, treat the whole row as a single cell
         row_cells.append((max(0, 5), max(0, cut_bgr_image_array.shape[1] - 5)))  # Slight zoom-in to remove edges
         log.debug("No vertical separators found. Treating row as a single cell.")
     else:
-        log.debug("Detected vertical separators:", len(contours))
+        log.debug("Vertical separators detected")
 
         # Loop through the detected contours and add cell boundaries (x-coordinates)
         for contour in contours:
@@ -161,31 +161,29 @@ def cells(bgr_image_array: np.array) -> List[Tuple[int, int]]:
 
             # Ignore very close lines (to avoid confusing text characters as vertical lines)
             if x - prev_x > 10:
-                log.debug("Detected cell boundary:", (prev_x, x))
+                log.debug("Cell boundary's detected")
 
                 # Adjust the vertical cell boundaries to zoom in slightly (remove surrounding lines)
                 cell_start = max(prev_x + zoom_offset, 0)
                 cell_end = min(x - zoom_offset, cut_bgr_image_array.shape[1])
-                log.debug("Adjusted cell boundary:", (cell_start, cell_end))
+                log.debug("Cell boundary's adjusted")
 
                 # Ensure start is less than the end to avoid negative width errors
                 if cell_start < cell_end:
                     row_cells.append((cell_start, cell_end))
-                    log.debug("Added cell boundary:", (cell_start, cell_end))
+                    log.debug("Cell boundary's added")
 
                 # Update the previous x-coordinate for the next cell
                 prev_x = x + w
-                log.debug("Updated previous x-coordinate:", prev_x)
+                log.debug("Updated previous x-coordinate")
 
         # Add the last cell (after the last detected vertical line)
         last_cell_start = prev_x + zoom_offset
         last_cell_end = cut_bgr_image_array.shape[1] - zoom_offset
-        log.debug("Last cell boundary:", (last_cell_start, last_cell_end))
 
         # Ensure start is less than end for the last cell to avoid negative width errors
         if last_cell_start < last_cell_end:
             row_cells.append((last_cell_start, last_cell_end))
-            log.debug("Added last cell boundary:", (last_cell_start, last_cell_end))
+            log.debug("Last cell boundary added")
 
-    log.debug("Cell boundaries:", cells)
     return row_cells

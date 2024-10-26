@@ -36,7 +36,7 @@ def compare_company_values(company_document: Document):
             db = get_database()
             bafin_id = bafin_id.group()
 
-            company = db.query(f"""
+            company_data = db.query(f"""
             SELECT 
                 id,
                 p033, p034, p035, p036,
@@ -47,30 +47,83 @@ def compare_company_values(company_document: Document):
             WHERE bafin_id = {bafin_id}
             """)
 
-            print(company)
-
-            if len(company) > 0:
+            if len(company_data) > 0:
                 log.debug(f"Company with BaFin ID {bafin_id} found in database")
                 document_attributes = company_document.get_attributes()
 
-                # TODO: Doesn't work because db returns a list of tuples...
+                # TODO: Implement a proper way to compare the values
+                for key in document_attributes.keys():
+                    try:
+                        value = int(document_attributes[key].replace(".", ""))
+                    except ValueError:
+                        continue
 
-                for db_key, db_value in company[0].items().drop("id"):
-                    for doc_key, doc_value in document_attributes.keys():
-                        if db_key in doc_key:
-                            try:
-                                if int(db_value) != int(doc_value):
-                                    log.debug(f"Value mismatch for key {db_key}: {db_value} (database) vs {doc_value} (document)")
-                                    return False
-                                else:
-                                    log.debug(f"Value match for key {db_key}: {db_value} (database) vs {doc_value} (document)")
-                                    return True
-                            except ValueError:
-                                log.error(f"Value for key {db_key} is not an integer")
-                                return False
-                        else:
-                            log.debug(f"Key {db_key} not found in document")
+                    if "033" in key:
+                        if company_data[0][1] != value:
+                            log.debug(f"db: {type(company_data[0][1])} vs doc: {type(value)}")
+                            log.debug(f"Value mismatch for key {key}: {company_data[0][1]} (database) vs {value} (document)")
                             return False
+                    elif "034" in key:
+                        if company_data[0][2] != value:
+                            log.debug(f"Value mismatch for key {key}: {company_data[0][2]} (database) vs {value} (document)")
+                            return False
+                    elif "035" in key:
+                        if company_data[0][3] != value:
+                            log.debug(f"Value mismatch for key {key}: {company_data[0][3]} (database) vs {value} (document)")
+                            return False
+                    elif "036" in key:
+                        if company_data[0][4] != value:
+                            log.debug(f"Value mismatch for key {key}: {company_data[0][4]} (database) vs {value} (document)")
+                            return False
+                    elif "Nr. 1" in key:
+                        if company_data[0][5] != value:
+                            log.debug(f"Value mismatch for key {key}: {company_data[0][5]} (database) vs {value} (document)")
+                            return False
+                    elif "Nr. 2" in key:
+                        if company_data[0][6] != value:
+                            log.debug(f"Value mismatch for key {key}: {company_data[0][6]} (database) vs {value} (document)")
+                            return False
+                    elif "Nr. 3" in key:
+                        if company_data[0][7] != value:
+                            log.debug(f"Value mismatch for key {key}: {company_data[0][7]} (database) vs {value} (document)")
+                            return False
+                    elif "Nr. 4" in key:
+                        if company_data[0][8] != value:
+                            log.debug(f"Value mismatch for key {key}: {company_data[0][8]} (database) vs {value} (document)")
+                            return False
+                    elif "Nr. 5" in key:
+                        if company_data[0][9] != value:
+                            log.debug(f"Value mismatch for key {key}: {company_data[0][9]} (database) vs {value} (document)")
+                            return False
+                    elif "Nr. 6" in key:
+                        if company_data[0][10] != value:
+                            log.debug(f"Value mismatch for key {key}: {company_data[0][10]} (database) vs {value} (document)")
+                            return False
+                    elif "Nr. 7" in key:
+                        if company_data[0][11] != value:
+                            log.debug(f"Value mismatch for key {key}: {company_data[0][11]} (database) vs {value} (document)")
+                            return False
+                    elif "Nr. 8" in key:
+                        if company_data[0][12] != value:
+                            log.debug(f"Value mismatch for key {key}: {company_data[0][12]} (database) vs {value} (document)")
+                            return False
+                    elif "Nr. 9" in key:
+                        if company_data[0][13] != value:
+                            log.debug(f"Value mismatch for key {key}: {company_data[0][13]} (database) vs {value} (document)")
+                            return False
+                    elif "Nr. 10" in key:
+                        if company_data[0][14] != value:
+                            log.debug(f"Value mismatch for key {key}: {company_data[0][14]} (database) vs {value} (document)")
+                            return False
+                    #elif "Nr. 11" in key:
+                    #    if company_data[0][15] != float(value.replace(".", "").replace(",", ".")):
+                    #        log.debug(f"Value mismatch for key {key}: {company_data[0][15]} (database) vs {value} (
+                            #        document)")
+                    #        return False
+
+                # Return True if all conditions are met and no mismatches are found
+                log.info(f"Values for company with BaFin ID {bafin_id} match the database.")
+                return True
             else:
                 log.warning(f"Company with BaFin ID {bafin_id} not found in database")
                 return False

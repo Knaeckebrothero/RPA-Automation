@@ -68,21 +68,35 @@ def home():
                         # Extract text from the document
                         attachment.extract_table_data()
 
-                        # Check if all values match the database
-                        print(process.compare_company_values(attachment))
-                        #if process.compare_company_values(attachment):
-                            #db = cache.get_database()
+                        # Get the database
+                        db = cache.get_database()
 
+                        # Get the company id based on the BaFin-ID
+                        company_id = db.query(f"""
+                            SELECT id 
+                            FROM companies 
+                            WHERE bafin_id ={attachment.get_attributes('BaFin-ID')}
+                            """)
+
+                        # Check if all values match the database
+                        if process.compare_company_values(attachment):
                             # TODO: Create a status column once the documents are getting processed (and simply update
                             #  it later on)
 
-                            #db.query(
-                            #    f"INSERT INTO submissions (document_id, company_id, status) VALUES ({mail_id},
-                            #    {attachment.get_attributes('BaFin-ID')}, 'submitted')")
+                            db.insert(f"""
+                            INSERT INTO status (company_id, email_id, status)
+                            VALUES ({company_id[0][0]}, {mail_id}, 'processed')
+                            """)
 
-                            #log.info(f"Document with ID {mail_id} successfully processed")
-                            # TODO: Let the insert statement be executed by the database class
-
+                            log.info(f"Company with BaFin ID {attachment.get_attributes('BaFin-ID')} successfully processed")
+                        else:
+                            if len(company_id[0][0]) == 0:
+                                db.insert(f"""
+                                INSERT INTO status (company_id, email_id, status)
+                                VALUES ({company_id[0][0]}, {mail_id}, 'processing')
+                                """)
+                            else:
+                                log.info(f"Couldn't detect BaFin-ID for document with mail id: {mail_id}")
                     else:
                         log.info(f'Skipping non-pdf attachment {attachment.get_attributes("content_type")}')
 

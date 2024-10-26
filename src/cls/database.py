@@ -159,10 +159,15 @@ class Database(Singleton):
                 """, (
                     company["Institut"], company["ID"], company["Adresse"], company["PLZ/Ort"],
                     company["Ansprechpartner"], company["Telefon"], company["Fax"], company["Mail"],
-                    company["N1"], company["N2"], company["N3"], company["N4"], company["N6"],
-                    company["N7"], company["N8"], company["N9"], company["N10"], company["N11"],
-                    company["N12"], company["N13"], company["N14"], company["N15"], company["N16"],
-                    company["N18"]
+                    int(company["N1"].replace(".", "")), int(company["N2"].replace(".", "")),
+                    int(company["N3"].replace(".", "")), int(company["N4"].replace(".", "")),
+                    int(company["N6"].replace(".", "")), int(company["N7"].replace(".", "")),
+                    int(company["N8"].replace(".", "")), int(company["N9"].replace(".", "")),
+                    int(company["N10"].replace(".", "")), int(company["N11"].replace(".", "")),
+                    int(company["N12"].replace(".", "")), int(company["N13"].replace(".", "")),
+                    int(company["N14"].replace(".", "")), int(company["N15"].replace(".", "")),
+                    int(company["N16"].replace(".", "")),
+                    float(company["N18"].replace(".", "").replace(",", ".")),
                 ))
 
             self._conn.commit()
@@ -175,11 +180,30 @@ class Database(Singleton):
     def query(self, query: str) -> list[tuple]:
         """
         Execute a query on the database.
+        The difference is that this method does not do a commit.
+
+        :param query: The query to execute.
+        :return: The result of the query as a list of tuples
         """
         try:
             self.cursor.execute(query)
-            self._conn.commit()
             return self.cursor.fetchall()
         except sqlite3.Error as e:
             log.error(f"Error executing query: {e}")
             return []
+
+    def insert(self, insert_query: str) -> bool:
+        """
+        Execute an insert query on the database.
+        The difference is that this method does not do a fetchall.
+
+        :param insert_query: The insert query to execute.
+        :return: True if the query was successful, False otherwise.
+        """
+        try:
+            self.cursor.execute(insert_query)
+            self._conn.commit()
+            return True
+        except sqlite3.Error as e:
+            log.error(f"Error executing query: {e}")
+            return False
