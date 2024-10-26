@@ -1,8 +1,7 @@
 # Projecspecific contents go here
 
-# Logs
-/src/config/logs/
-/src/config/filesystem/
+# Logs & working directories
+.filesystem/
 
 # Local environment
 .env
@@ -61,7 +60,7 @@ hs_err_pid*
 application.properties
 
 # JavaScript / React
-src/config/logs
+src/cfg/logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

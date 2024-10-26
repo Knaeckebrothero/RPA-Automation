@@ -1,4 +1,16 @@
-streamlit~=1.36.0
-python-dotenv~=1.0.0
-pandas~=2.2.0
-beautifulsoup4~=4.12.2
+pandas
+numpy
+matplotlib
+python-dotenv
+
+streamlit
+opencv-python
+pdf2image
+
+pillow
+pytesseract
+beautifulsoup4
+# easyocr  # OCR alternative
+# Might require updating 
+# sudo apt-get updating mesa
+# sudo apt-get install libgl1-mesa-glx
