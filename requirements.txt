@@ -7,10 +7,11 @@ streamlit
 opencv-python
 pdf2image
 
-pillow
-pytesseract
+pillow  # Required by tesseract (allthough easyocr depends on it as well)
 beautifulsoup4
-# easyocr  # OCR alternative
+pytesseract
+easyocr
+
 # Might require updating 
 # sudo apt-get updating mesa
 # sudo apt-get install libgl1-mesa-glx
