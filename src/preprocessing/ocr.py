@@ -4,21 +4,22 @@ This module holds methods to extract text from images.
 import logging as log
 import cv2
 import pytesseract
-import easyocr
 from PIL import Image
+from easyocr import Reader
 
 
-def ocr_cell(cell_image):
+def ocr_cell(cell_image, reader: Reader):
     # Initialize EasyOCR reader
-    reader = easyocr.Reader(['de'])
-    log.debug('Initialized EasyOCR reader')
+    #reader = easyocr.Reader(['de'])
+    #log.debug('Initialized EasyOCR reader')
 
     # Perform OCR
     result = reader.readtext(cv2.cvtColor(cell_image, cv2.COLOR_BGR2RGB))
-    log.debug(f'Extracted text from cell: {result}')
+    log.debug('Performed OCR on cell')
 
     # Extract the recognized text
     text = ' '.join([res[1] for res in result])
+    log.debug(f'Extracted text from cell: {text}')
 
     return text.strip()
 

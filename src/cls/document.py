@@ -6,6 +6,7 @@ import numpy as np
 import logging
 from pdf2image import convert_from_bytes
 import re
+from easyocr import Reader
 
 # Custom imports
 import preprocessing.detect as dct
@@ -96,6 +97,8 @@ class Document:
         Extract the text from the document.
         """
         if self._content:
+            ocr_reader = Reader(['de'])
+
             # Convert the PDF document into a list of images (one image per page)
             images = convert_from_bytes(self._content)
             log.debug(f"Number of pages in the document: {len(images)}")
@@ -138,11 +141,11 @@ class Document:
                             cell_image = row_image[:, x1:x2]
 
                             # Extract and append the text from the cell
-                            cell_text = ocr_cell(cell_image)
+                            cell_text = ocr_cell(cell_image, ocr_reader)
                             row_data.append(cell_text)
 
                         # Log and add the extracted row data to the attributes
-                        log.debug(f"Row {k + 1} Data: {row_data}")
+                        log.info(f"Row {k + 1} Data: {row_data}")
 
                         # Three columns
                         if len(row_data) > 2:
