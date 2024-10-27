@@ -140,7 +140,7 @@ class Database(Singleton):
                 return
 
             # Load the example data from a JSON file
-            with open('./.filesystem/examples.json', 'r') as f:
+            with open('./examples/examples.json', 'r') as f:
                 examples = json.load(f)
 
             # Insert the example data into the companies table

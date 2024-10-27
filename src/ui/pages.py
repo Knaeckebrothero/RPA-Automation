@@ -100,6 +100,9 @@ def home():
                     else:
                         log.info(f'Skipping non-pdf attachment {attachment.get_attributes("content_type")}')
 
+        # Finally, rerun the app to update the display
+        st.rerun()
+
 def settings():
     """
     This is the settings ui page for the application.
