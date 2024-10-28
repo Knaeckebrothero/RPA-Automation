@@ -4,13 +4,13 @@ This module holds the document class.
 import cv2
 import numpy as np
 import logging
-from pdf2image import convert_from_bytes
 import re
 from easyocr import Reader
 
 # Custom imports
 import preprocessing.detect as dct
 from preprocessing.ocr import ocr_cell
+from processing.files import get_images_from_pdf
 
 
 # Set up logging
@@ -100,7 +100,8 @@ class Document:
             ocr_reader = Reader(['de'])
 
             # Convert the PDF document into a list of images (one image per page)
-            images = convert_from_bytes(self._content)
+            # images = convert_from_bytes(self._content)
+            images = get_images_from_pdf(self._content)
             log.debug(f"Number of pages in the document: {len(images)}")
 
             # Loop through each page of the document

@@ -6,6 +6,7 @@ python-dotenv
 streamlit
 opencv-python
 pdf2image
+PyMuPDF
 
 pillow  # Required by tesseract (allthough easyocr depends on it as well)
 beautifulsoup4

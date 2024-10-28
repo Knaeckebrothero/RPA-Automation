@@ -12,6 +12,8 @@ from pdf2image import convert_from_bytes
 import src.preprocessing.detect as dct
 from src.preprocessing.ocr import ocr_cell
 from typing import List, Tuple
+from easyocr import Reader
+from src.processing.files import get_images_from_pdf
 
 
 def test_cells(row_image: np.array) -> List[Tuple[int, int]]:
@@ -122,9 +124,12 @@ def test_detect_cells_based_on_horizontal_spacing(thresh_image: np.array) -> Lis
 # File upload
 pdf_document = st.file_uploader(label="Upload PDF here", type=["pdf"])
 if pdf_document is not None:
-    images = convert_from_bytes(pdf_document.read())
+    #images = convert_from_bytes(pdf_document.read())
+    images = get_images_from_pdf(pdf_document.read())
+
     st.image(images, width=350) # use_column_width="auto"
 
+    ocr_reader = Reader(['de'])
 
     ### Test code goes here ###
     for i, image in enumerate(images):
@@ -180,7 +185,7 @@ if pdf_document is not None:
                              caption=f"Cell",
                              use_column_width=False, width=350)
 
-                    cell_text = ocr_cell(cell_image)
+                    cell_text = ocr_cell(cell_image, ocr_reader)
                     row_data.append(cell_text)
 
                 table_data.append(row_data)
