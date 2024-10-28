@@ -179,3 +179,16 @@ class Document:
             # TODO: Integrate the new functionality into the existing code
             #for key, value in self.get_attributes().items():
             #    print(f"\nKey: {key} \n Value: {value}")
+
+    def save_to_file(self, file_path: str):
+        """
+        Save the document's content to a file at the specified path.
+
+        :param file_path: The path where the file should be saved.
+        """
+        try:
+            with open(file_path, 'wb') as file:
+                file.write(self._content)
+            log.info(f"Document saved to: {file_path}")
+        except IOError as e:
+            log.error(f"Error saving document: {e}")

@@ -12,7 +12,7 @@ import streamlit as st
 # Custom imports
 import cls
 
-
+# TODO: Check if the caching of resources and data is done right and working as expected
 @st.cache_resource
 def get_mailclient(
         imap_server: str = None,
@@ -42,7 +42,6 @@ def get_mailclient(
         inbox=inbox if inbox else os.getenv('INBOX')
     )
 
-
 @st.cache_data
 def get_emails():
     """
@@ -51,7 +50,6 @@ def get_emails():
     :return: The emails fetched from the mail client.
     """
     return get_mailclient().get_mails()
-
 
 @st.cache_resource
 def get_database():

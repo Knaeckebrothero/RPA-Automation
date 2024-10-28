@@ -159,9 +159,13 @@ class Mailclient(Singleton):
         log.info('Requested mails, server responded with: %s', status)
         return response
 
-    def get_mails(self):
+    def get_mails(self, excluded_ids: list[int] = None) -> pd.DataFrame:
         """
         Method to list the mails in the selected inbox and return them as a pandas DataFrame.
+        Excludes the emails with IDs present in the excluded_ids list.
+
+        :param excluded_ids: A list of email IDs to exclude from the result.
+        :return: A pandas DataFrame containing the emails.
         """
         log.debug('Listing mails...')
         status, response = self._connection.search(None, 'ALL')
@@ -171,8 +175,17 @@ class Mailclient(Singleton):
         emails_data = []
         decoding_format = 'iso-8859-1'  # 'utf-8' 'iso-8859-1'
 
+        # Convert excluded_ids to a set for faster lookup
+        excluded_ids_set = set(excluded_ids) if excluded_ids else set()
+        log.debug(f'Excluded ids set: {excluded_ids_set}')
+
         # Loop through email ids
         for email_id in email_ids:
+            # Skip the email if its ID is in the excluded_ids set
+            if int(email_id.decode(decoding_format)) in excluded_ids_set:
+                log.debug(f'Skipping email {email_id} as it is in the excluded_ids list')
+                continue
+
             # Fetch the email
             _, msg_data = self._connection.fetch(email_id, '(RFC822)')
 
@@ -231,6 +244,7 @@ class Mailclient(Singleton):
         :param email_id: The id of the email to get the attachments from.
         :return: A list of attachments or an empty list if no attachments are found.
         """
+        log.debug(f'Downloading attachments from email {email_id}')
         try:
             # Fetch the email
             _, msg_data = self._connection.fetch(email_id, '(RFC822)')
@@ -283,5 +297,6 @@ class Mailclient(Singleton):
             return attachments
 
         except Exception as e:
+            print(email_id)
             log.error(f"Error processing email {email_id}: {str(e)}")
             return []
