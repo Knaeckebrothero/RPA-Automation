@@ -60,60 +60,60 @@ def compare_company_values(company_document: Document):
 
                     if "033" in key:
                         if company_data[0][1] != value:
-                            log.debug(f"db: {type(company_data[0][1])} vs doc: {type(value)}")
-                            log.debug(f"Value mismatch for key {key}: {company_data[0][1]} (database) vs {value} (document)")
+                            log.warning(f"db: {type(company_data[0][1])} vs doc: {type(value)}")
+                            log.warning(f"Value mismatch for key {key}: {company_data[0][1]} (database) vs {value} (document)")
                             return False
                     elif "034" in key:
                         if company_data[0][2] != value:
-                            log.debug(f"Value mismatch for key {key}: {company_data[0][2]} (database) vs {value} (document)")
+                            log.warning(f"Value mismatch for key {key}: {company_data[0][2]} (database) vs {value} (document)")
                             return False
                     elif "035" in key:
                         if company_data[0][3] != value:
-                            log.debug(f"Value mismatch for key {key}: {company_data[0][3]} (database) vs {value} (document)")
+                            log.warning(f"Value mismatch for key {key}: {company_data[0][3]} (database) vs {value} (document)")
                             return False
                     elif "036" in key:
                         if company_data[0][4] != value:
-                            log.debug(f"Value mismatch for key {key}: {company_data[0][4]} (database) vs {value} (document)")
+                            log.warning(f"Value mismatch for key {key}: {company_data[0][4]} (database) vs {value} (document)")
                             return False
                     elif "Nr. 1" in key:
                         if company_data[0][5] != value:
-                            log.debug(f"Value mismatch for key {key}: {company_data[0][5]} (database) vs {value} (document)")
+                            log.warning(f"Value mismatch for key {key}: {company_data[0][5]} (database) vs {value} (document)")
                             return False
                     elif "Nr. 2" in key:
                         if company_data[0][6] != value:
-                            log.debug(f"Value mismatch for key {key}: {company_data[0][6]} (database) vs {value} (document)")
+                            log.warning(f"Value mismatch for key {key}: {company_data[0][6]} (database) vs {value} (document)")
                             return False
                     elif "Nr. 3" in key:
                         if company_data[0][7] != value:
-                            log.debug(f"Value mismatch for key {key}: {company_data[0][7]} (database) vs {value} (document)")
+                            log.warning(f"Value mismatch for key {key}: {company_data[0][7]} (database) vs {value} (document)")
                             return False
                     elif "Nr. 4" in key:
                         if company_data[0][8] != value:
-                            log.debug(f"Value mismatch for key {key}: {company_data[0][8]} (database) vs {value} (document)")
+                            log.warning(f"Value mismatch for key {key}: {company_data[0][8]} (database) vs {value} (document)")
                             return False
                     elif "Nr. 5" in key:
                         if company_data[0][9] != value:
-                            log.debug(f"Value mismatch for key {key}: {company_data[0][9]} (database) vs {value} (document)")
+                            log.warning(f"Value mismatch for key {key}: {company_data[0][9]} (database) vs {value} (document)")
                             return False
                     elif "Nr. 6" in key:
                         if company_data[0][10] != value:
-                            log.debug(f"Value mismatch for key {key}: {company_data[0][10]} (database) vs {value} (document)")
+                            log.warning(f"Value mismatch for key {key}: {company_data[0][10]} (database) vs {value} (document)")
                             return False
                     elif "Nr. 7" in key:
                         if company_data[0][11] != value:
-                            log.debug(f"Value mismatch for key {key}: {company_data[0][11]} (database) vs {value} (document)")
+                            log.warning(f"Value mismatch for key {key}: {company_data[0][11]} (database) vs {value} (document)")
                             return False
                     elif "Nr. 8" in key:
                         if company_data[0][12] != value:
-                            log.debug(f"Value mismatch for key {key}: {company_data[0][12]} (database) vs {value} (document)")
+                            log.warning(f"Value mismatch for key {key}: {company_data[0][12]} (database) vs {value} (document)")
                             return False
                     elif "Nr. 9" in key:
                         if company_data[0][13] != value:
-                            log.debug(f"Value mismatch for key {key}: {company_data[0][13]} (database) vs {value} (document)")
+                            log.warning(f"Value mismatch for key {key}: {company_data[0][13]} (database) vs {value} (document)")
                             return False
                     elif "Nr. 10" in key:
                         if company_data[0][14] != value:
-                            log.debug(f"Value mismatch for key {key}: {company_data[0][14]} (database) vs {value} (document)")
+                            log.warning(f"Value mismatch for key {key}: {company_data[0][14]} (database) vs {value} (document)")
                             return False
                     #elif "Nr. 11" in key:
                     #    if company_data[0][15] != float(value.replace(".", "").replace(",", ".")):
