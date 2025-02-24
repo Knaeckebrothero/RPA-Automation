@@ -5,6 +5,8 @@ import sqlite3
 import logging
 import json
 
+import pandas as pd
+
 # Custom imports
 from cls.singleton import Singleton
 
@@ -59,13 +61,13 @@ class Database(Singleton):
         as the status table has a foreign key constraint on it.
         """
         try:
-            self._create_companies_table()
+            self._create_clients_table()
             self._create_status_table()
             log.debug("All required tables are ensured to exist.")
         except sqlite3.Error as e:
             log.error(f"Error ensuring tables exist: {e}")
 
-    def _create_companies_table(self):
+    def _create_clients_table(self):
         """
         Create the companies table if it does not exist.
         """
@@ -135,7 +137,7 @@ class Database(Singleton):
         """
         try:
             # Check if the table is empty
-            if not self.cursor.execute("SELECT COUNT(*) FROM companies").fetchone()[0] == 0:
+            if not self.cursor.execute("SELECT COUNT(*) FROM clients").fetchone()[0] == 0:
                 log.debug("Company table already contains data, skipping example data insertion.")
                 return
 
@@ -147,7 +149,7 @@ class Database(Singleton):
             for company in examples:
                 # Map JSON data to the columns in the table
                 self.cursor.execute("""
-                INSERT INTO companies (
+                INSERT INTO clients (
                     institut, bafin_id, address, city, contact_person,
                     phone, fax, email, 
                     p033, p034, p035, p036,
@@ -176,6 +178,7 @@ class Database(Singleton):
             log.error(f"Error inserting example data: {e}")
         except Exception as e:
             log.error(f"Unexpected error: {e}")
+
 
     def query(self, query: str) -> list[tuple]:
         """
@@ -207,3 +210,21 @@ class Database(Singleton):
         except sqlite3.Error as e:
             log.error(f"Error executing query: {e}")
             return False
+
+
+    def get_clients(self) -> pd.DataFrame:
+        """
+        This function returns all clients from the database.
+
+        :return: A pandas DataFrame with all clients.
+        """
+        columns = [
+            'id', 'institut', 'bafin_id', 'address', 'city',
+            'contact_person', 'phone', 'fax', 'email',
+            'p033', 'p034', 'p035', 'p036',
+            'ab2s1n01', 'ab2s1n02', 'ab2s1n03', 'ab2s1n04',
+            'ab2s1n05', 'ab2s1n06', 'ab2s1n07', 'ab2s1n08',
+            'ab2s1n09', 'ab2s1n10', 'ab2s1n11', 'ratio'
+        ]
+        data = self.query('SELECT * FROM clients')
+        return pd.DataFrame(data, columns=columns)

@@ -59,3 +59,7 @@ def get_database():
     :return: The database instance.
     """
     return cls.Database().get_instance()
+
+@st.cache_data
+def get_clients():
+    return get_database().get_clients()

@@ -10,6 +10,7 @@ import logging as log
 import ui.visuals as visuals
 import cfg.cache as cache
 import processing.data as process
+import ui.expander_steps as expander
 
 
 def _process_documents(docs_to_process: pd.DataFrame, mailclient, database):
@@ -54,7 +55,7 @@ def _process_documents(docs_to_process: pd.DataFrame, mailclient, database):
                     # Get the company id based on the BaFin-ID
                     company_id = database.query(f"""
                                 SELECT id 
-                                FROM companies 
+                                FROM clients 
                                 WHERE bafin_id ={attachment.get_attributes('BaFin-ID')}
                                 """)
 
@@ -111,26 +112,56 @@ def home():
         # Display the mails
         st.dataframe(emails)
 
+    # TODO: Remove old processing logic in favor of the "Active Cases" page
     # Display a multiselect box to select documents to process
-    docs_to_process = st.multiselect('Select documents to process', emails['ID'])
+    # docs_to_process = st.multiselect('Select documents to process', emails['ID'])
 
     # Process only the selected documents
-    if st.button('Process selected documents'):
-        _process_documents(docs_to_process, cache.get_mailclient(), cache.get_database())
+    # if st.button('Process selected documents'):
+    #     _process_documents(docs_to_process, cache.get_mailclient(), cache.get_database())
 
     # Process all the documents
-    if st.button('Process all documents'):
-        db = cache.get_database()
-        mailclient = cache.get_mailclient()
+    # if st.button('Process all documents'):
+    #    db = cache.get_database()
+    #    mailclient = cache.get_mailclient()
 
-        # Get all mails that are already in the database
-        already_processed_mails = [x[0] for x in db.query('SELECT email_id FROM status')]
+    #    # Get all mails that are already in the database
+    #    already_processed_mails = [x[0] for x in db.query('SELECT email_id FROM status')]
 
         # If no mails are in the database, fetch all mails
-        if len(already_processed_mails) > 0:
-            _process_documents(mailclient.get_mails(already_processed_mails)['ID'], mailclient, db)
-        else:
-            _process_documents(emails['ID'], mailclient, db)
+    #    if len(already_processed_mails) > 0:
+    #        _process_documents(mailclient.get_mails(already_processed_mails)['ID'], mailclient, db)
+    #    else:
+    #        _process_documents(emails['ID'], mailclient, db)
+
+
+def active_cases():
+    """
+    This is the settings ui page for the application.
+    """
+    log.debug('Rendering active cases page')
+
+    # Fetch the clients
+    clients = cache.get_clients()
+
+    # Page title and description
+    st.header('Active Cases')
+    # st.write(f'Selected client: {clients["institut"][]}')
+    # TODO: Find a way to display the client name across refreshes!
+    # Perhaps store in session state?
+
+    # Display a multiselect box to select documents to process
+    selected_client = st.selectbox('Select the company to be processed', clients['institut'])
+
+    # TODO: Display information about the selected client
+
+    # Display an expandable section for each step of the process
+    # Symbols: https://streamlit-emoji-shortcodes-streamlit-app-gwckff.streamlit.app/
+    expander.step_1()
+    expander.step_2()
+    expander.step_3()
+    expander.step_4()
+
 
 def settings():
     """

@@ -57,9 +57,12 @@ def main():
             log.debug('Home page selected')
             page.home()
         case 1:
+            log.debug('Active cases page selected')
+            page.active_cases()
+        case 2:
             log.debug('Settings page selected')
             page.settings()
-        case 2:
+        case 3:
             log.debug('About page selected')
             page.about()
         case _:
