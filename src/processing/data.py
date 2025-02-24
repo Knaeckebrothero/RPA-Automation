@@ -20,7 +20,7 @@ def initialize_company_status(company_document: Document):
             db = get_database()
             bafin_id = bafin_id.group()
 
-            company = db.query(f"SELECT * FROM companies WHERE bafin_id = {bafin_id}")
+            company = db.query(f"SELECT * FROM clients WHERE bafin_id = {bafin_id}" )
 
             # TODO: Implement the initialize_company_status function
 

@@ -28,20 +28,16 @@ def navbar() -> int:
         log.debug('Fetch Documents button clicked')
         page = 0
 
+    if st.button('Active Cases'):
+        log.debug('Active cases button clicked')
+        page = 1
+
     if st.button('Settings'):
         log.debug('Settings button clicked')
-        page = 1
+        page = 2
 
     if st.button('About'):
         log.debug('About button clicked')
-        page = 2  # TODO: Change to 3 when the about page is implemented
-
-    if st.button('Exit'):
-        log.debug('Exit button clicked')
-
-        # Close the browser window and stop the script
-        st.markdown('<script>window.close();</script>', unsafe_allow_html=True)
-        streamlit.stop()
-        # TODO: This does not work as expected. Needs to be fixed
+        page = 3
 
     return page
