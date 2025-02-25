@@ -34,25 +34,26 @@ CREATE TABLE IF NOT EXISTS client (
 --  for the verification of the company for a particular year. Meaning this also includes a date and stuff!
 
 -- Status Table
-CREATE TABLE IF NOT EXISTS status (
+CREATE TABLE IF NOT EXISTS audit_case (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     client_id INTEGER NOT NULL,
-    email_id INTEGER NOT NULL,
-    status TEXT NOT NULL,
+    email_id INTEGER,
+    status INTEGER NOT NULL DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    comment TEXT,
+    comments TEXT,
     FOREIGN KEY (client_id) REFERENCES client(id)
 );
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_client_bafin_id ON client(bafin_id);
-CREATE INDEX IF NOT EXISTS idx_status_company_id ON status(client_id);
-CREATE INDEX IF NOT EXISTS idx_status_email_id ON status(email_id);
+CREATE INDEX IF NOT EXISTS idx_status_client_id ON audit_case(client_id);
+CREATE INDEX IF NOT EXISTS idx_status_email_id ON audit_case(email_id);
+CREATE INDEX IF NOT EXISTS idx_status_created_at ON audit_case(created_at);
 
 -- Trigger to update the last_updated_at timestamp when a status record is updated
 CREATE TRIGGER IF NOT EXISTS update_status_last_updated
-    AFTER UPDATE ON status
+    AFTER UPDATE ON audit_case
 BEGIN
-    UPDATE status SET last_updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+    UPDATE audit_case SET last_updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
 END;
