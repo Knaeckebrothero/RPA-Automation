@@ -48,7 +48,7 @@ def main():
             # TODO: Add a check for the existence of the .env file
             # TODO: Add json configuration file to load the non-sensitive configuration from
 
-    # Render the navbar and store the selected page in the session
+    # Render the navbar and store the selected page in the session state
     st.session_state['page'] = navbar()
 
     # Render the page based on the selected option

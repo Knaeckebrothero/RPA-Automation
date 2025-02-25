@@ -29,7 +29,7 @@ def pie_submission_ratio() -> plt.Figure:
 
     cmp_no_submission = db.query("""
     SELECT COUNT(DISTINCT id)
-    FROM clients
+    FROM client
     """)[0][0] - cmp_processed - cmp_processing
 
     # Check if there is no data
