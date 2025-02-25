@@ -30,21 +30,24 @@ CREATE TABLE IF NOT EXISTS client (
     ratio FLOAT
 );
 
+-- TODO: Refactor the status table to become something like a "document verification process" table that holds data
+--  for the verification of the company for a particular year. Meaning this also includes a date and stuff!
+
 -- Status Table
 CREATE TABLE IF NOT EXISTS status (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    company_id INTEGER NOT NULL,
+    client_id INTEGER NOT NULL,
     email_id INTEGER NOT NULL,
     status TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     comment TEXT,
-    FOREIGN KEY (company_id) REFERENCES clients(id)
+    FOREIGN KEY (client_id) REFERENCES client(id)
 );
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_client_bafin_id ON client(bafin_id);
-CREATE INDEX IF NOT EXISTS idx_status_company_id ON status(company_id);
+CREATE INDEX IF NOT EXISTS idx_status_company_id ON status(client_id);
 CREATE INDEX IF NOT EXISTS idx_status_email_id ON status(email_id);
 
 -- Trigger to update the last_updated_at timestamp when a status record is updated
