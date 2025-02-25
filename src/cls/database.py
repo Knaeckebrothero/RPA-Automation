@@ -86,7 +86,7 @@ class Database(Singleton):
         :raises RuntimeError: If the required tables don't exist.
         """
         if required_tables is None:
-            required_tables = ['client', 'status']
+            required_tables = ['client', 'audit_case']
 
         try:
             self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
@@ -188,4 +188,65 @@ class Database(Singleton):
 
         except sqlite3.Error as e:
             log.error(f"Error fetching clients: {e}")
+            return pd.DataFrame()  # Return empty DataFrame on error
+
+
+    def get_active_client_cases(self) -> pd.DataFrame:
+        """
+        This method returns all active audit cases by joining the audit_case table with the client table.
+        An active case is defined as one where the status is less than 5.
+
+        :return: A pandas DataFrame with active audit cases and their associated client information.
+        """
+        try:
+            query = """
+            SELECT 
+                a.id AS case_id,
+                a.client_id,
+                a.email_id,
+                a.status,
+                a.created_at,
+                a.last_updated_at,
+                a.comments,
+                c.institute,
+                c.bafin_id,
+                c.address,
+                c.city,
+                c.contact_person,
+                c.phone,
+                c.fax,
+                c.email
+            FROM 
+                audit_case a
+            JOIN 
+                client c ON a.client_id = c.id
+            WHERE 
+                a.status < 5
+            ORDER BY 
+                a.last_updated_at DESC
+            """
+
+            # Execute query
+            data = self.query(query)
+
+            # Define column names for the DataFrame
+            columns = [
+                'case_id', 'client_id', 'email_id', 'status', 'created_at', 'last_updated_at',
+                'comments', 'institute', 'bafin_id', 'address', 'city', 'contact_person',
+                'phone', 'fax', 'email'
+            ]
+
+            # Create DataFrame
+            df = pd.DataFrame(data, columns=columns)
+
+            # Convert timestamp strings to datetime objects for better handling
+            if not df.empty:
+                df['created_at'] = pd.to_datetime(df['created_at'])
+                df['last_updated_at'] = pd.to_datetime(df['last_updated_at'])
+
+            log.info(f"Retrieved {len(df)} active audit cases")
+            return df
+
+        except sqlite3.Error as e:
+            log.error(f"Error fetching active audit cases: {e}")
             return pd.DataFrame()  # Return empty DataFrame on error
