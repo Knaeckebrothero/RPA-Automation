@@ -1,15 +1,13 @@
 """
 This module holds the database class.
 """
+import os
 import sqlite3
 import logging
-import json
-
 import pandas as pd
 
 # Custom imports
 from cls.singleton import Singleton
-
 
 # Set up logging
 log  = logging.getLogger(__name__)
@@ -18,31 +16,54 @@ log  = logging.getLogger(__name__)
 class Database(Singleton):
     """
     The Database class represents the database and acts as a middleman.
+    It implements the Singleton pattern to ensure only one connection is active.
     """
-    _path = "./.filesystem/database.db"
+    def __init__(self, db_path: str = "./.filesystem/database.db"):
+        """
+        Initialize the database connection.
 
-    def __init__(self):
-        log.debug("Initializing...")
+        :param db_path: Path to the SQLite database file. If None, uses the default path.
+        """
+        log.debug("Initializing database connection...")
+        self._path = db_path
         self._conn = None
         self.cursor = None
         self.connect()
-        self._ensure_tables_exist()
-        self._insert_example_data()
         log.info("Database initialized.")
 
+
     def __del__(self):
+        """
+        Clean up resources when the object is garbage collected.
+        """
         self.close()
+        log.debug("Database object destroyed.")
+
 
     def connect(self):
         """
         Attempt to connect to the database.
+
+        :raises sqlite3.Error: If connection to the database fails.
         """
         try:
+            # Ensure directory exists
+            directory = os.path.dirname(self._path)
+            if directory and not os.path.exists(directory):
+                os.makedirs(directory)
+                log.debug(f"Created directory for database: {directory}")
+
+            # Connect to the database
             self._conn = sqlite3.connect(self._path, check_same_thread=False)
             self.cursor = self._conn.cursor()
-            log.debug("Connected to database.")
+            log.debug(f"Connected to database at: {self._path}")
+
+            # Verify that required tables exist
+            self._verify_tables()
         except sqlite3.Error as e:
             log.error(f"Error connecting to database: {e}")
+            raise
+
 
     def close(self):
         """
@@ -50,181 +71,121 @@ class Database(Singleton):
         """
         if self._conn:
             self._conn.close()
+            self._conn = None
+            self.cursor = None
             log.debug("Database connection closed.")
         else:
             log.warning("No database connection to close.")
 
-    def _ensure_tables_exist(self):
+
+    def _verify_tables(self, required_tables: list[str] = None):
         """
-        Ensure that all required tables exist in the database.
-        Make sure the companies table is created first,
-        as the status table has a foreign key constraint on it.
+        Verify that the required tables exist correctly in the database.
+
+        :param required_tables: A list of table names that should exist in the database.
+        :raises RuntimeError: If the required tables don't exist.
         """
+        if required_tables is None:
+            required_tables = ['client', 'status']
+
         try:
-            self._create_clients_table()
-            self._create_status_table()
-            log.debug("All required tables are ensured to exist.")
+            self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            existing_tables = [row[0] for row in self.cursor.fetchall()]
+
+            missing_tables = [table for table in required_tables if table not in existing_tables]
+            if missing_tables:
+                log.error(f"Required tables are missing: {missing_tables}")
+                log.error("Please run the database initialization script first!")
+                raise RuntimeError(f"Required tables are missing: {missing_tables}")
+            else:
+                log.debug(f"All required tables exist: {required_tables}")
+
         except sqlite3.Error as e:
-            log.error(f"Error ensuring tables exist: {e}")
-
-    def _create_clients_table(self):
-        """
-        Create the companies table if it does not exist.
-        """
-        try:
-            self.cursor.execute("""
-            CREATE TABLE IF NOT EXISTS companies (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                institut TEXT,
-                bafin_id INTEGER NOT NULL,
-                address TEXT,
-                city TEXT,
-                contact_person TEXT,
-                phone TEXT,
-                fax TEXT,
-                email TEXT NOT NULL,
-                p033 INTEGER,
-                p034 INTEGER,
-                p035 INTEGER,
-                p036 INTEGER,
-                ab2s1n01 INTEGER,
-                ab2s1n02 INTEGER,
-                ab2s1n03 INTEGER,
-                ab2s1n04 INTEGER,
-                ab2s1n05 INTEGER,
-                ab2s1n06 INTEGER,
-                ab2s1n07 INTEGER,
-                ab2s1n08 INTEGER,
-                ab2s1n09 INTEGER,
-                ab2s1n10 INTEGER,
-                ab2s1n11 INTEGER,
-                ratio FLOAT
-            );
-            """)
-            self._conn.commit()
-            log.debug("Companies table created or already exists.")
-        except sqlite3.Error as e:
-            log.error(f"Error creating companies table: {e}")
-
-    def _create_status_table(self):
-        """
-        Create the status table if it does not exist.
-        """
-        try:
-            self.cursor.execute("""
-            CREATE TABLE IF NOT EXISTS status (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                company_id INTEGER NOT NULL,
-                email_id INTEGER NOT NULL,
-                
-                status TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                last_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                
-                comment TEXT,
-                
-                FOREIGN KEY (company_id) REFERENCES companies(id)
-            );
-            """)
-            self._conn.commit()
-            log.debug("Status table created or already exists.")
-        except sqlite3.Error as e:
-            log.error(f"Error creating status table: {e}")
-
-    def _insert_example_data(self):
-        """
-        Insert data from a JSON file into the companies table.
-        """
-        try:
-            # Check if the table is empty
-            if not self.cursor.execute("SELECT COUNT(*) FROM clients").fetchone()[0] == 0:
-                log.debug("Company table already contains data, skipping example data insertion.")
-                return
-
-            # Load the example data from a JSON file
-            with open('./examples/examples.json', 'r') as f:
-                examples = json.load(f)
-
-            # Insert the example data into the companies table
-            for company in examples:
-                # Map JSON data to the columns in the table
-                self.cursor.execute("""
-                INSERT INTO clients (
-                    institut, bafin_id, address, city, contact_person,
-                    phone, fax, email, 
-                    p033, p034, p035, p036,
-                    ab2s1n01, ab2s1n02, ab2s1n03, ab2s1n04, ab2s1n05,
-                    ab2s1n06, ab2s1n07, ab2s1n08, ab2s1n09, ab2s1n10,
-                    ab2s1n11, 
-                    ratio
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    company["Institut"], company["ID"], company["Adresse"], company["PLZ/Ort"],
-                    company["Ansprechpartner"], company["Telefon"], company["Fax"], company["Mail"],
-                    int(company["N1"].replace(".", "")), int(company["N2"].replace(".", "")),
-                    int(company["N3"].replace(".", "")), int(company["N4"].replace(".", "")),
-                    int(company["N6"].replace(".", "")), int(company["N7"].replace(".", "")),
-                    int(company["N8"].replace(".", "")), int(company["N9"].replace(".", "")),
-                    int(company["N10"].replace(".", "")), int(company["N11"].replace(".", "")),
-                    int(company["N12"].replace(".", "")), int(company["N13"].replace(".", "")),
-                    int(company["N14"].replace(".", "")), int(company["N15"].replace(".", "")),
-                    int(company["N16"].replace(".", "")),
-                    float(company["N18"].replace(".", "").replace(",", ".")),
-                ))
-
-            self._conn.commit()
-            log.info("Example data inserted into companies table.")
-        except sqlite3.Error as e:
-            log.error(f"Error inserting example data: {e}")
-        except Exception as e:
-            log.error(f"Unexpected error: {e}")
+            log.error(f"Error verifying tables: {e}")
+            raise
 
 
-    def query(self, query: str) -> list[tuple]:
+    def query(self, query: str, params=None) -> list[tuple]:
         """
         Execute a query on the database.
-        The difference is that this method does not do a commit.
+        This method doesn't commit changes to the database.
 
-        :param query: The query to execute.
-        :return: The result of the query as a list of tuples
+        :param query: The SQL query to execute.
+        :param params: Parameters to use with the query (optional).
+        :return: The result of the query as a list of tuples.
+        :raises sqlite3.Error: If the query execution fails.
         """
         try:
-            self.cursor.execute(query)
+            if params:
+                log.debug(f"Executing query: {query} with params: {params}")
+                self.cursor.execute(query, params)
+            else:
+                log.debug(f"Executing query: {query}")
+                self.cursor.execute(query)
             return self.cursor.fetchall()
         except sqlite3.Error as e:
             log.error(f"Error executing query: {e}")
-            return []
+            log.debug(f"Query was: {query}")
+            if params:
+                log.debug(f"Params were: {params}")
+            raise
 
-    def insert(self, insert_query: str) -> bool:
+
+    def insert(self, query: str, params=None) -> int:
         """
         Execute an insert query on the database.
-        The difference is that this method does not do a fetchall.
+        This method commits changes to the database.
 
-        :param insert_query: The insert query to execute.
-        :return: True if the query was successful, False otherwise.
+        :param query: The SQL insert query to execute.
+        :param params: Parameters to use with the query (optional).
+        :return: The ID of the last inserted row.
+        :raises sqlite3.Error: If the query execution fails.
         """
         try:
-            self.cursor.execute(insert_query)
+            if params:
+                log.debug(f"Executing insert: {query} with params: {params}")
+                self.cursor.execute(query, params)
+            else:
+                log.debug(f"Executing insert: {query}")
+                self.cursor.execute(query)
             self._conn.commit()
-            return True
+            return self.cursor.lastrowid
         except sqlite3.Error as e:
-            log.error(f"Error executing query: {e}")
-            return False
+            log.error(f"Error executing insert: {e}")
+            log.debug(f"Query was: {query}")
+            if params:
+                log.debug(f"Params were: {params}")
+            self._conn.rollback()
+            raise
 
 
     def get_clients(self) -> pd.DataFrame:
         """
-        This function returns all clients from the database.
+        This method returns all clients from the database.
 
         :return: A pandas DataFrame with all clients.
         """
-        columns = [
-            'id', 'institut', 'bafin_id', 'address', 'city',
-            'contact_person', 'phone', 'fax', 'email',
-            'p033', 'p034', 'p035', 'p036',
-            'ab2s1n01', 'ab2s1n02', 'ab2s1n03', 'ab2s1n04',
-            'ab2s1n05', 'ab2s1n06', 'ab2s1n07', 'ab2s1n08',
-            'ab2s1n09', 'ab2s1n10', 'ab2s1n11', 'ratio'
-        ]
-        data = self.query('SELECT * FROM clients')
-        return pd.DataFrame(data, columns=columns)
+        try:
+            query = """
+            SELECT 
+                id, institute, bafin_id, address, city, contact_person, 
+                phone, fax, email, p033, p034, p035, p036,
+                ab2s1n01, ab2s1n02, ab2s1n03, ab2s1n04, ab2s1n05,
+                ab2s1n06, ab2s1n07, ab2s1n08, ab2s1n09, ab2s1n10,
+                ab2s1n11, ratio
+            FROM client
+            """
+
+            # Get column names
+            self.cursor.execute(f"PRAGMA table_info(client)")
+            columns = [row[1] for row in self.cursor.fetchall()]
+
+            # Execute query
+            data = self.query(query)
+
+            # Create DataFrame
+            return pd.DataFrame(data, columns=columns)
+
+        except sqlite3.Error as e:
+            log.error(f"Error fetching clients: {e}")
+            return pd.DataFrame()  # Return empty DataFrame on error
