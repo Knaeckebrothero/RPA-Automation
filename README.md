@@ -7,19 +7,48 @@ It utilizes the ocr tool tessaract to extract text from pdfs so that they can be
 
 - [Installation](#installation)
 - [Usage](#usage)
-- [Contributing](#contributing)
 - [License](#license)
 - [Contact](#contact)
 - [Acknowledgements](#acknowledgements)
 
 ## Installation
+### Database Setup
+This document explains how to set up and maintain the database for the FinDAG document processing application.
 
-Describe the installation process here. Include any pre-requisites, required libraries, and how to get the development environment running.
-
-```bash
-# Example command line instructions
-pip install -r requirements.txt
+#### Directory Structure
 ```
+./
+├── example/
+│   ├── db_init.py                  # Database initialization script
+│   └── insert_example_data.sql     # Example data for testing
+├── src                             # Source code directory
+│   └── cfg                         # Configuration directory
+│       └── schema.sql              # Database schema definition
+└── .filesystem/                    # Data storage directory
+    └── database.db                 # SQLite database file (created by initialization script)
+```
+
+#### Setup Instructions
+Run the initialization script to create the database and populate it with example data.
+```bash
+python .\examples\db_init.py
+```
+The script will:
+1. Create the database file if it doesn't exist
+2. Create the required tables
+3. Insert example data if the database is empty
+
+The script supports several command-line arguments to customize the database initialization process.
+```bash
+python db_init.py --help
+```
+
+Use the following command to reset the database and remove all data.
+```bash
+python db_init.py --force-reset
+``` 
+
+## Usage
 
 ## License
 

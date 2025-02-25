@@ -151,7 +151,7 @@ def active_cases():
     # Perhaps store in session state?
 
     # Display a multiselect box to select documents to process
-    selected_client = st.selectbox('Select the company to be processed', clients['institut'])
+    selected_client = st.selectbox('Select the company to be processed', clients['institute'])
 
     # TODO: Display information about the selected client
 
