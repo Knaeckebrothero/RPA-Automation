@@ -1,13 +1,13 @@
 """
 This module holds the mail.Client class.
 """
-import os
 import logging
 import imaplib
 import email
 from email.header import decode_header
 from bs4 import BeautifulSoup
 import pandas as pd
+
 # Custom imports
 from cls.singleton import Singleton
 from cls.document import Document
@@ -28,6 +28,7 @@ class Mailclient(Singleton):
     """
     _connection = None  # Connection to the mail server
     _decoding_format = 'utf-8'  # 'iso-8859-1'
+
 
     def __init__(self, imap_server: str, imap_port: int, username: str,
                  password: str, inbox: str = None, *args, **kwargs):
@@ -58,6 +59,7 @@ class Mailclient(Singleton):
 
         log.debug('Mail client initialized')
 
+
     def __del__(self):
         """
         Destructor for the mailbox class.
@@ -68,18 +70,22 @@ class Mailclient(Singleton):
 
         log.debug('Mail client destroyed')
 
-    # Getters
+
     def get_connection(self):
         return self._connection
+
 
     def get_inbox(self):
         return self._inbox
 
+
     def get__decoding_format(self):
         return self._decoding_format
 
+
     def set_decoding_format(self, decoding_format: str):
         self._decoding_format = decoding_format
+
 
     def connect(self, imap_server: str, imap_port: int):
         """
@@ -93,6 +99,7 @@ class Mailclient(Singleton):
 
         except Exception as e:
             log.error(f'Error connecting to the mail server: {e}')
+
 
     def login(self, username: str, password: str):
         """
@@ -120,6 +127,7 @@ class Mailclient(Singleton):
 
         log.debug('Connection server closed, mail set to none.')
 
+
     def select_inbox(self, inbox: str = None):
         """
         Method to select an inbox.
@@ -143,12 +151,14 @@ class Mailclient(Singleton):
             self._inbox = f'"{inbox}"'  # TODO: Check if quotation marks are necessary
             log.debug(f'Selected inbox: {inbox}')
 
+
     def list_inboxes(self):
         """
         Method to get a list of possible inboxes.
         """
         log.debug('Listing inboxes...')
         return self._connection.list()[1]
+
 
     def list_mails(self):
         """
@@ -158,6 +168,7 @@ class Mailclient(Singleton):
         status, response = self._connection.search(None, 'ALL')
         log.info('Requested mails, server responded with: %s', status)
         return response
+
 
     def get_mails(self, excluded_ids: list[int] = None) -> pd.DataFrame:
         """
@@ -236,6 +247,7 @@ class Mailclient(Singleton):
         df = pd.DataFrame(emails_data)
         log.info(f'Retrieved {len(df)} emails')
         return df
+
 
     def get_attachments(self, email_id) -> list:
         """
