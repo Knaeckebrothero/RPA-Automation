@@ -2,7 +2,8 @@
 This module holds the mail.Client class.
 """
 import logging
-import imaplib
+# import imaplib
+from cfg.mock_imaplib import MockIMAP4_SSL
 import email
 from email.header import decode_header
 from bs4 import BeautifulSoup
@@ -27,7 +28,7 @@ class Mailclient(Singleton):
     a bunch of methods to interact with the mailbox.
     """
     _connection = None  # Connection to the mail server
-    _decoding_format = 'utf-8'  # 'iso-8859-1'
+    _decoding_format = 'iso-8859-1' # 'utf-8'
 
 
     def __init__(self, imap_server: str, imap_port: int, username: str,
@@ -94,7 +95,9 @@ class Mailclient(Singleton):
         Defaults to None, which will connect to the default inbox.
         """
         try:
-            self._connection = imaplib.IMAP4_SSL(host=imap_server, port=imap_port)
+            # Use the mock IMAP4_SSL class for testing
+            self._connection = MockIMAP4_SSL(host=imap_server, port=imap_port)
+            # self._connection = imaplib.IMAP4_SSL(host=imap_server, port=imap_port)
             log.debug(f'Successfully connected to mailbox at {imap_server}:{imap_port}')
 
         except Exception as e:
@@ -178,10 +181,7 @@ class Mailclient(Singleton):
         :param excluded_ids: A list of email IDs to exclude from the result.
         :return: A pandas DataFrame containing the emails.
         """
-        log.debug('Listing mails...')
-        status, response = self._connection.search(None, 'ALL')
-        log.info('Requested mails, server responded with: %s', status)
-
+        response = self.list_mails()
         email_ids = response[0].split()
         emails_data = []
         decoding_format = 'iso-8859-1'  # 'utf-8' 'iso-8859-1'
