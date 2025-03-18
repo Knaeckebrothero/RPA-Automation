@@ -8,9 +8,9 @@ import re
 from easyocr import Reader
 
 # Custom imports
-import preprocessing.detect as dct
-from preprocessing.ocr import ocr_cell
-from processing.files import get_images_from_pdf
+import process.detect as dct
+from process.ocr import ocr_cell
+from process.files import get_images_from_pdf
 
 
 # Set up logging

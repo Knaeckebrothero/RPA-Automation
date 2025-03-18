@@ -8,9 +8,8 @@ https://pdf2image.readthedocs.io/en/latest/installation.html
 import streamlit as st
 import cv2
 import numpy as np
-from pdf2image import convert_from_bytes
-import src.preprocessing.detect as dct
-from src.preprocessing.ocr import ocr_cell
+import processing.detect as dct
+from processing.ocr import ocr_cell
 from typing import List, Tuple
 from easyocr import Reader
 from src.processing.files import get_images_from_pdf

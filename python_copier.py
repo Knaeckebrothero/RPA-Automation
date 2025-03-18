@@ -18,7 +18,7 @@ class PythonProjectCopier:
     ]
 
     # File extensions to copy from the project
-    CODE_EXTENSIONS = {'.py', '.json', '.yaml', '.yml', '.sql'}
+    CODE_EXTENSIONS = {'.py', '.json', '.yaml', '.yml', '.sql', '.cfg'}
 
     # Directories to exclude
     EXCLUDE_DIRS = {'.git', '.venv', 'venv', '__pycache__', '.idea', '.pytest_cache', 'logs'}

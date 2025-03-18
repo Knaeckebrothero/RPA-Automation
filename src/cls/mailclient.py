@@ -2,8 +2,7 @@
 This module holds the mail.Client class.
 """
 import logging
-# import imaplib
-from cfg.mock_imaplib import MockIMAP4_SSL
+from cfg.mock_imaplib import MockIMAP4_SSL as IMAP4_SSL  # from imaplib import IMAP4_SSL
 import email
 from email.header import decode_header
 from bs4 import BeautifulSoup
@@ -12,7 +11,6 @@ import pandas as pd
 # Custom imports
 from cls.singleton import Singleton
 from cls.document import Document
-
 
 # Set up logging
 log = logging.getLogger(__name__)
@@ -28,8 +26,7 @@ class Mailclient(Singleton):
     a bunch of methods to interact with the mailbox.
     """
     _connection = None  # Connection to the mail server
-    _decoding_format = 'iso-8859-1' # 'utf-8'
-
+    _decoding_format = 'iso-8859-1'  # 'utf-8'
 
     def __init__(self, imap_server: str, imap_port: int, username: str,
                  password: str, inbox: str = None, *args, **kwargs):
@@ -60,7 +57,6 @@ class Mailclient(Singleton):
 
         log.debug('Mail client initialized')
 
-
     def __del__(self):
         """
         Destructor for the mailbox class.
@@ -71,22 +67,17 @@ class Mailclient(Singleton):
 
         log.debug('Mail client destroyed')
 
-
     def get_connection(self):
         return self._connection
-
 
     def get_inbox(self):
         return self._inbox
 
-
     def get__decoding_format(self):
         return self._decoding_format
 
-
     def set_decoding_format(self, decoding_format: str):
         self._decoding_format = decoding_format
-
 
     def connect(self, imap_server: str, imap_port: int):
         """
@@ -96,13 +87,11 @@ class Mailclient(Singleton):
         """
         try:
             # Use the mock IMAP4_SSL class for testing
-            self._connection = MockIMAP4_SSL(host=imap_server, port=imap_port)
-            # self._connection = imaplib.IMAP4_SSL(host=imap_server, port=imap_port)
+            self._connection = IMAP4_SSL(host=imap_server, port=imap_port)
             log.debug(f'Successfully connected to mailbox at {imap_server}:{imap_port}')
 
         except Exception as e:
             log.error(f'Error connecting to the mail server: {e}')
-
 
     def login(self, username: str, password: str):
         """
@@ -130,7 +119,6 @@ class Mailclient(Singleton):
 
         log.debug('Connection server closed, mail set to none.')
 
-
     def select_inbox(self, inbox: str = None):
         """
         Method to select an inbox.
@@ -154,14 +142,12 @@ class Mailclient(Singleton):
             self._inbox = f'"{inbox}"'  # TODO: Check if quotation marks are necessary
             log.debug(f'Selected inbox: {inbox}')
 
-
     def list_inboxes(self):
         """
         Method to get a list of possible inboxes.
         """
         log.debug('Listing inboxes...')
         return self._connection.list()[1]
-
 
     def list_mails(self):
         """
@@ -171,7 +157,6 @@ class Mailclient(Singleton):
         status, response = self._connection.search(None, 'ALL')
         log.info('Requested mails, server responded with: %s', status)
         return response
-
 
     def get_mails(self, excluded_ids: list[int] = None) -> pd.DataFrame:
         """
@@ -225,7 +210,8 @@ class Mailclient(Singleton):
 
                             # If the email part is html, use BeautifulSoup to extract text
                             elif part.get_content_type() == "text/html":
-                                body = BeautifulSoup(part.get_payload(decode=True).decode(decoding_format), 'html.parser').get_text()
+                                body = BeautifulSoup(part.get_payload(decode=True).decode(decoding_format),
+                                                     'html.parser').get_text()
                                 break
                     else:
                         # If the email is not multipart, extract the body
@@ -248,8 +234,7 @@ class Mailclient(Singleton):
         log.info(f'Retrieved {len(df)} emails')
         return df
 
-
-    def get_attachments(self, email_id) -> list:
+    def get_attachments(self, email_id) -> list[Document]:
         """
         Method to get the attachments of an email.
 

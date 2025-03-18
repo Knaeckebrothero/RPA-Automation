@@ -143,8 +143,11 @@ class MockIMAP4_SSL():
         :return: Tuple containing the status and response
         """
         try:
-            # Convert the message_id to string for filename
-            message_id_str = message_id.decode('iso-8859-1')
+            # Convert the message_id to string for filename if it's bytes
+            if isinstance(message_id, bytes):
+                message_id_str = message_id.decode('iso-8859-1')
+            else:
+                message_id_str = message_id
 
             if not "EXAMPLE_MAIL_PATH" in os.environ:
                 from dotenv import load_dotenv
