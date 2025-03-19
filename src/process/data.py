@@ -43,7 +43,7 @@ def compare_company_values(company_document: Document):
                 ab2s1n01, ab2s1n02, ab2s1n03, ab2s1n04, 
                 ab2s1n05, ab2s1n06, ab2s1n07, ab2s1n08, 
                 ab2s1n09, ab2s1n10, ab2s1n11
-            FROM companies 
+            FROM client 
             WHERE bafin_id = {bafin_id}
             """)
 
@@ -75,47 +75,47 @@ def compare_company_values(company_document: Document):
                         if company_data[0][4] != value:
                             log.warning(f"Value mismatch for key {key}: {company_data[0][4]} (database) vs {value} (document)")
                             return False
-                    elif "Nr. 1" in key:
+                    elif "Nr. 1 " in key:
                         if company_data[0][5] != value:
                             log.warning(f"Value mismatch for key {key}: {company_data[0][5]} (database) vs {value} (document)")
                             return False
-                    elif "Nr. 2" in key:
+                    elif "Nr. 2 " in key:
                         if company_data[0][6] != value:
                             log.warning(f"Value mismatch for key {key}: {company_data[0][6]} (database) vs {value} (document)")
                             return False
-                    elif "Nr. 3" in key:
+                    elif "Nr. 3 " in key:
                         if company_data[0][7] != value:
                             log.warning(f"Value mismatch for key {key}: {company_data[0][7]} (database) vs {value} (document)")
                             return False
-                    elif "Nr. 4" in key:
+                    elif "Nr. 4 " in key:
                         if company_data[0][8] != value:
                             log.warning(f"Value mismatch for key {key}: {company_data[0][8]} (database) vs {value} (document)")
                             return False
-                    elif "Nr. 5" in key:
+                    elif "Nr. 5 " in key:
                         if company_data[0][9] != value:
                             log.warning(f"Value mismatch for key {key}: {company_data[0][9]} (database) vs {value} (document)")
                             return False
-                    elif "Nr. 6" in key:
+                    elif "Nr. 6 " in key:
                         if company_data[0][10] != value:
                             log.warning(f"Value mismatch for key {key}: {company_data[0][10]} (database) vs {value} (document)")
                             return False
-                    elif "Nr. 7" in key:
+                    elif "Nr. 7 " in key:
                         if company_data[0][11] != value:
                             log.warning(f"Value mismatch for key {key}: {company_data[0][11]} (database) vs {value} (document)")
                             return False
-                    elif "Nr. 8" in key:
+                    elif "Nr. 8 " in key:
                         if company_data[0][12] != value:
                             log.warning(f"Value mismatch for key {key}: {company_data[0][12]} (database) vs {value} (document)")
                             return False
-                    elif "Nr. 9" in key:
+                    elif "Nr. 9 " in key:
                         if company_data[0][13] != value:
                             log.warning(f"Value mismatch for key {key}: {company_data[0][13]} (database) vs {value} (document)")
                             return False
-                    elif "Nr. 10" in key:
+                    elif "Nr. 10 " in key:
                         if company_data[0][14] != value:
                             log.warning(f"Value mismatch for key {key}: {company_data[0][14]} (database) vs {value} (document)")
                             return False
-                    #elif "Nr. 11" in key:
+                    #elif "Nr. 11 " in key:
                     #    if company_data[0][15] != float(value.replace(".", "").replace(",", ".")):
                     #        log.debug(f"Value mismatch for key {key}: {company_data[0][15]} (database) vs {value} (
                             #        document)")

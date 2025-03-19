@@ -8,11 +8,11 @@ https://pdf2image.readthedocs.io/en/latest/installation.html
 import streamlit as st
 import cv2
 import numpy as np
-import processing.detect as dct
-from processing.ocr import ocr_cell
+import src.process.detect as dct
+from src.process.ocr import ocr_cell
 from typing import List, Tuple
 from easyocr import Reader
-from src.processing.files import get_images_from_pdf
+from src.process.files import get_images_from_pdf
 
 
 def test_cells(row_image: np.array) -> List[Tuple[int, int]]:

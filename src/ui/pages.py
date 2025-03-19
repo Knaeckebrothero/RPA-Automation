@@ -52,7 +52,7 @@ def home():
 
         # Iterate over the selected documents
         for mail_id in docs_to_process:
-         process_documents(docs_to_process)
+            asses_mails(docs_to_process)
 
     # Process all the documents
     if st.button('Process all documents'):
@@ -64,9 +64,9 @@ def home():
 
         # If no mails are in the database, fetch all mails
         if len(already_processed_mails) > 0:
-            process_documents(mailclient.get_mails(already_processed_mails)['ID'])
+            asses_mails(mailclient.get_mails(already_processed_mails)['ID'])
         else:
-            process_documents(emails['ID'])
+            asses_mails(emails['ID'])
 
 
 def active_cases():
