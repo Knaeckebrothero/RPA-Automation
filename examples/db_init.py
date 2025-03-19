@@ -9,6 +9,7 @@ This script initializes the SQLite database by:
 Usage:
     python db_init.py [--db-path PATH] [--schema-path PATH] [--data-path PATH]
 """
+import json
 import argparse
 import logging
 import os
@@ -44,9 +45,9 @@ def parse_args():
         help='Path to the schema SQL file (default: ./src/cfg/schema.sql)'
     )
     parser.add_argument(
-        '--data-path',
-        default='./examples/insert_example_data.sql',
-        help='Path to the data insertion SQL file (default: ./examples/insert_example_data.sql)'
+        '--json-path',
+        default='./examples/examples.json',
+        help='Path to the JSON file with example data (default: ./examples/examples.json)'
     )
     parser.add_argument(
         '--force-reset',
@@ -89,7 +90,118 @@ def execute_sql_file(conn, filepath, logger):
     return False
 
 
-def initialize_database(db_path, schema_path, data_path, force_reset, logger):
+def insert_json_data(conn, json_filepath, logger):
+    """
+    Insert data from a JSON file into the database.
+    The JSON file should contain a list of client objects with properties that map to database columns.
+    """
+    try:
+        with open(json_filepath, 'r', encoding='utf-8') as json_file:
+            data = json.load(json_file)
+
+        if not isinstance(data, list):
+            logger.error(f"JSON data is not a list. Found type: {type(data)}")
+            return False
+
+        cursor = conn.cursor()
+        records_inserted = 0
+
+        # Begin transaction for faster inserts
+        conn.execute('BEGIN TRANSACTION')
+
+        for item in data:
+            try:
+                # Handle number formatting (replace commas with dots for decimal numbers)
+                # N18 is the ratio field
+                ratio_str = str(item.get('N18', '0'))
+                ratio = ratio_str.replace(',', '.')
+                try:
+                    ratio = float(ratio)
+                except ValueError:
+                    ratio = 0.0
+                    logger.warning(f"Could not convert ratio value '{ratio_str}' to float for record {item.get('ID', 'unknown')}")
+
+                # Extract city and zip from combined field if present
+                plz_ort = item.get('PLZ/Ort', '')
+                if isinstance(plz_ort, str) and ' ' in plz_ort:
+                    # Extract the first part as zip code and the rest as city
+                    parts = plz_ort.split(' ', 1)
+                    city = parts[1] if len(parts) > 1 else ''
+                else:
+                    city = plz_ort
+
+                # Safe conversion for numeric fields
+                def safe_int(value, default=0):
+                    try:
+                        # Remove thousands separators (dots) and convert to int
+                        if isinstance(value, str):
+                            value = value.replace('.', '')
+                        return int(value)
+                    except (ValueError, TypeError):
+                        return default
+
+                cursor.execute("""
+                INSERT INTO client (
+                    institute, bafin_id, address, city, contact_person,
+                    phone, fax, email, 
+                    p033, p034, p035, p036,
+                    ab2s1n01, ab2s1n02, ab2s1n03, ab2s1n04, ab2s1n05,
+                    ab2s1n06, ab2s1n07, ab2s1n08, ab2s1n09, ab2s1n10,
+                    ab2s1n11, ratio
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    item.get('Institut', ''),
+                    safe_int(item.get('ID', 0)),
+                    item.get('Adresse', ''),
+                    city,
+                    item.get('Ansprechpartner', ''),
+                    item.get('Telefon', ''),
+                    item.get('Fax', ''),
+                    item.get('Mail', ''),
+                    safe_int(item.get('N1', 0)),
+                    safe_int(item.get('N2', 0)),
+                    safe_int(item.get('N3', 0)),
+                    safe_int(item.get('N4', 0)),
+                    safe_int(item.get('N6', 0)),
+                    safe_int(item.get('N7', 0)),
+                    safe_int(item.get('N8', 0)),
+                    safe_int(item.get('N9', 0)),
+                    safe_int(item.get('N10', 0)),
+                    safe_int(item.get('N11', 0)),
+                    safe_int(item.get('N12', 0)),
+                    safe_int(item.get('N13', 0)),
+                    safe_int(item.get('N14', 0)),
+                    safe_int(item.get('N15', 0)),
+                    safe_int(item.get('N16', 0)),
+                    ratio
+                ))
+                records_inserted += 1
+
+                # Log progress for large datasets
+                if records_inserted % 50 == 0:
+                    logger.info(f"Inserted {records_inserted} records so far...")
+
+            except (sqlite3.Error, ValueError) as e:
+                logger.warning(f"Error inserting record {item.get('ID', 'unknown')}: {e}")
+
+        # Commit the transaction
+        conn.commit()
+        logger.info(f"Successfully inserted {records_inserted} records from JSON")
+        return records_inserted > 0
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Error parsing JSON file {json_filepath}: {e}")
+        return False
+    except IOError as e:
+        logger.error(f"I/O error while reading JSON file {json_filepath}: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error while inserting JSON data: {e}")
+        conn.rollback()
+        return False
+
+
+def initialize_database(db_path, schema_path, json_path, force_reset, logger):
     """
     Initialize the database with schema and example data.
     """
@@ -126,12 +238,12 @@ def initialize_database(db_path, schema_path, data_path, force_reset, logger):
         count = cursor.fetchone()[0]
 
         if count == 0:
-            # Execute data insertion SQL
-            if not execute_sql_file(conn, data_path, logger):
-                logger.error("Failed to insert example data")
+            # Insert data from JSON file
+            if not insert_json_data(conn, json_path, logger):
+                logger.error("Failed to insert example data from JSON")
                 conn.close()
                 return False
-            logger.info("Inserted example data")
+            logger.info("Inserted example data from JSON")
         else:
             logger.info(f"Skipped data insertion because client table already has {count} records")
 
@@ -160,14 +272,14 @@ def main():
         logger.error(f"Schema file not found: {args.schema_path}")
         return 1
 
-    if not os.path.exists(args.data_path):
-        logger.error(f"Data file not found: {args.data_path}")
+    if not os.path.exists(args.json_path):
+        logger.error(f"JSON data file not found: {args.json_path}")
         return 1
 
     success = initialize_database(
         args.db_path,
         args.schema_path,
-        args.data_path,
+        args.json_path,
         args.force_reset,
         logger
     )
