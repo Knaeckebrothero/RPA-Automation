@@ -9,10 +9,10 @@ import logging as log
 import os
 
 # Custom imports
-from cfg.custom_logger import configure_global_logger
+from custom_logger import configure_global_logger
 import ui.pages as page
 from ui.navbar import navbar
-import cfg.cache as cache
+import cache as cache
 
 
 def main():

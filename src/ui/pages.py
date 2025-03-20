@@ -8,9 +8,8 @@ import logging as log
 
 # Custom imports
 import ui.visuals as visuals
-import cfg.cache as cache
-from process.flow import asses_mails
-import ui.expander_steps as expander
+import cache as cache
+from workflow import assess_emails
 
 
 def home():
@@ -52,7 +51,7 @@ def home():
 
         # Iterate over the selected documents
         for mail_id in docs_to_process:
-            asses_mails(docs_to_process)
+            assess_emails(docs_to_process)
 
     # Process all the documents
     if st.button('Process all documents'):
@@ -64,9 +63,9 @@ def home():
 
         # If no mails are in the database, fetch all mails
         if len(already_processed_mails) > 0:
-            asses_mails(mailclient.get_mails(already_processed_mails)['ID'])
+            assess_emails(mailclient.get_mails(already_processed_mails)['ID'])
         else:
-            asses_mails(emails['ID'])
+            assess_emails(emails['ID'])
 
 
 def active_cases():

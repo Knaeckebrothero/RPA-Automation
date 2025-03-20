@@ -2,7 +2,7 @@
 This module holds the mail.Client class.
 """
 import logging
-from cfg.mock_imaplib import MockIMAP4_SSL as IMAP4_SSL  # from imaplib import IMAP4_SSL
+from mock_imaplib import MockIMAP4_SSL as IMAP4_SSL  # from imaplib import IMAP4_SSL
 import email
 from email.header import decode_header
 from bs4 import BeautifulSoup
@@ -12,9 +12,9 @@ import pandas as pd
 from cls.singleton import Singleton
 from cls.document import Document
 
+
 # Set up logging
 log = logging.getLogger(__name__)
-
 
 # TODO: Refactor this class to use pythons email library instead of BeautifulSoup
 class Mailclient(Singleton):

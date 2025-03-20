@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import streamlit as st
 
 # Custom imports
-from cfg.cache import get_database
+from cache import get_database
 
 
 def pie_submission_ratio() -> plt.Figure:

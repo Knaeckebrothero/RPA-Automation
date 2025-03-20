@@ -1,6 +1,7 @@
 """
 This module holds the document class.
 """
+import os
 import cv2
 import numpy as np
 import logging
@@ -11,17 +12,16 @@ from easyocr import Reader
 import process.detect as dct
 from process.ocr import ocr_cell
 from process.files import get_images_from_pdf
+from cls.database import Database
 
 
 # Set up logging
 log  = logging.getLogger(__name__)
 
-
 class Document:
     """
     The Document class represents a document.
     """
-
     def __init__(self, content: bytes, attributes: dict = None):
         """
         The constructor for the Document class.
@@ -187,9 +187,183 @@ class Document:
 
         :param file_path: The path where the file should be saved.
         """
+        if not os.path.exists(file_path):
+            os.makedirs(file_path)
+
         try:
             with open(file_path, 'wb') as file:
                 file.write(self._content)
             log.info(f"Document saved to: {file_path}")
         except IOError as e:
             log.error(f"Error saving document: {e}")
+
+    def initialize_audit_case(self):
+        """
+        Function to initialize an audit case for a document.
+
+        :param document: The document to initialize the audit case for.
+        """
+        db = Database().get_instance()
+
+        log.debug(f'Initializing audit case for document: {self.get_attributes("email_id")}')
+        client_id = db.query(
+            f"""
+            SELECT id
+            FROM client
+            WHERE bafin_id ={int(self.get_attributes('BaFin-ID'))} 
+            """)
+
+        # Insert the audit case into the database if a matching client is found
+        if client_id[0][0] != 0:
+            db.insert(
+                f"""
+                    INSERT INTO audit_case (client_id, email_id, status)
+                    VALUES ({client_id[0][0]}, {self.get_attributes('email_id')}, 1)
+                    """)
+            log.info(f"Company with BaFin ID {self.get_attributes('BaFin-ID')} has been initialized successfully")
+        else:
+            log.warning(f"Couldn't detect BaFin-ID for document with mail id: {self.get_attributes('email_id')}")
+
+    def validate_and_initialize_audit_case(self):
+        """
+        Function to initialize an audit case for a document.
+        Unlike initialize_audit_case() this function also attempts to validate the client's values against the database,
+        if a valid bafin id is found in the document.
+
+        :param document: The document to initialize the audit case for.
+        """
+        db = Database().get_instance()
+        bafin_id = self.get_attributes("BaFin-ID")
+        email_id = self.get_attributes('email_id')
+
+        # TODO: Add a check if a audit_case already exists for that client & year combination!
+
+        if bafin_id:
+            client_id = db.query(f"SELECT id FROM client WHERE bafin_id ={int(bafin_id)}")
+            if self.compare_values():
+                # Update the status of the audit case to 2
+                db.insert(
+                    f"""
+                    INSERT INTO audit_case (client_id, email_id, status)
+                    VALUES ({client_id[0][0]}, {email_id}, 3)
+                    """)
+                log.info(f"Client with BaFin ID {self.get_attributes('BaFin-ID')} successfully validated")
+            elif client_id[0][0] == 0: # if len(client_id[0][0]) == 0:
+                db.insert(
+                    f"""
+                    INSERT INTO audit_case (client_id, email_id, status)
+                    VALUES ({client_id[0][0]}, {email_id}, 2)
+                    """)
+            else:
+                log.info(f"No client with BaFin ID: {bafin_id} found in database")
+        else:
+            log.info(f"Couldn't detect BaFin-ID for document with email ID: {email_id}")
+
+    # TODO: Implement a proper way to compare the values
+    def compare_values(self) -> bool:
+        """
+        Function to compare the values of a document with the values of a client in the database.
+
+        :param document: The document to compare the values with.
+        """
+        db = Database().get_instance()
+        bafin_id = self.get_attributes("BaFin-ID")
+
+        if bafin_id:
+            client_data = db.query(f"""
+            SELECT 
+                id,
+                p033, p034, p035, p036,
+                ab2s1n01, ab2s1n02, ab2s1n03, ab2s1n04, 
+                ab2s1n05, ab2s1n06, ab2s1n07, ab2s1n08, 
+                ab2s1n09, ab2s1n10, ab2s1n11
+            FROM client 
+            WHERE bafin_id = {bafin_id}
+            """)
+
+            # Check if the client is in the database
+            if len(client_data) > 0:
+                log.debug(f"Company with BaFin ID {bafin_id} found in database")
+                document_attributes = self.get_attributes()
+
+                # Iterate over the document attributes
+                for key in document_attributes.keys():
+                    try:
+                        value = int(document_attributes[key].replace(".", ""))
+                    except ValueError:
+                        continue
+
+                    # Compare the values of the document with the values of the client in the database
+                    if "033" in key:
+                        if client_data[0][1] != value:
+                            log.warning(f"db: {type(client_data[0][1])} vs doc: {type(value)}")
+                            log.warning(f"Value mismatch for key {key}: {client_data[0][1]} (database) vs {value} (document)")
+                            return False
+                    elif "034" in key:
+                        if client_data[0][2] != value:
+                            log.warning(f"Value mismatch for key {key}: {client_data[0][2]} (database) vs {value} (document)")
+                            return False
+                    elif "035" in key:
+                        if client_data[0][3] != value:
+                            log.warning(f"Value mismatch for key {key}: {client_data[0][3]} (database) vs {value} (document)")
+                            return False
+                    elif "036" in key:
+                        if client_data[0][4] != value:
+                            log.warning(f"Value mismatch for key {key}: {client_data[0][4]} (database) vs {value} (document)")
+                            return False
+                    elif "Nr. 1 " in key:
+                        if client_data[0][5] != value:
+                            log.warning(f"Value mismatch for key {key}: {client_data[0][5]} (database) vs {value} (document)")
+                            return False
+                    elif "Nr. 2 " in key:
+                        if client_data[0][6] != value:
+                            log.warning(f"Value mismatch for key {key}: {client_data[0][6]} (database) vs {value} (document)")
+                            return False
+                    elif "Nr. 3 " in key:
+                        if client_data[0][7] != value:
+                            log.warning(f"Value mismatch for key {key}: {client_data[0][7]} (database) vs {value} (document)")
+                            return False
+                    elif "Nr. 4 " in key:
+                        if client_data[0][8] != value:
+                            log.warning(f"Value mismatch for key {key}: {client_data[0][8]} (database) vs {value} (document)")
+                            return False
+                    elif "Nr. 5 " in key:
+                        if client_data[0][9] != value:
+                            log.warning(f"Value mismatch for key {key}: {client_data[0][9]} (database) vs {value} (document)")
+                            return False
+                    elif "Nr. 6 " in key:
+                        if client_data[0][10] != value:
+                            log.warning(f"Value mismatch for key {key}: {client_data[0][10]} (database) vs {value} (document)")
+                            return False
+                    elif "Nr. 7 " in key:
+                        if client_data[0][11] != value:
+                            log.warning(f"Value mismatch for key {key}: {client_data[0][11]} (database) vs {value} (document)")
+                            return False
+                    elif "Nr. 8 " in key:
+                        if client_data[0][12] != value:
+                            log.warning(f"Value mismatch for key {key}: {client_data[0][12]} (database) vs {value} (document)")
+                            return False
+                    elif "Nr. 9 " in key:
+                        if client_data[0][13] != value:
+                            log.warning(f"Value mismatch for key {key}: {client_data[0][13]} (database) vs {value} (document)")
+                            return False
+                    elif "Nr. 10 " in key:
+                        if client_data[0][14] != value:
+                            log.warning(f"Value mismatch for key {key}: {client_data[0][14]} (database) vs {value} (document)")
+                            return False
+                    #elif "Nr. 11 " in key:
+                    #    if client_data[0][15] != float(value.replace(".", "").replace(",", ".")):
+                    #        log.debug(f"Value mismatch for key {key}: {client_data[0][15]} (database) vs {value} (
+                    #        document)")
+                    #        return False
+                    # TODO: Fix this and add it back to the checked points
+
+                    # Return True if all conditions are met and no mismatches are found
+                    log.info(f"Values for client with BaFin ID {bafin_id} match the database.")
+                    return True
+            else:
+                log.warning(f"Client with BaFin ID {bafin_id} not found in database")
+                return False
+        else:
+            log.warning("No BaFin ID found for document")
+            return False
