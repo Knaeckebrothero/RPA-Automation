@@ -10,7 +10,7 @@ import pandas as pd
 
 # Custom imports
 from cls.singleton import Singleton
-from cls.document import Document
+from cls.document import Document, PDF
 
 
 # Set up logging
@@ -234,11 +234,12 @@ class Mailclient(Singleton):
         log.info(f'Retrieved {len(df)} emails')
         return df
 
-    def get_attachments(self, email_id) -> list[Document]:
+    def get_attachments(self, email_id, content_type: str | None = 'application/pdf') -> list[Document]:
         """
         Method to get the attachments of an email.
 
         :param email_id: The id of the email to get the attachments from.
+        :param content_type: The content type of the attachments to look for.
         :return: A list of attachments or an empty list if no attachments are found.
         """
         log.debug(f'Downloading attachments from email {email_id}')
@@ -257,38 +258,51 @@ class Mailclient(Singleton):
             for part in email_message.walk():
                 if part.get_content_maintype() == 'multipart':
                     continue
-                if part.get('Content-Disposition') is None:
+                elif part.get('Content-Disposition') is None:
                     continue
+                elif part.get_content_type() == content_type or content_type is None:
+                    filename = part.get_filename()
+                    if not filename:
+                        continue
 
-                # Get the filename
-                filename = part.get_filename()
-                if not filename:
-                    continue
+                    # Decode the filename
+                    filename = decode_header(filename)[0][0]
+                    if isinstance(filename, bytes):
+                        filename = filename.decode()
 
-                # Decode the filename
-                filename = decode_header(filename)[0][0]
-                if isinstance(filename, bytes):
-                    filename = filename.decode()
+                    # Get the attachment data
+                    attachment_data = part.get_payload(decode=True)
 
-                # Get the attachment data
-                attachment_data = part.get_payload(decode=True)
-
-                # Append the attachment to the list
-                attachments.append(Document(
-                    content=attachment_data,
-                    attributes={
-                        'filename': filename,
-                        'email_id': email_id,
-                        'content_type': part.get_content_type(),
-                        'sender': email_message['From'],
-                        # 'date': email_message['Date'],
-                    }
-                ))
+                    # Append the attachment to the list
+                    if content_type == 'application/pdf':
+                        attachments.append(PDF(
+                            content=attachment_data,
+                            attributes={
+                                'filename': filename,
+                                'email_id': email_id,
+                                'content_type': part.get_content_type(),
+                                'sender': email_message['From'],
+                                'date': email_message['Date']
+                            }
+                        ))
+                    else:
+                        attachments.append(Document(
+                            content=attachment_data,
+                            attributes={
+                                'filename': filename,
+                                'email_id': email_id,
+                                'content_type': part.get_content_type(),
+                                'sender': email_message['From'],
+                                'date': email_message['Date']
+                            }
+                        ))
+                else:
+                    log.debug(f'Skipping attachment with content type {part.get_content_type()}')
 
             if attachments:
-                log.info(f'Found {len(attachments)} attachments in custommail {email_id}')
+                log.info(f'Found {len(attachments)} attachments in email {email_id}')
             else:
-                log.warning(f'No attachments found in custommail {email_id}')
+                log.info(f'No attachments found in mail {email_id}')
 
             # Return the attachments, if non are found list will be empty
             return attachments

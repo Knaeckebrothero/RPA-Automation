@@ -47,7 +47,7 @@ def home():
     # Process only the selected documents
     if st.button('Process selected documents'):
 
-
+        # TODO: Finish integration of the assess_emails function
 
         # Iterate over the selected documents
         for mail_id in docs_to_process:

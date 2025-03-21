@@ -20,7 +20,8 @@ log  = logging.getLogger(__name__)
 
 class Document:
     """
-    The Document class represents a document.
+    The Document class represents a basic document.
+    It provides core functionality for storing and managing document content and attributes.
     """
     def __init__(self, content: bytes, attributes: dict = None):
         """
@@ -91,6 +92,59 @@ class Document:
                 self._attributes.pop(attribute)
         else:
             self._attributes.clear()
+
+    def save_to_file(self, file_path: str):
+        """
+        Save the document's content to a file at the specified path.
+
+        :param file_path: The path where the file should be saved.
+        """
+        if not os.path.exists(file_path):
+            os.makedirs(file_path)
+
+        try:
+            with open(file_path, 'wb') as file:
+                file.write(self._content)
+            log.info(f"Document saved to: {file_path}")
+        except IOError as e:
+            log.error(f"Error saving document: {e}")
+
+    @classmethod
+    def to_pdf(cls, document):
+        """
+        Convert a Document instance to a PDF instance if it's a PDF document.
+
+        :param document: The Document instance to convert.
+        :return: A PDF instance if the document is a PDF, otherwise the original Document.
+        """
+        if not isinstance(document, Document):
+            log.error("Cannot convert non-Document instance to PDF")
+            return document
+
+        # Check if the document is a PDF based on its content_type attribute
+        content_type = document.get_attributes('content_type')
+        if content_type and content_type.lower() == 'application/pdf':
+            log.debug("Converting Document instance to PDF instance")
+            return PDF(document.get_content(), document.get_attributes())
+
+        # If it's not a PDF, return the original document
+        log.debug(f"Document is not a PDF (content_type: {content_type}), not converting")
+        return document
+
+class PDF(Document):
+    """
+    The PDF class represents a PDF document.
+    It extends the Document class with PDF-specific functionality like OCR and table extraction.
+    """
+    def __init__(self, content: bytes, attributes: dict = None):
+        """
+        The constructor for the PDF class.
+
+        :param content: The raw content of the PDF document.
+        :param attributes: A set of attributes for the document.
+        """
+        super().__init__(content, attributes)
+        log.debug("PDF document created")
 
     def extract_table_data(self):
         """
@@ -180,22 +234,6 @@ class Document:
             # TODO: Integrate the new functionality into the existing code
             #for key, value in self.get_attributes().items():
             #    print(f"\nKey: {key} \n Value: {value}")
-
-    def save_to_file(self, file_path: str):
-        """
-        Save the document's content to a file at the specified path.
-
-        :param file_path: The path where the file should be saved.
-        """
-        if not os.path.exists(file_path):
-            os.makedirs(file_path)
-
-        try:
-            with open(file_path, 'wb') as file:
-                file.write(self._content)
-            log.info(f"Document saved to: {file_path}")
-        except IOError as e:
-            log.error(f"Error saving document: {e}")
 
     def initialize_audit_case(self):
         """
@@ -367,3 +405,22 @@ class Document:
         else:
             log.warning("No BaFin ID found for document")
             return False
+
+    def verify_bafin_id(self) -> int | None:
+        """
+        Method to verify the bafin id against the database.
+
+        :return: The client id if the bafin id is found in the database or None if no client is found.
+        """
+        db = Database().get_instance()
+        bafin_id = self.get_attributes("BaFin-ID")
+
+        if bafin_id:
+            client_id = db.query(f"SELECT id FROM client WHERE bafin_id ={int(bafin_id)}")
+            if client_id[0][0] != 0:
+                self.add_attributes({'client_id': client_id})
+                return client_id[0][0]
+            else:
+                return None
+        else:
+            return None

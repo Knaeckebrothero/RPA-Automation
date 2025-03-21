@@ -28,8 +28,8 @@ def assess_emails(emails: pd.DataFrame):
             st.error(f'No attachments found for mail with ID {mail_id}')
             continue
         elif len(attachments) >= 1:
-            log.warning(f'Mail with ID {mail_id} has {len(attachments)} attachments, processing all of them.')
-            st.warning(f'Mail with ID {mail_id} has {len(attachments)} attachments, processing all of them.')
+            log.warning(f'Processing mail with ID {mail_id}')
+            st.warning(f'Processing mail with ID {mail_id}')
 
             for attachment in attachments:
                 if attachment.get_attributes('content_type') == 'application/pdf':
@@ -37,6 +37,19 @@ def assess_emails(emails: pd.DataFrame):
 
                     # Extract text from the document
                     attachment.extract_table_data()
+                    # TODO: Perhaps the 'client_id' attribute should already be set in the 'extract_table_data' method
+                    # Check if there are any active cases for this client
+                    client_id = attachment.verify_bafin_id()
+                    if client_id:
+                        log.info(f'Document {attachment.get_attributes("email_id")} belongs to client {client_id}')
+
+
+
+                        # TODO: Continue here!!!
+                        get_audit_case_status()
+
+
+
 
                     # Save the attachment to the filesystem's downloads folder
                     attachment.save_to_file(
@@ -56,9 +69,9 @@ def assess_emails(emails: pd.DataFrame):
         st.rerun()
 
 
-def check_company_submission(submissions, companies):
+def get_audit_case_status(submissions, companies):
     """
     This function checks whether a company has already submitted the required documents or not.
     It does so by comparing the submissions with a list of companies from the database.
     """
-    pass  # TODO: Implement the check_company_submission function
+    pass # TODO: Implement the check_company_submission function
