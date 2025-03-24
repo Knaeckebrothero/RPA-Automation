@@ -424,3 +424,29 @@ class PDF(Document):
                 return None
         else:
             return None
+
+    def get_audit_status(self) -> int | None:
+        """
+        This method checks whether a company has already submitted the required documents or not.
+
+        :return: The status of the audit case if it exists, otherwise None.
+        """
+        if not 'client_id' in self._attributes:
+            client_id = self.verify_bafin_id()
+        else:
+            client_id = self.get_attributes('client_id')
+
+        # Check if the client id is not None
+        if client_id:
+            db = Database().get_instance()
+            status = db.query(f"""
+            SELECT status
+            FROM audit_case
+            WHERE client_id = {client_id}
+            """)
+            if status:
+                return status[0][0]
+            else:
+                return None
+        else:
+            return None

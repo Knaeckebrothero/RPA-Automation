@@ -31,14 +31,12 @@ class Database(Singleton):
         self.connect()
         log.info("Database initialized.")
 
-
     def __del__(self):
         """
         Clean up resources when the object is garbage collected.
         """
         self.close()
         log.debug("Database object destroyed.")
-
 
     def connect(self):
         """
@@ -64,7 +62,6 @@ class Database(Singleton):
             log.error(f"Error connecting to database: {e}")
             raise
 
-
     def close(self):
         """
         Attempt to close the database connection.
@@ -76,7 +73,6 @@ class Database(Singleton):
             log.debug("Database connection closed.")
         else:
             log.warning("No database connection to close.")
-
 
     def _verify_tables(self, required_tables: list[str] = None):
         """
@@ -104,7 +100,6 @@ class Database(Singleton):
             log.error(f"Error verifying tables: {e}")
             raise
 
-
     def query(self, query: str, params=None) -> list[tuple]:
         """
         Execute a query on the database.
@@ -129,7 +124,6 @@ class Database(Singleton):
             if params:
                 log.debug(f"Params were: {params}")
             raise
-
 
     def insert(self, query: str, params=None) -> int:
         """
@@ -157,7 +151,6 @@ class Database(Singleton):
                 log.debug(f"Params were: {params}")
             self._conn.rollback()
             raise
-
 
     def get_clients(self) -> pd.DataFrame:
         """
@@ -189,7 +182,6 @@ class Database(Singleton):
         except sqlite3.Error as e:
             log.error(f"Error fetching clients: {e}")
             return pd.DataFrame()  # Return empty DataFrame on error
-
 
     def get_active_client_cases(self) -> pd.DataFrame:
         """
