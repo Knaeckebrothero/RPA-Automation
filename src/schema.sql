@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS audit_case (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     client_id INTEGER NOT NULL,
     email_id INTEGER,
-    status INTEGER NOT NULL DEFAULT 1,
+    status INTEGER NOT NULL DEFAULT 1, -- TODO: Rename this to stage instead!
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     comments TEXT,

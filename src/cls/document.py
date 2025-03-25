@@ -23,6 +23,7 @@ class Document:
     The Document class represents a basic document.
     It provides core functionality for storing and managing document content and attributes.
     """
+    # TODO: Add a method to store and retrieve the document in the database
     def __init__(self, content: bytes, attributes: dict = None):
         """
         The constructor for the Document class.
@@ -136,6 +137,7 @@ class PDF(Document):
     The PDF class represents a PDF document.
     It extends the Document class with PDF-specific functionality like OCR and table extraction.
     """
+    # TODO: Add attributes such as client_id, email_id, etc. to the PDF class
     def __init__(self, content: bytes, attributes: dict = None):
         """
         The constructor for the PDF class.
@@ -262,41 +264,6 @@ class PDF(Document):
         else:
             log.warning(f"Couldn't detect BaFin-ID for document with mail id: {self.get_attributes('email_id')}")
 
-    def validate_and_initialize_audit_case(self):
-        """
-        Function to initialize an audit case for a document.
-        Unlike initialize_audit_case() this function also attempts to validate the client's values against the database,
-        if a valid bafin id is found in the document.
-
-        :param document: The document to initialize the audit case for.
-        """
-        db = Database().get_instance()
-        bafin_id = self.get_attributes("BaFin-ID")
-        email_id = self.get_attributes('email_id')
-
-        # TODO: Add a check if a audit_case already exists for that client & year combination!
-
-        if bafin_id:
-            client_id = db.query(f"SELECT id FROM client WHERE bafin_id ={int(bafin_id)}")
-            if self.compare_values():
-                # Update the status of the audit case to 2
-                db.insert(
-                    f"""
-                    INSERT INTO audit_case (client_id, email_id, status)
-                    VALUES ({client_id[0][0]}, {email_id}, 3)
-                    """)
-                log.info(f"Client with BaFin ID {self.get_attributes('BaFin-ID')} successfully validated")
-            elif client_id[0][0] == 0: # if len(client_id[0][0]) == 0:
-                db.insert(
-                    f"""
-                    INSERT INTO audit_case (client_id, email_id, status)
-                    VALUES ({client_id[0][0]}, {email_id}, 2)
-                    """)
-            else:
-                log.info(f"No client with BaFin ID: {bafin_id} found in database")
-        else:
-            log.info(f"Couldn't detect BaFin-ID for document with email ID: {email_id}")
-
     # TODO: Implement a proper way to compare the values
     def compare_values(self) -> bool:
         """
@@ -416,7 +383,7 @@ class PDF(Document):
         bafin_id = self.get_attributes("BaFin-ID")
 
         if bafin_id:
-            client_id = db.query(f"SELECT id FROM client WHERE bafin_id ={int(bafin_id)}")
+            client_id = db.query(f'SELECT id FROM client WHERE bafin_id ={int(bafin_id)}')
             if client_id[0][0] != 0:
                 self.add_attributes({'client_id': client_id})
                 return client_id[0][0]
@@ -427,7 +394,7 @@ class PDF(Document):
 
     def get_audit_status(self) -> int | None:
         """
-        This method checks whether a company has already submitted the required documents or not.
+        This method returns the status of the audit case if it exists.
 
         :return: The status of the audit case if it exists, otherwise None.
         """

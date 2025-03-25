@@ -32,84 +32,113 @@ def assess_emails(emails: pd.DataFrame):
             st.warning(f'Processing mail with ID {mail_id}')
 
             for attachment in attachments:
+                keep_attachment = False
                 if attachment.get_attributes('content_type') == 'application/pdf':
                     log.info(f'Processing pdf attachment {attachment.get_attributes("filename")}')
 
                     # Extract text from the document
                     attachment.extract_table_data()
-                    # TODO: Perhaps the 'client_id' attribute should already be set in the 'extract_table_data' method
-                    # Check if there are any active cases for this client
+
+                    # Check if the document contains a BaFin ID
                     client_id = attachment.verify_bafin_id()
+                    # TODO: Perhaps the 'client_id' attribute should already be set in the 'extract_table_data' method
+
+                    # Check if the document contains a valid BaFin ID
                     if client_id:
                         email_id = attachment.get_attributes("email_id")
                         log.info(f'Document {email_id} belongs to client {client_id}')
 
-                        # Check if the document is already in the database
+                        # Get the status of the audit case
                         status = attachment.get_audit_status()
+                        # TODO: Add a check if a audit_case already exists for that client & year combination!?
 
-                        # Check the status of the document
+                        # Check the status of the audit case
                         match status:
-                            case 1:  # Documents received
+                            case 1:  # Waiting for documents
                                 log.info(f'Document found in mail with email_id: {email_id} for'
                                          f' client_id: {client_id}.')
-                                # Update the audit case
-                                update_audit_case_one(attachment)
-                            case 2:  # Data verified
+                                update_audit_case(attachment)
+                                keep_attachment = True
+
+                            case 2:  # Data verification
                                 log.info(f'Document with email_id: {email_id} and'
                                          f' client_id: {client_id} is already in the database.')
-                                # Update the audit case
-                                update_audit_case_two(attachment)
-
-                                # TODO: CONTINUE HERE !!!
-
-                            case 3:  # Certificate issued
-                                pass
-                            case 4: # Process completed
-                                pass
+                                update_audit_case(attachment)
+                                keep_attachment = True
+                            case 3:  # Issuing certificate
+                                log.warning(f"Client with id: {client_id} has already passed the value check ("
+                                         f"is currently in phase 3), but submitted a new document with email_id:"
+                                         f"  {email_id}.")
+                                # keep_attachment = False no need since it's redundant
+                            case 4: # Completing process
+                                log.warning(f"Client with id: {client_id} has already been certified"
+                                         f" (is currently in phase 4), but submitted a new document with email_id: {email_id}.")
+                                # keep_attachment = False no need since it's redundant
                             case _:  # Default case
-                                log.info(f'Adding document with email_id: {attachment.get_attributes("email_id")} and'
-                                         f' client_id: {client_id} to the database.')
+                                log.warning(f'No case found for client_id: {client_id}, adding case for document '
+                                            f'with email_id: {email_id}.')
 
-                                # Insert the document into the database
-                                db.insert(f"""
-                                    INSERT INTO audit_case (email_id, client_id, status)
-                                    VALUES ({attachment.get_attributes("email_id")}, {client_id}, 1)
-                                """)
-                                log.info(f'Added document with email_id: {attachment.get_attributes("email_id")} and'
-                                         f' client_id: {client_id} to the database.')
+                                # Initialize and update the audit case
+                                attachment.initialize_audit_case()
+                                update_audit_case(attachment)
+                                keep_attachment = True
 
-
-
-
-
-
-                    # Save the attachment to the filesystem's downloads folder
-                    attachment.save_to_file(
-                        os.path.join(
-                            os.getenv('FILESYSTEM_PATH'),
-                            "/downloads/",
-                            attachment.get_attributes("filename")
-                        )
-                    )
-
-                    # Initialize the audit case and check the values
-                    attachment.validate_and_initialize_audit_case()
+                        # Save the attachment to the filesystem's downloads folder if it should be kept
+                        if keep_attachment:
+                            attachment.save_to_file(
+                                os.path.join(
+                                    os.getenv('FILESYSTEM_PATH'),
+                                    "/downloads/",
+                                    attachment.get_attributes("filename")
+                                )
+                            )
+                            log.info(f'Saved attachment {attachment.get_attributes("filename")} to filesystem.')
+                    else:
+                        log.warning(f'No BaFin ID found in document {attachment.get_attributes("filename")}, '
+                                    f'email_id: {attachment.get_attributes("email_id")}')
                 else:
                     log.info(f'Skipping non-pdf attachment {attachment.get_attributes("content_type")}')
 
-        # Finally, rerun the app to update the display
-        st.rerun()
+    # Finally, rerun the app to update the display
+    # st.rerun()
+    # TODO: Could this be an issue? Perhaps this causes the app to only process one mail instead and should be
+    #  replaced with a spinner or something similar!
 
 
-def update_audit_case_one(document: PDF):
+def validate_audit_case(document: PDF):
     """
-    Function to update an audit case which has not yet received a document.
+    Function to initialize an audit case for a document.
+    Unlike initialize_audit_case() this function also attempts to validate the client's values against the database,
+    if a valid bafin id is found in the document.
 
-    :param document: The document to update the audit case for.
+    :param document: The document to initialize the audit case for.
     """
+    bafin_id = document.get_attributes("BaFin-ID")
+    email_id = document.get_attributes("email_id")
+    client_id = document.get_attributes("client_id")
+
+    if document.compare_values():
+        # Update the status of the audit case to 3
+        db.insert(
+            f"""
+            UPDATE audit_case
+            SET status = 3
+            WHERE client_id = {client_id} AND email_id = {email_id}
+            """)
+        log.info(f"Client with BaFin ID {bafin_id} submitted a valid document with email_id: {email_id}")
+    else:
+        db.insert(
+            f"""
+            UPDATE audit_case
+            SET status = 2
+            WHERE client_id = {client_id}
+            """)
+        log.warning(f"Document with email_id: {email_id}, client_id: {client_id} is not valid!")
+        # TODO: Add display logic to show what values are not matching! (Also the page where the auditor can alter
+        #  the values can be added/referenced here!)
 
 
-def update_audit_case_two(document: PDF):
+def update_audit_case(document: PDF):
     """
     Function to update an audit case which has already received a document.
 
@@ -151,11 +180,3 @@ def update_audit_case_two(document: PDF):
                 """)
     else:
         log.info(f'Email id for case with client id: {client_id} is the same as the one in the database.')
-
-
-def update_audit_case_three(document: PDF):
-    pass # TODO: Implement this function
-
-
-def update_audit_case_four(document: PDF):
-    pass # TODO: Implement this function
