@@ -5,8 +5,18 @@ import logging as log
 
 # Custom imports
 from cls.document import PDF
-from cache import get_database as db
-from cache import get_mailclient
+from cls.database import Database
+from cls.mailclient import Mailclient
+
+
+@st.cache_data
+def get_emails():
+    """
+    Fetch the emails from the mail client.
+
+    :return: The emails fetched from the mail client.
+    """
+    return Mailclient.get_instance().get_mails()
 
 
 def assess_emails(emails: pd.DataFrame):
@@ -16,11 +26,12 @@ def assess_emails(emails: pd.DataFrame):
     :param emails: The set of mails to process.
     """
     log.info(f'Processing: {len(emails)} selected documents...')
+    mailclient = Mailclient.get_instance()
 
     # Iterate over the selected documents
     for mail_id in emails:
         log.debug(f'Processing mail with ID {mail_id}')
-        attachments = get_mailclient().get_attachments(mail_id)
+        attachments = mailclient.get_attachments(mail_id)
 
         # Check if attachments are present
         if not attachments:
@@ -48,18 +59,20 @@ def assess_emails(emails: pd.DataFrame):
                         email_id = attachment.get_attributes("email_id")
                         log.info(f'Document {email_id} belongs to client {client_id}')
 
-                        # Get the status of the audit case
-                        status = attachment.get_audit_status()
+                        # Get the stage of the audit case
+                        stage = attachment.get_audit_stage()
                         # TODO: Add a check if a audit_case already exists for that client & year combination!?
 
-                        # Check the status of the audit case
-                        match status:
+                        # Check the stage of the audit case
+                        match stage:
                             case 1:  # Waiting for documents
                                 log.info(f'Document found in mail with email_id: {email_id} for'
                                          f' client_id: {client_id}.')
-                                update_audit_case(attachment)
-                                keep_attachment = True
+                                # TODO: First check if the document already has a mail id attached to it!
 
+                                # Start the validation process
+                                validate_audit_case(attachment)
+                                keep_attachment = True
                             case 2:  # Data verification
                                 log.info(f'Document with email_id: {email_id} and'
                                          f' client_id: {client_id} is already in the database.')
@@ -85,13 +98,11 @@ def assess_emails(emails: pd.DataFrame):
 
                         # Save the attachment to the filesystem's downloads folder if it should be kept
                         if keep_attachment:
-                            attachment.save_to_file(
-                                os.path.join(
-                                    os.getenv('FILESYSTEM_PATH'),
-                                    "/downloads/",
-                                    attachment.get_attributes("filename")
-                                )
-                            )
+                            attachment.save_to_file(os.path.join(
+                                os.getenv('FILESYSTEM_PATH'),
+                                "downloads",
+                                str(mail_id) + "_" + attachment.get_attributes("filename")
+                            ))
                             log.info(f'Saved attachment {attachment.get_attributes("filename")} to filesystem.')
                     else:
                         log.warning(f'No BaFin ID found in document {attachment.get_attributes("filename")}, '
@@ -100,7 +111,7 @@ def assess_emails(emails: pd.DataFrame):
                     log.info(f'Skipping non-pdf attachment {attachment.get_attributes("content_type")}')
 
     # Finally, rerun the app to update the display
-    # st.rerun()
+    st.rerun()
     # TODO: Could this be an issue? Perhaps this causes the app to only process one mail instead and should be
     #  replaced with a spinner or something similar!
 
@@ -116,21 +127,22 @@ def validate_audit_case(document: PDF):
     bafin_id = document.get_attributes("BaFin-ID")
     email_id = document.get_attributes("email_id")
     client_id = document.get_attributes("client_id")
+    db = Database().get_instance()
 
     if document.compare_values():
-        # Update the status of the audit case to 3
+        # Update the stage of the audit case to 3
         db.insert(
             f"""
             UPDATE audit_case
-            SET status = 3
+            SET stage = 3
             WHERE client_id = {client_id} AND email_id = {email_id}
-            """)
+            """)  # TODO: Refactor all query's to include the year and or
         log.info(f"Client with BaFin ID {bafin_id} submitted a valid document with email_id: {email_id}")
     else:
         db.insert(
             f"""
             UPDATE audit_case
-            SET status = 2
+            SET stage = 2
             WHERE client_id = {client_id}
             """)
         log.warning(f"Document with email_id: {email_id}, client_id: {client_id} is not valid!")
@@ -138,6 +150,7 @@ def validate_audit_case(document: PDF):
         #  the values can be added/referenced here!)
 
 
+# TODO: Refactor this and combine the validate_audit_case() and update_audit_case() functions!
 def update_audit_case(document: PDF):
     """
     Function to update an audit case which has already received a document.
@@ -147,6 +160,9 @@ def update_audit_case(document: PDF):
     # TODO: Move attributes like 'client_id' and 'email_id' to the 'document' object!
     client_id = document.get_attributes("client_id")
     email_id = document.get_attributes("email_id")
+    db = Database().get_instance()
+
+    # db = get_database()
 
     # Check if the email_id is the same as the one in the database
     email_id_db = db.query(f"""
@@ -159,14 +175,14 @@ def update_audit_case(document: PDF):
 
         # Check if the new document matches the values in the database
         if document.compare_values():
-            # TODO: We should use the audit_case id instead of the client_id to update the status
-            # Update the status of the audit case to 2
+            # TODO: We should use the audit_case id instead of the client_id to update the stage
+            # Update the stage of the audit case to 3
             db.insert(
                 f"""
                 UPDATE audit_case
-                SET email_id = {email_id}, status = 2
+                SET email_id = {email_id}, stage = 3
                 WHERE client_id = {client_id}
-                """)
+                """ )
             log.info(f"Client with BaFin ID {document.get_attributes('BaFin-ID')} successfully "
                      f" validated")
         else:

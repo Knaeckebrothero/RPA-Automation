@@ -8,8 +8,9 @@ import logging as log
 
 # Custom imports
 import ui.visuals as visuals
-import cache as cache
-from workflow import assess_emails
+from workflow import get_emails, assess_emails
+from cls.mailclient import Mailclient
+from cls.database import Database
 
 
 def home():
@@ -24,7 +25,7 @@ def home():
     st.write('Welcome to the Document Fetcher application!')
 
     # Fetch the emails and client
-    emails = cache.get_emails()
+    emails = get_emails()
 
     # Configure visuals layout
     column_left, column_right = st.columns(2)
@@ -55,8 +56,8 @@ def home():
 
     # Process all the documents
     if st.button('Process all documents'):
-        db = cache.get_database()
-        mailclient = cache.get_mailclient()
+        db = Database.get_instance()
+        mailclient = Mailclient.get_instance()
 
         # Get all mails that are already in the database
         already_processed_mails = [x[0] for x in db.query('SELECT email_id FROM audit_case')]
@@ -73,9 +74,10 @@ def active_cases():
     UI page for viewing and managing active audit cases.
     """
     log.debug('Rendering active cases page')
+    db = Database().get_instance()
 
     # Fetch the active cases and clients
-    active_cases_df = cache.get_database().get_active_client_cases()
+    active_cases_df = db.get_active_client_cases()
 
     # Page title and description
     st.header('Active Cases')
@@ -92,16 +94,16 @@ def active_cases():
         st.subheader("All Active Cases")
 
         # Create a more user-friendly display table
-        display_df = active_cases_df[['case_id', 'institute', 'bafin_id', 'status', 'created_at', 'last_updated_at']].copy()
-        display_df.columns = ['Case ID', 'Institute', 'BaFin ID', 'Status', 'Created', 'Last Updated']
+        display_df = active_cases_df[['case_id', 'institute', 'bafin_id', 'stage', 'created_at', 'last_updated_at']].copy()
+        display_df.columns = ['Case ID', 'Institute', 'BaFin ID', 'Stage', 'Created', 'Last Updated']
 
         # Format dates
         display_df['Created'] = display_df['Created'].dt.strftime('%Y-%m-%d')
         display_df['Last Updated'] = display_df['Last Updated'].dt.strftime('%Y-%m-%d %H:%M')
 
-        # Add status badges
-        display_df['Status'] = active_cases_df['status'].apply(
-            lambda x: visuals.status_badge(x)
+        # Add stage badges
+        display_df['Stage'] = active_cases_df['stage'].apply(
+            lambda x: visuals.stage_badge(x)
         )
 
         # Display the table with HTML rendering enabled
@@ -137,7 +139,7 @@ def active_cases():
 
             # Display case information
             st.markdown(f"### Case #{selected_case['case_id']}")
-            st.markdown(f"**Status:** {visuals.status_badge(selected_case['status'])}", unsafe_allow_html=True)
+            st.markdown(f"**Stage:** {visuals.stage_badge(selected_case['stage'])}", unsafe_allow_html=True)
 
             # Create columns for layout
             col1, col2 = st.columns(2)
@@ -157,7 +159,6 @@ def active_cases():
                 if new_comments != current_comments:
                     if st.button("Save Comments"):
                         # Update comments in database
-                        db = cache.get_database()
                         db.query(f"""
                             UPDATE audit_case 
                             SET comments = ? 
@@ -186,45 +187,41 @@ def active_cases():
             # Process steps
             st.subheader("Process Steps")
 
-            # Define steps based on status
-            current_status = selected_case['status']
+            # Define steps based on stage
+            current_stage = selected_case['stage']
 
             # Display expandable sections for each step of the process
-            with st.expander("Step 1: Documents Received", expanded=(current_status == 1)):
+            with st.expander("Step 1: Documents Received", expanded=(current_stage == 1)):
                 st.write("Documents have been received from the client.")
-                if current_status == 1 and st.button("Mark as Verified"):
-                    db = cache.get_database()
-                    db.query("UPDATE audit_case SET status = 2 WHERE id = ?", (case_id,))
+                if current_stage == 1 and st.button("Mark as Verified"):
+                    db.query("UPDATE audit_case SET stage = 2 WHERE id = ?", (case_id,))
                     st.success("Case marked as Verified!")
                     # Clear cache and refresh
                     st.cache_data.clear()
                     st.rerun()
 
-            with st.expander("Step 2: Data Verified", expanded=(current_status == 2)):
+            with st.expander("Step 2: Data Verified", expanded=(current_stage == 2)):
                 st.write("Client data has been verified against our records.")
-                if current_status == 2 and st.button("Issue Certificate"):
-                    db = cache.get_database()
-                    db.query("UPDATE audit_case SET status = 3 WHERE id = ?", (case_id,))
+                if current_stage == 2 and st.button("Issue Certificate"):
+                    db.query("UPDATE audit_case SET stage = 3 WHERE id = ?", (case_id,))
                     st.success("Certificate Issued!")
                     # Clear cache and refresh
                     st.cache_data.clear()
                     st.rerun()
 
-            with st.expander("Step 3: Certificate Issued", expanded=(current_status == 3)):
+            with st.expander("Step 3: Certificate Issued", expanded=(current_stage == 3)):
                 st.write("Certificate has been issued to BaFin.")
-                if current_status == 3 and st.button("Complete Process"):
-                    db = cache.get_database()
-                    db.query("UPDATE audit_case SET status = 4 WHERE id = ?", (case_id,))
+                if current_stage == 3 and st.button("Complete Process"):
+                    db.query("UPDATE audit_case SET stage = 4 WHERE id = ?", (case_id,))
                     st.success("Process Completed!")
                     # Clear cache and refresh
                     st.cache_data.clear()
                     st.rerun()
 
-            with st.expander("Step 4: Process Completed", expanded=(current_status == 4)):
+            with st.expander("Step 4: Process Completed", expanded=(current_stage == 4)):
                 st.write("The audit process has been completed.")
-                if current_status == 4 and st.button("Archive Case"):
-                    db = cache.get_database()
-                    db.query("UPDATE audit_case SET status = 5 WHERE id = ?", (case_id,))
+                if current_stage == 4 and st.button("Archive Case"):
+                    db.query("UPDATE audit_case SET stage = 5 WHERE id = ?", (case_id,))
                     st.success("Case Archived!")
                     # Clear cache and refresh
                     st.cache_data.clear()
@@ -248,6 +245,7 @@ def about():
     """
     This is the about ui page for the application.
     """
+    # TODO: Limit the amount of text displayed in the log file to prevent long loading times
     # Display the contents of the log file in a code block (as a placeholder)
     with open(os.path.join(os.getenv('LOG_PATH', ''), 'application.log'), 'r') as file:
         st.code(file.read())

@@ -12,7 +12,8 @@ import os
 from custom_logger import configure_global_logger
 import ui.pages as page
 from ui.navbar import navbar
-import cache as cache
+from workflow import get_emails
+from cls.database import Database
 
 
 def main():
@@ -40,10 +41,11 @@ def main():
                 logging_directory=os.getenv('LOG_PATH')
             )
 
+            # TODO: Questionable value, check if this is necessary
             # Fetch the mails and store them in the cache
-            cache.get_emails()
+            #get_emails()
             # Initialize the database
-            cache.get_database()
+            #Database().get_instance()
 
             # TODO: Add a check for the existence of the .env file
             # TODO: Add json configuration file to load the non-sensitive configuration from

@@ -1,6 +1,7 @@
 """
 This module holds the mail.Client class.
 """
+import os
 import logging
 from mock_imaplib import MockIMAP4_SSL as IMAP4_SSL  # from imaplib import IMAP4_SSL
 import email
@@ -28,12 +29,13 @@ class Mailclient(Singleton):
     _connection = None  # Connection to the mail server
     _decoding_format = 'iso-8859-1'  # 'utf-8'
 
-    def __init__(self, imap_server: str, imap_port: int, username: str,
-                 password: str, inbox: str = None, *args, **kwargs):
+    def __init__(self, imap_server: str = None, imap_port: int = None, username: str = None,
+                 password: str = None, inbox: str = None, *args, **kwargs):
         """
         Automatically connects to the mailclient, using the provided credentials,
         once the class is instantiated.
 
+        Parameters are optional and will be fetched from the environment variables if not specified.
         If no inbox is provided, it will default to the 'INBOX'.
         It also defines a custom logger for the class.
 
@@ -44,6 +46,38 @@ class Mailclient(Singleton):
         :param logger: The logger to use for the class.
         :param inbox: Inbox to connect to. Defaults to None.
         """
+        if not imap_server:
+            if os.getenv('IMAP_HOST'):
+                imap_server = os.getenv('IMAP_HOST')
+            else:
+                log.error('No IMAP server provided and no IMAP_HOST environment variable set!')
+
+        if not imap_port:
+            if os.getenv('IMAP_PORT'):
+                imap_port = int(os.getenv('IMAP_PORT'))
+            else:
+                log.error('No IMAP port provided and no IMAP_PORT environment variable set!')
+
+        if not username:
+            if os.getenv('IMAP_USER'):
+                username = os.getenv('IMAP_USER')
+            else:
+                log.error('No username provided and no IMAP_USER environment variable set!')
+
+        if not password:
+            if os.getenv('IMAP_PASSWORD'):
+                password = os.getenv('IMAP_PASSWORD')
+            else:
+                log.error('No password provided and no IMAP_PASSWORD environment variable set!')
+
+        if not inbox:
+            try:
+                if os.getenv('INBOX'):
+                    inbox = os.getenv('INBOX')
+            except Exception as e:
+                log.info(f'No inbox provided and no INBOX environment variable set, defaulting to "INBOX", '
+                          f'error: {e}')
+
         # Connect to the mail server if not connected already
         if not self._connection:
             self.connect(imap_server, imap_port)

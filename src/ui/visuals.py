@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import streamlit as st
 
 # Custom imports
-from cache import get_database
+from cls.database import Database
 
 
 def pie_submission_ratio() -> plt.Figure:
@@ -14,18 +14,18 @@ def pie_submission_ratio() -> plt.Figure:
 
     :return: The plot as a matplotlib figure.
     """
-    db = get_database()
+    db = Database.get_instance()
 
     clients_processed = db.query("""
     SELECT COUNT(DISTINCT client_id)
     FROM audit_case
-    WHERE status = 5
+    WHERE stage = 5
     """)[0][0]
 
     clients_processing = db.query("""
     SELECT COUNT(DISTINCT client_id)
     FROM audit_case
-    WHERE status > 1 AND status < 5
+    WHERE stage > 1 AND stage < 5
     """)[0][0]
 
     clients_no_submission = db.query("""
@@ -56,11 +56,11 @@ def pie_submission_ratio() -> plt.Figure:
     return fig
 
 
-def status_badge(status: int) -> str:
+def stage_badge(stage: int) -> str:
     """
     Return HTML for a status badge based on the audit case status code.
 
-    :param status: The status code from the audit_case table
+    :param stage: The status code from the audit_case table
     :return: HTML string for a colored badge showing the status
     """
     status_map = {
@@ -71,7 +71,7 @@ def status_badge(status: int) -> str:
         5: ("Archived", "#808080"),  # Gray
     }
 
-    status_text, color = status_map.get(status, ("Unknown", "#FF0000"))
+    stage_text, color = status_map.get(stage, ("Unknown", "#FF0000"))
 
     return f"""
     <span style="
@@ -82,7 +82,7 @@ def status_badge(status: int) -> str:
         font-size: 0.8rem;
         font-weight: bold;
     ">
-        {status_text}
+        {stage_text}
     </span>
     """
 

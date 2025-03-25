@@ -30,15 +30,15 @@ CREATE TABLE IF NOT EXISTS client (
     ratio FLOAT
 );
 
--- TODO: Refactor the status table to become something like a "document verification process" table that holds data
+-- TODO: Refactor the stage table to become something like a "document verification process" table that holds data
 --  for the verification of the company for a particular year. Meaning this also includes a date and stuff!
 
--- Status Table
+-- Stage Table
 CREATE TABLE IF NOT EXISTS audit_case (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    client_id INTEGER NOT NULL,
+    client_id INTEGER NOT NULL UNIQUE,
     email_id INTEGER,
-    status INTEGER NOT NULL DEFAULT 1, -- TODO: Rename this to stage instead!
+    stage INTEGER NOT NULL DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     comments TEXT,
@@ -47,12 +47,12 @@ CREATE TABLE IF NOT EXISTS audit_case (
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_client_bafin_id ON client(bafin_id);
-CREATE INDEX IF NOT EXISTS idx_status_client_id ON audit_case(client_id);
-CREATE INDEX IF NOT EXISTS idx_status_email_id ON audit_case(email_id);
-CREATE INDEX IF NOT EXISTS idx_status_created_at ON audit_case(created_at);
+CREATE INDEX IF NOT EXISTS idx_stage_client_id ON audit_case(client_id);
+CREATE INDEX IF NOT EXISTS idx_stage_email_id ON audit_case(email_id);
+CREATE INDEX IF NOT EXISTS idx_stage_created_at ON audit_case(created_at);
 
--- Trigger to update the last_updated_at timestamp when a status record is updated
-CREATE TRIGGER IF NOT EXISTS update_status_last_updated
+-- Trigger to update the last_updated_at timestamp when a stage record is updated
+CREATE TRIGGER IF NOT EXISTS update_stage_last_updated
     AFTER UPDATE ON audit_case
 BEGIN
     UPDATE audit_case SET last_updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;

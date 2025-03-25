@@ -41,8 +41,8 @@ def parse_args():
     )
     parser.add_argument(
         '--schema-path',
-        default='./src/cfg/schema.sql',
-        help='Path to the schema SQL file (default: ./src/cfg/schema.sql)'
+        default='./src/schema.sql',
+        help='Path to the schema SQL file (default: ./src/schema.sql)'
     )
     parser.add_argument(
         '--json-path',

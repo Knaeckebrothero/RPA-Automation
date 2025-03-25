@@ -100,9 +100,6 @@ class Document:
 
         :param file_path: The path where the file should be saved.
         """
-        if not os.path.exists(file_path):
-            os.makedirs(file_path)
-
         try:
             with open(file_path, 'wb') as file:
                 file.write(self._content)
@@ -237,7 +234,7 @@ class PDF(Document):
             #for key, value in self.get_attributes().items():
             #    print(f"\nKey: {key} \n Value: {value}")
 
-    def initialize_audit_case(self):
+    def initialize_audit_case(self, stage: int = 1):
         """
         Function to initialize an audit case for a document.
 
@@ -257,9 +254,9 @@ class PDF(Document):
         if client_id[0][0] != 0:
             db.insert(
                 f"""
-                    INSERT INTO audit_case (client_id, email_id, status)
-                    VALUES ({client_id[0][0]}, {self.get_attributes('email_id')}, 1)
-                    """)
+                INSERT INTO audit_case (client_id, email_id, stage)
+                VALUES ({client_id[0][0]}, {self.get_attributes('email_id')}, {stage})
+                """)
             log.info(f"Company with BaFin ID {self.get_attributes('BaFin-ID')} has been initialized successfully")
         else:
             log.warning(f"Couldn't detect BaFin-ID for document with mail id: {self.get_attributes('email_id')}")
@@ -383,20 +380,20 @@ class PDF(Document):
         bafin_id = self.get_attributes("BaFin-ID")
 
         if bafin_id:
-            client_id = db.query(f'SELECT id FROM client WHERE bafin_id ={int(bafin_id)}')
-            if client_id[0][0] != 0:
+            client_id = db.query(f'SELECT id FROM client WHERE bafin_id ={int(bafin_id)}')[0][0]
+            if client_id != 0:
                 self.add_attributes({'client_id': client_id})
-                return client_id[0][0]
+                return client_id
             else:
                 return None
         else:
             return None
 
-    def get_audit_status(self) -> int | None:
+    def get_audit_stage(self) -> int | None:
         """
-        This method returns the status of the audit case if it exists.
+        This method returns the stage of the audit case if it exists.
 
-        :return: The status of the audit case if it exists, otherwise None.
+        :return: The stage of the audit case if it exists, otherwise None.
         """
         if not 'client_id' in self._attributes:
             client_id = self.verify_bafin_id()
@@ -406,13 +403,13 @@ class PDF(Document):
         # Check if the client id is not None
         if client_id:
             db = Database().get_instance()
-            status = db.query(f"""
-            SELECT status
+            stage = db.query(f"""
+            SELECT stage
             FROM audit_case
             WHERE client_id = {client_id}
             """)
-            if status:
-                return status[0][0]
+            if stage:
+                return stage[0][0]
             else:
                 return None
         else:

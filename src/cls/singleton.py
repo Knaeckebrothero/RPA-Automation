@@ -2,7 +2,7 @@
 This file holds a custom singleton class implementation that can be used to
 create singleton instances of classes.
 """
-# import streamlit as st
+import streamlit as st
 
 
 class Singleton:
@@ -15,8 +15,7 @@ class Singleton:
     _instance = None
 
     @classmethod
-    # @st.cache_resource # Tell Streamlit to cache the resource across reruns
-    # TODO: Refactor the way caching is done in the application (remove cache module)
+    @st.cache_resource # Tell Streamlit to cache the resource across reruns
     def get_instance(cls, *args, **kwargs):
         """
         Get the singleton instance of the class.

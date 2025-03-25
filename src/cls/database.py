@@ -186,7 +186,7 @@ class Database(Singleton):
     def get_active_client_cases(self) -> pd.DataFrame:
         """
         This method returns all active audit cases by joining the audit_case table with the client table.
-        An active case is defined as one where the status is less than 5.
+        An active case is defined as one where the stage is less than 5.
 
         :return: A pandas DataFrame with active audit cases and their associated client information.
         """
@@ -196,7 +196,7 @@ class Database(Singleton):
                 a.id AS case_id,
                 a.client_id,
                 a.email_id,
-                a.status,
+                a.stage,
                 a.created_at,
                 a.last_updated_at,
                 a.comments,
@@ -213,7 +213,7 @@ class Database(Singleton):
             JOIN 
                 client c ON a.client_id = c.id
             WHERE 
-                a.status < 5
+                a.stage < 5
             ORDER BY 
                 a.last_updated_at DESC
             """
@@ -223,7 +223,7 @@ class Database(Singleton):
 
             # Define column names for the DataFrame
             columns = [
-                'case_id', 'client_id', 'email_id', 'status', 'created_at', 'last_updated_at',
+                'case_id', 'client_id', 'email_id', 'stage', 'created_at', 'last_updated_at',
                 'comments', 'institute', 'bafin_id', 'address', 'city', 'contact_person',
                 'phone', 'fax', 'email'
             ]

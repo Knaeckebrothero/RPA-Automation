@@ -13,7 +13,8 @@ class PythonProjectCopier:
         'pyproject.toml',
         '.env.example',
         'README.md',
-        'table_detection.py',  # Files in subdirectories
+        'table_detection.py',
+        'examples/db_init.py' # Files in subdirectories
         # Add any other files you want to copy (use relative paths)
     ]
 
@@ -64,7 +65,7 @@ class PythonProjectCopier:
                 # If we want to preserve the directory structure in the filename
                 # (e.g., src_table_detection.py instead of just table_detection.py)
                 if len(Path(config_file).parts) > 1:
-                    flat_filename = "_".join(Path(config_file).parts)
+                    flat_filename = ".".join(Path(config_file).parts)
                     dest_file = self.dest_path / flat_filename
 
                 print(f"Copying {config_file} as {flat_filename}")
