@@ -107,7 +107,7 @@ class Database(Singleton):
 
         :param query: The SQL query to execute.
         :param params: Parameters to use with the query (optional).
-        :return: The result of the query as a list of tuples.
+        :return: The result of the query as a list of tuples. Returns an empty list if no records are found.
         :raises sqlite3.Error: If the query execution fails.
         """
         try:
@@ -117,7 +117,10 @@ class Database(Singleton):
             else:
                 log.debug(f"Executing query: {query}")
                 self.cursor.execute(query)
-            return self.cursor.fetchall()
+
+            result = self.cursor.fetchall()
+            log.debug(f"Query returned {len(result)} records")
+            return result
         except sqlite3.Error as e:
             log.error(f"Error executing query: {e}")
             log.debug(f"Query was: {query}")

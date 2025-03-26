@@ -12,8 +12,8 @@ import os
 from custom_logger import configure_global_logger
 import ui.pages as page
 from ui.navbar import navbar
-from workflow import get_emails
 from cls.database import Database
+from workflow import get_emails as workflow_get_emails
 
 
 def main():
@@ -43,12 +43,13 @@ def main():
 
             # TODO: Questionable value, check if this is necessary
             # Fetch the mails and store them in the cache
-            #get_emails()
+            workflow_get_emails()
+
             # Initialize the database
-            #Database().get_instance()
+            Database().get_instance()
 
             # TODO: Add a check for the existence of the .env file
-            # TODO: Add json configuration file to load the non-sensitive configuration from
+            # TODO: Add json or yaml configuration file to load the non-sensitive configuration from
 
     # Render the navbar and store the selected page in the session state
     st.session_state['page'] = navbar()

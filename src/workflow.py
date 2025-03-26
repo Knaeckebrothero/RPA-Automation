@@ -36,10 +36,11 @@ def assess_emails(emails: pd.DataFrame):
         # Check if attachments are present
         if not attachments:
             log.warning(f'No attachments found for mail with ID {mail_id}')
-            st.error(f'No attachments found for mail with ID {mail_id}')
+            # st.error(f'No attachments found for mail with ID {mail_id}')
             continue
         elif len(attachments) >= 1:
             log.warning(f'Processing mail with ID {mail_id}')
+            # TODO: Remove the warning message in favor of a progress bar or spinner (anything that doesn't bloat the UI)
             st.warning(f'Processing mail with ID {mail_id}')
 
             for attachment in attachments:
@@ -109,11 +110,6 @@ def assess_emails(emails: pd.DataFrame):
                                     f'email_id: {attachment.get_attributes("email_id")}')
                 else:
                     log.info(f'Skipping non-pdf attachment {attachment.get_attributes("content_type")}')
-
-    # Finally, rerun the app to update the display
-    st.rerun()
-    # TODO: Could this be an issue? Perhaps this causes the app to only process one mail instead and should be
-    #  replaced with a spinner or something similar!
 
 
 def validate_audit_case(document: PDF):

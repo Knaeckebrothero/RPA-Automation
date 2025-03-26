@@ -30,6 +30,9 @@ def home():
     # Configure visuals layout
     column_left, column_right = st.columns(2)
 
+    # Display the mails
+    st.dataframe(emails)
+
     # Display a plot on the right
     with column_left:
         # Pie chart showing the submission ratio
@@ -38,35 +41,38 @@ def home():
 
     # Display a table on the left
     with column_right:
-        # Display the mails
-        st.dataframe(emails)
+        # Display a multiselect box to select documents to process
+        docs_to_process = st.multiselect('Select documents to process', emails['ID'])
 
-    # TODO: Remove old processing logic in favor of the "Active Cases" page
-    # Display a multiselect box to select documents to process
-    docs_to_process = st.multiselect('Select documents to process', emails['ID'])
-
-    # Process only the selected documents
-    if st.button('Process selected documents'):
-
-        # TODO: Finish integration of the assess_emails function
-
-        # Iterate over the selected documents
-        for mail_id in docs_to_process:
+        # Process only the selected documents
+        if st.button('Process selected documents'):
             assess_emails(docs_to_process)
 
-    # Process all the documents
-    if st.button('Process all documents'):
-        db = Database.get_instance()
-        mailclient = Mailclient.get_instance()
+            # Rerun the app to update the display
+            st.rerun()
 
-        # Get all mails that are already in the database
-        already_processed_mails = [x[0] for x in db.query('SELECT email_id FROM audit_case')]
+        # Process all the documents
+        if st.button('Process all documents'):
+            db = Database.get_instance()
+            mailclient = Mailclient.get_instance()
 
-        # If no mails are in the database, fetch all mails
-        if len(already_processed_mails) > 0:
-            assess_emails(mailclient.get_mails(already_processed_mails)['ID'])
-        else:
-            assess_emails(emails['ID'])
+            # Get all mails that are already part of an active audit case
+            already_processed_mails = [x[0] for x in db.query(
+                """
+                SELECT email_id 
+                FROM audit_case
+                WHERE email_id IS NOT NULL
+                AND stage < 5
+                """)]
+
+            # If no mails are in the database, fetch all mails
+            if len(already_processed_mails) > 0:
+                assess_emails(mailclient.get_mails(excluded_ids=already_processed_mails)['ID'])
+            else:
+                assess_emails(emails['ID'])
+
+            # Rerun the app to update the display
+            st.rerun()
 
 
 def active_cases():
