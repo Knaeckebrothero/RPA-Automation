@@ -1,10 +1,10 @@
 """
-This module contains functions for detecting certain objects in images.
+This module contains functions for detecting certain objects in images or strings.
 """
-import os
-
+import re
 import cv2
 import numpy as np
+from difflib import SequenceMatcher
 from typing import List, Tuple
 import logging as log
 
@@ -29,7 +29,7 @@ def tables(bgr_image_array: np.array) -> List[np.array]:
         # Already grayscale
         grey_bgr_image_array = bgr_image_array
 
-    log.debug("Grey image shape:", grey_bgr_image_array.shape)
+    log.debug(f"Grey image shape: {grey_bgr_image_array.shape}")
 
     # Create a binary threshold (basically splitting the image into two colors of maximum intensity)
     thresh = cv2.adaptiveThreshold(
@@ -40,21 +40,21 @@ def tables(bgr_image_array: np.array) -> List[np.array]:
         15,  # Size of the neighborhood considered for thresholding (should be an odd number)
         10   # A constant subtracted from the mean (adjusts sensitivity)
     )
-    log.debug("Thresholded image shape:", thresh.shape)
+    log.debug(f"Threshold image shape: {thresh.shape}" )
 
     # Detect horizontal lines
     horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (25, 1))
     detect_horizontal = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, horizontal_kernel, iterations=2)
-    log.debug("Horizontal lines shape:", detect_horizontal.shape)
+    log.debug(f"Horizontal lines shape: {detect_horizontal.shape}")
 
     # Detect vertical lines
     vertical_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 40))
     detect_vertical = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, vertical_kernel, iterations=2)
-    log.debug("Vertical lines shape:", detect_vertical.shape)
+    log.debug(f"Vertical lines shape: {detect_vertical.shape}" )
 
     # Combine horizontal and vertical lines to form a mask
     table_mask = cv2.addWeighted(detect_horizontal, 0.5, detect_vertical, 0.5, 0.0)
-    log.debug("Table mask shape:", table_mask.shape)
+    log.debug(f"Table mask shape: {table_mask.shape}")
 
     # Find the contours of the mask and filter based on area size
     contours, _ = cv2.findContours(table_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -64,8 +64,7 @@ def tables(bgr_image_array: np.array) -> List[np.array]:
     # Log the contours if log level is set to debug
     if log.getEffectiveLevel() < 20:
         for cnt in table_contours:
-            log.debug("Table contour area:", cv2.contourArea(cnt))
-            print("Table contour area:", cv2.contourArea(cnt))
+            log.debug(f"Table contour area: {cv2.contourArea(cnt)}")
 
     return table_contours
 
@@ -210,3 +209,81 @@ def cells(row_image: np.array) -> List[Tuple[int, int]]:
         return [(5, row_image.shape[1] - 5)]
 
     return cells
+
+
+def bafin_id(text: str) -> int | None:
+    """
+    Extract the BaFin ID from a text string.
+    The function looks for patterns like "BaFin-ID 12345678" or "BaFin-ID (wenn bekannt) 12345678"
+    and handles potential OCR errors in the surrounding text.
+
+    :param text: The text to search for a BaFin ID
+    :return: The 8-digit BaFin ID if found, or an empty string if no valid BaFin ID is found
+    """
+    if not text:
+        log.warning("Empty text provided to extract_bafin_id")
+        return None
+
+    # Clean the text - remove extra spaces
+    cleaned_text = ' '.join(text.split())
+    log.debug(f"Searching for BaFin ID in: {cleaned_text[:100]}...")
+
+    # List of regex patterns to try
+    patterns = [
+        # Pattern 1: "BaFin-ID" followed by 8 digits (with flexible spacing and punctuation)
+        r'[Bb]a[Ff]in[\s\-\.,]*[Ii][Dd][\s\-\.,]*(\d{8})',
+
+        # Pattern 2: 8 digits near "BaFin"
+        r'[Bb]a[Ff]in[\s\-\.,]*(\d{8})',
+
+        # Pattern 3: "ID" or "Nr" followed by 8 digits
+        r'(?:[Ii][Dd]|[Nn][Rr])[\s\-\.,]*(\d{8})',
+
+        # Pattern 4: 8 digits followed by "wenn bekannt"
+        r'(\d{8})[\s\-\.,]*[Ww]enn[\s\-\.,]+[Bb]ekannt',
+
+        # Pattern 5: "wenn bekannt" followed by 8 digits
+        r'[Ww]enn[\s\-\.,]+[Bb]ekannt[\s\-\.,]*(\d{8})'
+    ]
+
+    # Try each pattern in order
+    for i, pattern in enumerate(patterns):
+        matches = re.search(pattern, cleaned_text)
+        if matches:
+            bafin_id = matches.group(1)
+            log.info(f"Found BaFin ID {bafin_id} using pattern {i+1}")
+            return int(bafin_id)
+
+    # Fallback: Search for isolated 8-digit numbers and evaluate their context
+    log.debug("No BaFin ID found with primary patterns, trying fallback approach")
+    isolated_numbers = list(re.finditer(r'\b(\d{8})\b', cleaned_text))
+    log.debug(f"Found {len(isolated_numbers)} isolated 8-digit numbers")
+
+    for match in isolated_numbers:
+        # Get some context around the match
+        start = max(0, match.start() - 50)
+        end = min(len(cleaned_text), match.end() + 50)
+        context = cleaned_text[start:end].lower()
+
+        # Keywords that suggest this might be a BaFin ID
+        keywords = ['bafin', 'id', 'nummer', 'kennung', 'bekannt', 'identifikation']
+
+        # Check for similar words in case of OCR errors
+        for word in context.split():
+            for keyword in keywords:
+                similarity = _similar(word, keyword)
+                if similarity > 0.7:
+                    bafin_id = match.group(1)
+                    log.info(f"Found BaFin ID {bafin_id} using context similarity "
+                             f" (word: {word}, keyword: {keyword}, similarity: {similarity:.2f})")
+                    return int(bafin_id)
+
+    log.warning("No BaFin ID found in the text")
+    return None
+
+
+def _similar(a, b):
+    """
+    Calculate similarity ratio between two strings
+    """
+    return SequenceMatcher(None, a, b).ratio()
