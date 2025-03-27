@@ -237,7 +237,6 @@ class PDF(Document):
                 #for key, value in self.get_attributes().items():
                 #    print(f"\nKey: {key} \n Value: {value}")
 
-
     def initialize_audit_case(self, stage: int = 1):
         """
         Function to initialize an audit case for a document.
