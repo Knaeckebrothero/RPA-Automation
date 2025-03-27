@@ -311,10 +311,12 @@ class Mailclient(Singleton):
                     if content_type == 'application/pdf':
                         attachments.append(PDF(
                             content=attachment_data,
+                            email_id=email_id,
                             attributes={
                                 'filename': filename,
-                                'email_id': email_id,
                                 'content_type': part.get_content_type(),
+                                'email_id': email_id,  # TODO: Using the attributes is deprecated,
+                                                       #  use the 'email_id' directly in the PDF class
                                 'sender': email_message['From'],
                                 'date': email_message['Date']
                             }
