@@ -3,19 +3,19 @@ This module holds the mail.Client class.
 """
 import os
 import logging
-import imaplib
+from mock_imaplib import MockIMAP4_SSL as IMAP4_SSL  # from imaplib import IMAP4_SSL
 import email
 from email.header import decode_header
 from bs4 import BeautifulSoup
 import pandas as pd
+
 # Custom imports
 from cls.singleton import Singleton
-from cls.document import Document
+from cls.document import Document, PDF
 
 
 # Set up logging
 log = logging.getLogger(__name__)
-
 
 # TODO: Refactor this class to use pythons email library instead of BeautifulSoup
 class Mailclient(Singleton):
@@ -27,14 +27,15 @@ class Mailclient(Singleton):
     a bunch of methods to interact with the mailbox.
     """
     _connection = None  # Connection to the mail server
-    _decoding_format = 'utf-8'  # 'iso-8859-1'
+    _decoding_format = 'iso-8859-1'  # 'utf-8'
 
-    def __init__(self, imap_server: str, imap_port: int, username: str,
-                 password: str, inbox: str = None, *args, **kwargs):
+    def __init__(self, imap_server: str = None, imap_port: int = None, username: str = None,
+                 password: str = None, inbox: str = None, *args, **kwargs):
         """
         Automatically connects to the mailclient, using the provided credentials,
         once the class is instantiated.
 
+        Parameters are optional and will be fetched from the environment variables if not specified.
         If no inbox is provided, it will default to the 'INBOX'.
         It also defines a custom logger for the class.
 
@@ -45,6 +46,38 @@ class Mailclient(Singleton):
         :param logger: The logger to use for the class.
         :param inbox: Inbox to connect to. Defaults to None.
         """
+        if not imap_server:
+            if os.getenv('IMAP_HOST'):
+                imap_server = os.getenv('IMAP_HOST')
+            else:
+                log.error('No IMAP server provided and no IMAP_HOST environment variable set!')
+
+        if not imap_port:
+            if os.getenv('IMAP_PORT'):
+                imap_port = int(os.getenv('IMAP_PORT'))
+            else:
+                log.error('No IMAP port provided and no IMAP_PORT environment variable set!')
+
+        if not username:
+            if os.getenv('IMAP_USER'):
+                username = os.getenv('IMAP_USER')
+            else:
+                log.error('No username provided and no IMAP_USER environment variable set!')
+
+        if not password:
+            if os.getenv('IMAP_PASSWORD'):
+                password = os.getenv('IMAP_PASSWORD')
+            else:
+                log.error('No password provided and no IMAP_PASSWORD environment variable set!')
+
+        if not inbox:
+            try:
+                if os.getenv('INBOX'):
+                    inbox = os.getenv('INBOX')
+            except Exception as e:
+                log.info(f'No inbox provided and no INBOX environment variable set, defaulting to "INBOX", '
+                          f'error: {e}')
+
         # Connect to the mail server if not connected already
         if not self._connection:
             self.connect(imap_server, imap_port)
@@ -68,7 +101,6 @@ class Mailclient(Singleton):
 
         log.debug('Mail client destroyed')
 
-    # Getters
     def get_connection(self):
         return self._connection
 
@@ -88,7 +120,8 @@ class Mailclient(Singleton):
         Defaults to None, which will connect to the default inbox.
         """
         try:
-            self._connection = imaplib.IMAP4_SSL(host=imap_server, port=imap_port)
+            # Use the mock IMAP4_SSL class for testing
+            self._connection = IMAP4_SSL(host=imap_server, port=imap_port)
             log.debug(f'Successfully connected to mailbox at {imap_server}:{imap_port}')
 
         except Exception as e:
@@ -159,20 +192,30 @@ class Mailclient(Singleton):
         log.info('Requested mails, server responded with: %s', status)
         return response
 
-    def get_mails(self):
+    def get_mails(self, excluded_ids: list[int] = None) -> pd.DataFrame:
         """
         Method to list the mails in the selected inbox and return them as a pandas DataFrame.
-        """
-        log.debug('Listing mails...')
-        status, response = self._connection.search(None, 'ALL')
-        log.info('Requested mails, server responded with: %s', status)
+        Excludes the emails with IDs present in the excluded_ids list.
 
+        :param excluded_ids: A list of email IDs to exclude from the result.
+        :return: A pandas DataFrame containing the emails.
+        """
+        response = self.list_mails()
         email_ids = response[0].split()
         emails_data = []
         decoding_format = 'iso-8859-1'  # 'utf-8' 'iso-8859-1'
 
+        # Convert excluded_ids to a set for faster lookup
+        excluded_ids_set = set(excluded_ids) if excluded_ids else set()
+        log.debug(f'Excluded ids set: {excluded_ids_set}')
+
         # Loop through email ids
         for email_id in email_ids:
+            # Skip the email if its ID is in the excluded_ids set
+            if int(email_id.decode(decoding_format)) in excluded_ids_set:
+                log.debug(f'Skipping email {email_id} as it is in the excluded_ids list')
+                continue
+
             # Fetch the email
             _, msg_data = self._connection.fetch(email_id, '(RFC822)')
 
@@ -201,7 +244,8 @@ class Mailclient(Singleton):
 
                             # If the email part is html, use BeautifulSoup to extract text
                             elif part.get_content_type() == "text/html":
-                                body = BeautifulSoup(part.get_payload(decode=True).decode(decoding_format), 'html.parser').get_text()
+                                body = BeautifulSoup(part.get_payload(decode=True).decode(decoding_format),
+                                                     'html.parser').get_text()
                                 break
                     else:
                         # If the email is not multipart, extract the body
@@ -224,13 +268,15 @@ class Mailclient(Singleton):
         log.info(f'Retrieved {len(df)} emails')
         return df
 
-    def get_attachments(self, email_id) -> list:
+    def get_attachments(self, email_id, content_type: str | None = 'application/pdf') -> list[Document]:
         """
         Method to get the attachments of an email.
 
         :param email_id: The id of the email to get the attachments from.
+        :param content_type: The content type of the attachments to look for.
         :return: A list of attachments or an empty list if no attachments are found.
         """
+        log.debug(f'Downloading attachments from email {email_id}')
         try:
             # Fetch the email
             _, msg_data = self._connection.fetch(email_id, '(RFC822)')
@@ -246,42 +292,58 @@ class Mailclient(Singleton):
             for part in email_message.walk():
                 if part.get_content_maintype() == 'multipart':
                     continue
-                if part.get('Content-Disposition') is None:
+                elif part.get('Content-Disposition') is None:
                     continue
+                elif part.get_content_type() == content_type or content_type is None:
+                    filename = part.get_filename()
+                    if not filename:
+                        continue
 
-                # Get the filename
-                filename = part.get_filename()
-                if not filename:
-                    continue
+                    # Decode the filename
+                    filename = decode_header(filename)[0][0]
+                    if isinstance(filename, bytes):
+                        filename = filename.decode()
 
-                # Decode the filename
-                filename = decode_header(filename)[0][0]
-                if isinstance(filename, bytes):
-                    filename = filename.decode()
+                    # Get the attachment data
+                    attachment_data = part.get_payload(decode=True)
 
-                # Get the attachment data
-                attachment_data = part.get_payload(decode=True)
-
-                # Append the attachment to the list
-                attachments.append(Document(
-                    content=attachment_data,
-                    attributes={
-                        'filename': filename,
-                        'email_id': email_id,
-                        'content_type': part.get_content_type(),
-                        'sender': email_message['From'],
-                        # 'date': email_message['Date'],
-                    }
-                ))
+                    # Append the attachment to the list
+                    if content_type == 'application/pdf':
+                        attachments.append(PDF(
+                            content=attachment_data,
+                            email_id=email_id,
+                            attributes={
+                                'filename': filename,
+                                'content_type': part.get_content_type(),
+                                'email_id': email_id,  # TODO: Using the attributes is deprecated,
+                                                       #  use the 'email_id' directly in the PDF class
+                                'sender': email_message['From'],
+                                'date': email_message['Date']
+                            }
+                        ))
+                    else:
+                        attachments.append(Document(
+                            content=attachment_data,
+                            attributes={
+                                'filename': filename,
+                                'email_id': email_id,
+                                'content_type': part.get_content_type(),
+                                'sender': email_message['From'],
+                                'date': email_message['Date']
+                            }
+                        ))
+                else:
+                    log.debug(f'Skipping attachment with content type {part.get_content_type()}')
 
             if attachments:
-                log.info(f'Found {len(attachments)} attachments in custommail {email_id}')
+                log.info(f'Found {len(attachments)} attachments in email {email_id}')
             else:
-                log.warning(f'No attachments found in custommail {email_id}')
+                log.info(f'No attachments found in mail {email_id}')
 
             # Return the attachments, if non are found list will be empty
             return attachments
 
         except Exception as e:
+            print(email_id)
             log.error(f"Error processing email {email_id}: {str(e)}")
             return []

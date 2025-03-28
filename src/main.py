@@ -9,10 +9,11 @@ import logging as log
 import os
 
 # Custom imports
-from cfg.custom_logger import configure_global_logger
+from custom_logger import configure_global_logger
 import ui.pages as page
 from ui.navbar import navbar
-import cfg.cache as cache
+from cls.database import Database
+from workflow import get_emails as workflow_get_emails
 
 
 def main():
@@ -40,15 +41,17 @@ def main():
                 logging_directory=os.getenv('LOG_PATH')
             )
 
+            # TODO: Questionable value, check if this is necessary
             # Fetch the mails and store them in the cache
-            cache.get_emails()
+            workflow_get_emails()
+
             # Initialize the database
-            cache.get_database()
+            Database().get_instance()
 
             # TODO: Add a check for the existence of the .env file
-            # TODO: Add json configuration file to load the non-sensitive configuration from
+            # TODO: Add json or yaml configuration file to load the non-sensitive configuration from
 
-    # Render the navbar and store the selected page in the session
+    # Render the navbar and store the selected page in the session state
     st.session_state['page'] = navbar()
 
     # Render the page based on the selected option
@@ -57,9 +60,12 @@ def main():
             log.debug('Home page selected')
             page.home()
         case 1:
+            log.debug('Active cases page selected')
+            page.active_cases()
+        case 2:
             log.debug('Settings page selected')
             page.settings()
-        case 2:
+        case 3:
             log.debug('About page selected')
             page.about()
         case _:

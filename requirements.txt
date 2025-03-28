@@ -6,11 +6,15 @@ python-dotenv
 streamlit
 opencv-python
 pdf2image
+PyMuPDF
 
-pillow
-pytesseract
+pillow  # Required by tesseract (allthough easyocr depends on it as well)
 beautifulsoup4
-# easyocr  # OCR alternative
+pytesseract
+easyocr
+# Torch is recommended to use a gpu to speed up the ocr
+# pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
+
 # Might require updating 
 # sudo apt-get updating mesa
 # sudo apt-get install libgl1-mesa-glx
