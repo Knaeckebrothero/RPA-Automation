@@ -234,13 +234,12 @@ def active_cases():
                     st.rerun()
 
 
-
-
 def settings():
     """
     This is the settings ui page for the application.
     """
     log.debug('Rendering settings page')
+
 
     # Page title and description
     st.header('Settings')

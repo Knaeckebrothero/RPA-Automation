@@ -148,6 +148,15 @@ class PDF(Document):
         self.bafin_id = bafin_id
         log.debug("PDF document created")
 
+    def __str__(self):
+        base_str = super().__str__()
+        return f"""
+        Email ID: {self.email_id}
+        Client ID: {self.client_id}
+        BaFin ID: {self.bafin_id}
+        {base_str.rstrip()} 
+        """
+
     def extract_table_data(self, ocr_reader: Reader = None):
         """
         Extract the text from the document.
@@ -207,7 +216,8 @@ class PDF(Document):
 
                         # Add the row data to the attributes
                         self._process_row_data(row_data)
-                        log.debug(f"Document Attributes: {self._attributes}")
+
+            log.debug(self.__str__())
 
     def _process_row_data(self, row_data):
         """
@@ -236,57 +246,72 @@ class PDF(Document):
             # Skip rows with more than 300 characters
             if content_length > 100:
                 log.warning(f"Skipping long row ({content_length} chars) for document: {self.email_id}")
-            else:
-                # Look for a BaFin ID if the attribute is not already set
-                if not self.bafin_id:
-                    # Check the cell for a BaFin ID
-                    bafin_id = dtc.bafin_id(row_data[0])
-                    if bafin_id:
-                        # Add the BaFin ID if it could be extracted
+                return
+
+            # Look for a BaFin ID if the attribute is not already set
+            if not self.bafin_id:
+                log.debug("Document does not have a BaFin ID yet, proceeding to check the cell for one.")
+
+                # Check the cell for a BaFin ID
+                bafin_id = dtc.bafin_id(row_data[0])
+
+                if bafin_id:
+                    # TODO: Check if this part works as expected!
+                    if not self.client_id:
+                        # Verify the BaFin ID against the database and add the client id to the document
+                        self.verify_bafin_id(bafin_id)
+                    elif self.client_id == self.verify_bafin_id(bafin_id, add_client_to_doc=False):
+                        # Add the BaFin ID if it matches the client id
                         self.bafin_id = bafin_id
+                        self.add_attributes({"BaFin-ID": bafin_id})
+                        log.info(f"BaFin ID extracted: {bafin_id} for document: {self.email_id}")
                         # TODO: Perhaps there should be some checks if the extracted BaFin ID is valid or if there is
                         #  already a BaFin ID attached to the document (since multiple ids in a doc could be an issue).
-
-                # Proceed with the usual key-value split
-                cell_content = row_data[0]
-                if ':' in cell_content:
-                    # Split only at first occurrence of ":"
-                    parts = cell_content.split(':', 1)
-
-                    # Add the first part as key and the second part as value
-                    key = parts[0].strip()
-                    value = parts[1].strip()
-                    self.add_attributes({key: value})
+                    else:
+                        log.warning(
+                            f"Extracted BaFin id: {bafin_id} does not match existing client id"
+                            f": {self.client_id} on document: {self.email_id}")
                 else:
-                    # Ignore single cells without ":"
-                    log.warning(f"Could not split cell for document: {self.email_id}")
+                    log.warning(f"No BaFin ID found in cell for document: {self.email_id}")
 
-    def initialize_audit_case(self, stage: int = 1):
+            # Proceed with the usual key-value split
+            cell_content = row_data[0]
+            if ':' in cell_content:
+                # Split only at first occurrence of ":"
+                parts = cell_content.split(':', 1)
+
+                # Add the first part as key and the second part as value
+                key = parts[0].strip()
+                value = parts[1].strip()
+                self.add_attributes({key: value})
+            else:
+                # Ignore single cells without ":"
+                log.warning(f"Could not split cell for document: {self.email_id}")
+
+    def initialize_audit_case(self, stage: int = 1) -> int | None:
         """
         Function to initialize an audit case for a document.
 
-        :param document: The document to initialize the audit case for.
+        :param stage: The stage to initialize the audit case with.
+        :return: The audit case id if the initialization was successful, otherwise None.
         """
         db = Database().get_instance()
 
-        log.debug(f'Initializing audit case for document: {self.get_attributes("email_id")}')
-        client_id = db.query(
-            f"""
-            SELECT id
-            FROM client
-            WHERE bafin_id ={int(self.get_attributes('BaFin-ID'))} 
-            """)
+        log.debug(f'Initializing audit case for document: {self.email_id}')
+        client_id = db.query("SELECT id FROM client WHERE bafin_id = ? ", (self.bafin_id,))
 
         # Insert the audit case into the database if a matching client is found
-        if client_id[0][0] != 0:
-            db.insert(
+        if client_id:
+            inserted_id = db.insert(
                 f"""
                 INSERT INTO audit_case (client_id, email_id, stage)
-                VALUES ({client_id[0][0]}, {self.email_id}, {stage})
-                """)
-            log.info(f"Company with BaFin ID {self.get_attributes('BaFin-ID')} has been initialized successfully")
+                VALUES (?, ?, ?)
+                """, (client_id[0][0], self.email_id, stage))
+            log.info(f"Company with BaFin ID {self.bafin_id} has been initialized successfully audit case id: {inserted_id}")
+            return inserted_id
         else:
             log.warning(f"Couldn't detect BaFin-ID for document with mail id: {self.email_id}")
+            return None
 
     # TODO: Implement a proper way to compare the values
     def compare_values(self) -> bool:
@@ -296,7 +321,7 @@ class PDF(Document):
         :param document: The document to compare the values with.
         """
         db = Database().get_instance()
-        bafin_id = self.get_attributes("BaFin-ID")
+        bafin_id = self.bafin_id
 
         if bafin_id:
             client_data = db.query(f"""
@@ -307,12 +332,12 @@ class PDF(Document):
                 ab2s1n05, ab2s1n06, ab2s1n07, ab2s1n08, 
                 ab2s1n09, ab2s1n10, ab2s1n11
             FROM client 
-            WHERE bafin_id = {bafin_id}
-            """)
+            WHERE bafin_id = ?
+            """, (bafin_id, ))
 
             # Check if the client is in the database
             if len(client_data) > 0:
-                log.debug(f"Company with BaFin ID {bafin_id} found in database")
+                log.debug(f"Company with BaFin-ID {bafin_id} found in database")
                 document_attributes = self.get_attributes()
 
                 # Iterate over the document attributes
@@ -397,26 +422,45 @@ class PDF(Document):
             log.warning("No BaFin ID found for document")
             return False
 
-    def verify_bafin_id(self) -> int | None:
+    def verify_bafin_id(self, bafin_id: int = None, add_bafin_id: bool = True,
+                        add_client_id: bool = True) -> int | None:
         """
         Method to verify the bafin id against the database.
 
+        :param bafin_id: The bafin id to verify. If not provided, the bafin id of the document is used.
+        :param add_bafin_id: Whether to add the bafin id to the document attributes if it is found.
+        :param add_client_id: Whether to add the bafin id to the document attributes if it is found.
         :return: The client id if the bafin id is found in the database or None if no client is found.
         """
         db = Database().get_instance()
-        bafin_id = self.get_attributes("BaFin-ID")
+
+        # Use the bafin id from the document if none is provided
+        if not bafin_id:
+            log.debug(f"No bafin id provided, using bafin id from document: {self.email_id}")
+            bafin_id = self.bafin_id if self.bafin_id else self.get_attributes("BaFin-ID")
 
         if bafin_id:
-            # Use parameters to avoid SQL injection and ensure proper type handling
-            result = db.query("SELECT id FROM client WHERE bafin_id = ?", (int(bafin_id),))
-
+            # Check if the bafin id matches a client in the database
+            result = db.query("SELECT id FROM client WHERE bafin_id = ?", (bafin_id,))
             if result:
-                client_id = result[0][0]
-                self.add_attributes({'client_id': client_id})
-                return client_id
+                log.info(f"Client with BaFin ID {bafin_id} found in database")
+
+                # Add the ids to the document unless specified otherwise
+                if add_client_id:
+                    log.debug(f"Adding client id: {result[0][0]} to document: {self.email_id}")
+                    self.client_id = result[0][0]
+                    self.add_attributes({"client_id": result[0][0]})
+                if add_bafin_id:
+                    log.debug(f"Adding BaFin ID: {bafin_id} to document: {self.email_id}")
+                    self.bafin_id = bafin_id
+                    self.add_attributes({"BaFin-ID": bafin_id})
+
+                return result[0][0]
             else:
+                log.warning(f"No client found with BaFin ID {bafin_id}")
                 return None
         else:
+            log.warning(f"No BaFin ID found in document with email id: {self.email_id}")
             return None
 
     def get_audit_stage(self) -> int | None:
@@ -425,19 +469,15 @@ class PDF(Document):
 
         :return: The stage of the audit case if it exists, otherwise None.
         """
-        if not 'client_id' in self._attributes:
+        if not self.client_id:
             client_id = self.verify_bafin_id()
         else:
-            client_id = self.get_attributes('client_id')
+            client_id = self.client_id
 
         # Check if the client id is not None
         if client_id:
             db = Database().get_instance()
-            stage = db.query(f"""
-            SELECT stage
-            FROM audit_case
-            WHERE client_id = {client_id}
-            """)
+            stage = db.query("SELECT stage FROM audit_case WHERE client_id = ?", (client_id,))
             if stage:
                 return stage[0][0]
             else:
