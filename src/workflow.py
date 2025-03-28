@@ -7,6 +7,7 @@ import logging
 from cls.document import PDF
 from cls.database import Database
 from cls.mailclient import Mailclient
+from process.ocr import create_ocr_reader
 
 
 # Set up logging
@@ -30,6 +31,7 @@ def assess_emails(emails: pd.DataFrame):
     """
     log.info(f'Processing: {len(emails)} selected documents...')
     mailclient = Mailclient.get_instance()
+    ocr_reader = create_ocr_reader(language='de')
 
     # Iterate over the selected documents
     for email_list_email_id in emails:
@@ -52,7 +54,7 @@ def assess_emails(emails: pd.DataFrame):
                     log.info(f'Processing pdf attachment {attachment.get_attributes("filename")}')
 
                     # Extract text from the document (this also sets various attributes if detected)
-                    attachment.extract_table_data()
+                    attachment.extract_table_data(ocr_reader=ocr_reader)
 
                     # Check if the document contains a valid BaFin ID by checking if the client_id has been set
                     # during the extraction process (this is done by the extract_table_data() method)

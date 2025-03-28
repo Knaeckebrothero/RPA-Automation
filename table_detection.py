@@ -9,8 +9,7 @@ import streamlit as st
 import cv2
 import numpy as np
 import src.process.detect as dct
-from src.process.ocr import ocr_cell
-from easyocr import Reader
+from src.process.ocr import ocr_cell, create_ocr_reader
 from src.process.files import get_images_from_pdf
 
 
@@ -23,7 +22,7 @@ if pdf_document is not None:
 
     st.image(images, width=350)  # use_column_width="auto"
 
-    ocr_reader = Reader(['de'])
+    ocr_reader = create_ocr_reader(use_gpu=True)
 
     ### Test code goes here ###
     for i, image in enumerate(images):

@@ -3,12 +3,12 @@ This module holds the document class.
 """
 import cv2
 import numpy as np
+import re
 import logging
-from easyocr import Reader
 
 # Custom imports
 import process.detect as dtc
-from process.ocr import ocr_cell
+from process.ocr import ocr_cell, create_ocr_reader
 from process.files import get_images_from_pdf
 from cls.database import Database
 
@@ -157,13 +157,13 @@ class PDF(Document):
         {base_str.rstrip()} 
         """
 
-    def extract_table_data(self, ocr_reader: Reader = None):
+    def extract_table_data(self, ocr_reader = None):
         """
         Extract the text from the document.
         """
         if self._content:
             if not ocr_reader:
-                ocr_reader = Reader(['de'])
+                ocr_reader = create_ocr_reader(language='de')
 
             # Convert the PDF document into a list of images (one image per page)
             images = get_images_from_pdf(self._content)
@@ -313,114 +313,148 @@ class PDF(Document):
             log.warning(f"Couldn't detect BaFin-ID for document with mail id: {self.email_id}")
             return None
 
-    # TODO: Implement a proper way to compare the values
     def compare_values(self) -> bool:
         """
-        Function to compare the values of a document with the values of a client in the database.
+        Function to compare extracted values from a document with the values stored in the database.
+        Returns True if all required values match, False otherwise.
 
-        :param document: The document to compare the values with.
+        The function handles various patterns in the document text and normalizes values
+        before comparison to ensure accurate matching despite formatting differences.
+
+        :return: True if all values match, False if any discrepancy is found
         """
-        db = Database().get_instance()
-        bafin_id = self.bafin_id
-
-        if bafin_id:
-            client_data = db.query(f"""
-            SELECT 
-                id,
-                p033, p034, p035, p036,
-                ab2s1n01, ab2s1n02, ab2s1n03, ab2s1n04, 
-                ab2s1n05, ab2s1n06, ab2s1n07, ab2s1n08, 
-                ab2s1n09, ab2s1n10, ab2s1n11
-            FROM client 
-            WHERE bafin_id = ?
-            """, (bafin_id, ))
-
-            # Check if the client is in the database
-            if len(client_data) > 0:
-                log.debug(f"Company with BaFin-ID {bafin_id} found in database")
-                document_attributes = self.get_attributes()
-
-                # Iterate over the document attributes
-                for key in document_attributes.keys():
-                    try:
-                        value = int(document_attributes[key].replace(".", ""))
-                    except ValueError:
-                        continue
-
-                    # Compare the values of the document with the values of the client in the database
-                    if "033" in key:
-                        if client_data[0][1] != value:
-                            log.warning(f"db: {type(client_data[0][1])} vs doc: {type(value)}")
-                            log.warning(f"Value mismatch for key {key}: {client_data[0][1]} (database) vs {value} (document)")
-                            return False
-                    elif "034" in key:
-                        if client_data[0][2] != value:
-                            log.warning(f"Value mismatch for key {key}: {client_data[0][2]} (database) vs {value} (document)")
-                            return False
-                    elif "035" in key:
-                        if client_data[0][3] != value:
-                            log.warning(f"Value mismatch for key {key}: {client_data[0][3]} (database) vs {value} (document)")
-                            return False
-                    elif "036" in key:
-                        if client_data[0][4] != value:
-                            log.warning(f"Value mismatch for key {key}: {client_data[0][4]} (database) vs {value} (document)")
-                            return False
-                    elif "Nr. 1 " in key:
-                        if client_data[0][5] != value:
-                            log.warning(f"Value mismatch for key {key}: {client_data[0][5]} (database) vs {value} (document)")
-                            return False
-                    elif "Nr. 2 " in key:
-                        if client_data[0][6] != value:
-                            log.warning(f"Value mismatch for key {key}: {client_data[0][6]} (database) vs {value} (document)")
-                            return False
-                    elif "Nr. 3 " in key:
-                        if client_data[0][7] != value:
-                            log.warning(f"Value mismatch for key {key}: {client_data[0][7]} (database) vs {value} (document)")
-                            return False
-                    elif "Nr. 4 " in key:
-                        if client_data[0][8] != value:
-                            log.warning(f"Value mismatch for key {key}: {client_data[0][8]} (database) vs {value} (document)")
-                            return False
-                    elif "Nr. 5 " in key:
-                        if client_data[0][9] != value:
-                            log.warning(f"Value mismatch for key {key}: {client_data[0][9]} (database) vs {value} (document)")
-                            return False
-                    elif "Nr. 6 " in key:
-                        if client_data[0][10] != value:
-                            log.warning(f"Value mismatch for key {key}: {client_data[0][10]} (database) vs {value} (document)")
-                            return False
-                    elif "Nr. 7 " in key:
-                        if client_data[0][11] != value:
-                            log.warning(f"Value mismatch for key {key}: {client_data[0][11]} (database) vs {value} (document)")
-                            return False
-                    elif "Nr. 8 " in key:
-                        if client_data[0][12] != value:
-                            log.warning(f"Value mismatch for key {key}: {client_data[0][12]} (database) vs {value} (document)")
-                            return False
-                    elif "Nr. 9 " in key:
-                        if client_data[0][13] != value:
-                            log.warning(f"Value mismatch for key {key}: {client_data[0][13]} (database) vs {value} (document)")
-                            return False
-                    elif "Nr. 10 " in key:
-                        if client_data[0][14] != value:
-                            log.warning(f"Value mismatch for key {key}: {client_data[0][14]} (database) vs {value} (document)")
-                            return False
-                    #elif "Nr. 11 " in key:
-                    #    if client_data[0][15] != float(value.replace(".", "").replace(",", ".")):
-                    #        log.debug(f"Value mismatch for key {key}: {client_data[0][15]} (database) vs {value} (
-                    #        document)")
-                    #        return False
-                    # TODO: Fix this and add it back to the checked points
-
-                    # Return True if all conditions are met and no mismatches are found
-                    log.info(f"Values for client with BaFin ID {bafin_id} match the database.")
-                    return True
-            else:
-                log.warning(f"Client with BaFin ID {bafin_id} not found in database")
-                return False
-        else:
-            log.warning("No BaFin ID found for document")
+        if not self.bafin_id:
+            log.warning("No BaFin ID found for document, cannot compare values")
             return False
+
+        log.debug(f"Starting value comparison for document with BaFin ID: {self.bafin_id}")
+
+        # Fetch client data from database
+        db = Database().get_instance()
+        client_data = db.query(f"""
+        SELECT 
+            id,
+            p033, p034, p035, p036,
+            ab2s1n01, ab2s1n02, ab2s1n03, ab2s1n04, 
+            ab2s1n05, ab2s1n06, ab2s1n07, ab2s1n08, 
+            ab2s1n09, ab2s1n10, ab2s1n11
+        FROM client 
+        WHERE bafin_id = ?
+        """, (self.bafin_id,))
+
+        # Check if client exists in database
+        if not client_data:
+            log.warning(f"Client with BaFin ID {self.bafin_id} not found in database")
+            return False
+
+        client_data = client_data[0]  # Get first row of results
+        log.debug(f"Retrieved client data: {client_data}")
+
+        # Get document attributes
+        document_attributes = self.get_attributes()
+        if not document_attributes:
+            log.warning("No attributes found in document")
+            return False
+
+        # Define field mappings between document text patterns and database columns
+        # Format: (column_index, [possible text patterns to match])
+        field_mappings = {
+            # Position fields
+            1: [r"Position 033", r"Position033", r"Pos\.? 033", r"Provisionsergebnis"],
+            2: [r"Position 034", r"Position034", r"Pos\.? 034", r"Nettoergebnis.*Wertpapieren"],
+            3: [r"Position 035", r"Position035", r"Pos\.? 035", r"Nettoergebnis.*Devisen"],
+            4: [r"Position 036", r"Position036", r"Pos\.? 036", r"Nettoergebnis.*Derivaten"],
+
+            # Section fields (§ 16j Abs. 2 Satz 1 Nr. X FinDAG)
+            5: [r"Nr\.? 1 FinDAG", r"Nr\.? 1", r"Zahlungsverkehr"],
+            6: [r"Nr\.? 2 FinDAG", r"Nr\.? 2", r"Außenhandelsgeschäft"],
+            7: [r"Nr\.? 3 FinDAG", r"Nr\.? 3", r"Reisezahlungsmittelgeschäft"],
+            8: [r"Nr\.? 4 FinDAG", r"Nr\.? 4", r"Treuhandkredite"],
+            9: [r"Nr\.? 5 FinDAG", r"Nr\.? 5", r"Vermittlung von Kredit"],
+            10: [r"Nr\.? 6 FinDAG", r"Nr\.? 6", r"Kreditbearbeitung"],
+            11: [r"Nr\.? 7 FinDAG", r"Nr\.? 7", r"ausländischen Tochterunternehmen"],
+            12: [r"Nr\.? 8 FinDAG", r"Nr\.? 8", r"Nachlassbearbeitungen"],
+            13: [r"Nr\.? 9 FinDAG", r"Nr\.? 9", r"Electronic Banking"],
+            14: [r"Nr\.? 10 FinDAG", r"Nr\.? 10", r"Gutachtertätigkeiten"],
+            15: [r"Nr\.? 11 FinDAG", r"Nr\.? 11", r"sonstigen Bearbeitungsentgelten"]
+        }
+
+        # Track matches and mismatches
+        matches = {}
+        mismatches = {}
+
+        for key, value in document_attributes.items():
+            matched = False
+
+            # Skip non-value attributes
+            if key in ['filename', 'content_type', 'email_id', 'sender', 'date', 'client_id', 'BaFin-ID']:
+                continue
+
+            # Skip empty values or non-string values
+            if not value or not isinstance(value, str):
+                continue
+
+            # Try to match the attribute key with our field patterns
+            for db_index, patterns in field_mappings.items():
+                for pattern in patterns:
+                    if re.search(pattern, key, re.IGNORECASE):
+                        matched = True
+                        # Try to convert document value to integer for comparison
+                        try:
+                            # Remove dots (thousand separators) and convert commas to periods for decimal values
+                            processed_value = value.replace('.', '')
+
+                            # Handle decimal values (with comma as decimal separator)
+                            if ',' in processed_value:
+                                # For decimal values, keep the decimal part
+                                processed_value = processed_value.replace(',', '.')
+                                # If it's a legitimate decimal, convert to float first
+                                doc_value = int(float(processed_value))
+                            else:
+                                # For integers
+                                doc_value = int(processed_value)
+
+                            db_value = client_data[db_index]
+
+                            # Compare values
+                            if doc_value == db_value:
+                                matches[db_index] = (key, value, db_value)
+                                log.debug(f"Match for {key}: Document value '{value}' matches database value '{db_value}'")
+                            else:
+                                mismatches[db_index] = (key, value, db_value)
+                                log.warning(f"Mismatch for {key}: Document value '{value}' ({doc_value}) does not match database value '{db_value}'")
+
+                        except (ValueError, TypeError) as e:
+                            log.warning(f"Could not convert '{value}' to number for comparison: {e}")
+                            mismatches[db_index] = (key, value, "Conversion error")
+
+                        break  # Stop checking patterns for this field
+
+                if matched:
+                    break  # Stop checking db fields for this attribute
+
+        # Check for required fields that weren't found in the document
+        required_fields = [1, 5, 6, 7, 8, 9, 10]  # p033 and ab2s1n01-ab2s1n06 are mandatory
+        missing_fields = [idx for idx in required_fields if idx not in matches and idx not in mismatches]
+
+        for idx in missing_fields:
+            log.warning(f"Required field {idx} not found in document")
+            mismatches[idx] = ("Not found", "N/A", client_data[idx])
+
+        # Calculate match percentage
+        total_fields = len(required_fields)
+        matched_fields = sum(1 for idx in required_fields if idx in matches)
+        match_percentage = (matched_fields / total_fields) * 100 if total_fields > 0 else 0
+
+        log.info(f"Value comparison complete - {matched_fields}/{total_fields} required fields match ({match_percentage:.1f}%)")
+
+        # Document passes if all required fields match
+        if mismatches:
+            log.warning(f"Document values do not match database - found {len(mismatches)} mismatches")
+            return False
+        else:
+            log.info(f"All required document values match database values")
+            return True
 
     def verify_bafin_id(self, bafin_id: int = None, add_bafin_id: bool = True,
                         add_client_id: bool = True) -> int | None:
