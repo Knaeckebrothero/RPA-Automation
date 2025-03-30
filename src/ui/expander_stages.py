@@ -2,6 +2,10 @@
 This module holds the contents for each expander used by the active_cases page.
 """
 import streamlit as st
+import logging
+
+# Custom imports
+from cls.database import Database
 
 
 def _icon(icon: bool = False) -> str:
@@ -19,15 +23,53 @@ def _icon(icon: bool = False) -> str:
 
 
 # Stage 1: Waiting for documents
-def stage_1():
+def stage_1(case_id: int, current_stage: int, database: Database = None):
     """
     This is the first/default stage an audit case can be in.
     Cases in this stage are part of this year's audit and are waiting for the documents to be received.
     Once a document is received, meaning the application has received an email that contains a document with the
     client's baFin ID, the case will move to the next stage.
     """
-    with st.expander("Documents received", icon=_icon()):
-        st.write("Inside the expander.")
+    if not database:
+        db = Database.get_instance()
+    else:
+        db = database
+
+    with st.expander("Documents Received", expanded=(current_stage == 1), icon=_icon((current_stage > 1))):
+        if current_stage == 1:
+            st.write("Waiting to receive documents.")
+
+            # Add the option to manually upload a document
+            uploaded_file = st.file_uploader("Upload document", type=["pdf"])
+
+            # Add the option to manually enter an email id
+            email_id = st.text_input("Enter email ID")
+
+        else:
+            st.write(f"Documents received (info will be displayed here).")
+            # TODO: Add date and infos about when the documents were received
+
+        # Button to manually update the case
+        if current_stage == 1 and st.button("Update Case"):
+            if uploaded_file and not email_id:
+                # TODO: Create a document from the uploaded file and add it to the case (docs need to be saved in the db)!
+                db.query("UPDATE audit_case SET stage = 2 WHERE id = ?", (case_id,))
+                st.success("Case updated successfully!")
+            elif email_id and not uploaded_file:
+                # TODO: Check if the email id is valid and exists on the mailserver
+                db.query("UPDATE audit_case SET stage = 2 WHERE id = ?", (case_id,))
+                st.success("Case updated successfully!")
+            else:
+                st.error("Please provide either an email ID OR upload a document!")
+
+            # Clear cache and refresh
+            st.cache_data.clear()
+            st.rerun()
+
+
+            # TODO: CONTINUE HERE !!! (REMEMBER TO THEST THIS FUNCTION)
+
+
 
 
 # Stage 2: Data verification

@@ -11,6 +11,7 @@ import ui.visuals as visuals
 from workflow import get_emails, assess_emails
 from cls.mailclient import Mailclient
 from cls.database import Database
+import ui.expander_stages as expander_stages
 
 
 def home():
@@ -100,16 +101,16 @@ def active_cases():
         st.subheader("All Active Cases")
 
         # Create a more user-friendly display table
-        display_df = active_cases_df[['case_id', 'institute', 'bafin_id', 'stage', 'created_at', 'last_updated_at']].copy()
-        display_df.columns = ['Case ID', 'Institute', 'BaFin ID', 'Stage', 'Created', 'Last Updated']
+        display_df = active_cases_df[['case_id', 'bafin_id', 'institute', 'stage', 'created_at', 'last_updated_at']].copy()
+        display_df.columns = ['Case ID', 'BaFin ID', 'Institute', 'Stage', 'Created', 'Last Updated']
 
         # Format dates
-        display_df['Created'] = display_df['Created'].dt.strftime('%Y-%m-%d')
-        display_df['Last Updated'] = display_df['Last Updated'].dt.strftime('%Y-%m-%d %H:%M')
+        display_df['Created'] = display_df['Created'].dt.strftime('%d.%m.%Y')
+        display_df['Last Updated'] = display_df['Last Updated'].dt.strftime('%d.%m.%Y %H:%M')
 
         # Add stage badges
         display_df['Stage'] = active_cases_df['stage'].apply(
-            lambda x: visuals.stage_badge(x)
+            lambda x: visuals.stage_badge(x, pure_string=True)
         )
 
         # Display the table with HTML rendering enabled
@@ -197,14 +198,12 @@ def active_cases():
             current_stage = selected_case['stage']
 
             # Display expandable sections for each step of the process
-            with st.expander("Step 1: Documents Received", expanded=(current_stage == 1)):
-                st.write("Documents have been received from the client.")
-                if current_stage == 1 and st.button("Mark as Verified"):
-                    db.query("UPDATE audit_case SET stage = 2 WHERE id = ?", (case_id,))
-                    st.success("Case marked as Verified!")
-                    # Clear cache and refresh
-                    st.cache_data.clear()
-                    st.rerun()
+            expander_stages.stage_1(case_id, current_stage, db)
+            #expander_stages.stage_2(case_id, current_stage)
+            #expander_stages.stage_3(case_id, current_stage)
+            #expander_stages.stage_4(case_id, current_stage)
+
+
 
             with st.expander("Step 2: Data Verified", expanded=(current_stage == 2)):
                 st.write("Client data has been verified against our records.")

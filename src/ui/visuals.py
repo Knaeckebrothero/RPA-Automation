@@ -56,18 +56,31 @@ def pie_submission_ratio() -> plt.Figure:
     return fig
 
 
-def stage_badge(stage: int) -> str:
+def stage_badge(stage: int, pure_string: bool = False) -> str:
     """
     Return HTML for a status badge based on the audit case status code.
 
     :param stage: The status code from the audit_case table
+    :param pure_string: If True, return only the status text without HTML
     :return: HTML string for a colored badge showing the status
     """
+    if pure_string:
+        # Return only the status text without HTML
+        status_map = {
+            1: "Waiting for documents",
+            2: "Data verification",
+            3: "Certification",
+            4: "Process completion",
+            5: "Archived",
+        }
+        return status_map.get(stage, "Unknown")
+
+    # Return HTML for a colored badge
     status_map = {
-        1: ("Received", "#FFA500"),  # Orange
-        2: ("Verified", "#1E90FF"),  # Blue
-        3: ("Certificate Issued", "#9370DB"),  # Purple
-        4: ("Completed", "#228B22"),  # Green
+        1: ("Waiting for documents", "#FFA500"),  # Orange
+        2: ("Data verification", "#1E90FF"),  # Blue
+        3: ("Certification", "#9370DB"),  # Purple
+        4: ("Process completion", "#228B22"),  # Green
         5: ("Archived", "#808080"),  # Gray
     }
 
