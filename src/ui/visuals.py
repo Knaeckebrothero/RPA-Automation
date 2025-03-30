@@ -8,6 +8,7 @@ import streamlit as st
 from cls.database import Database
 
 
+# TODO: Fix issue with labels overlapping
 def pie_submission_ratio() -> plt.Figure:
     """
     This function generates a pie chart showing the ratio of companies that have already submitted something.

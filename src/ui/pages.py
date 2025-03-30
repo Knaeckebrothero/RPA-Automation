@@ -47,7 +47,8 @@ def home():
 
         # Process only the selected documents
         if st.button('Process selected documents'):
-            assess_emails(docs_to_process)
+            with st.spinner(f'Processing mails'):
+                assess_emails(docs_to_process)
 
             # Rerun the app to update the display
             st.rerun()
@@ -68,9 +69,11 @@ def home():
 
             # If no mails are in the database, fetch all mails
             if len(already_processed_mails) > 0:
-                assess_emails(mailclient.get_mails(excluded_ids=already_processed_mails)['ID'])
+                with st.spinner(f'Processing mails'):
+                    assess_emails(mailclient.get_mails(excluded_ids=already_processed_mails)['ID'])
             else:
-                assess_emails(emails['ID'])
+                with st.spinner(f'Processing mails'):
+                    assess_emails(emails['ID'])
 
             # Rerun the app to update the display
             st.rerun()
@@ -205,14 +208,6 @@ def active_cases():
 
 
 
-            with st.expander("Step 2: Data Verified", expanded=(current_stage == 2)):
-                st.write("Client data has been verified against our records.")
-                if current_stage == 2 and st.button("Issue Certificate"):
-                    db.query("UPDATE audit_case SET stage = 3 WHERE id = ?", (case_id,))
-                    st.success("Certificate Issued!")
-                    # Clear cache and refresh
-                    st.cache_data.clear()
-                    st.rerun()
 
             with st.expander("Step 3: Certificate Issued", expanded=(current_stage == 3)):
                 st.write("Certificate has been issued to BaFin.")

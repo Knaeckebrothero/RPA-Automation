@@ -46,7 +46,7 @@ def assess_emails(emails: pd.DataFrame):
         elif len(attachments) >= 1:
             log.warning(f'Processing mail with ID {email_list_email_id}')
             # TODO: Remove the warning message in favor of a progress bar or spinner (anything that doesn't bloat the UI)
-            st.warning(f'Processing mail with ID {email_list_email_id}')
+            # st.warning(f'Processing mail with ID {email_list_email_id}')
 
             for attachment in attachments:
                 keep_attachment = False

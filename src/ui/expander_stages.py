@@ -44,8 +44,7 @@ def stage_1(case_id: int, current_stage: int, database: Database = None):
 
             # Add the option to manually enter an email id
             email_id = st.text_input("Enter email ID")
-
-        else:
+        elif current_stage > 1:
             st.write(f"Documents received (info will be displayed here).")
             # TODO: Add date and infos about when the documents were received
 
@@ -67,21 +66,33 @@ def stage_1(case_id: int, current_stage: int, database: Database = None):
             st.rerun()
 
 
-            # TODO: CONTINUE HERE !!! (REMEMBER TO THEST THIS FUNCTION)
-
-
-
-
 # Stage 2: Data verification
-def stage_2():
+def stage_2(case_id: int, current_stage: int, database: Database = None):
     """
     The second stage of the audit process.
     Cases in this stage have had their documents received and are now waiting for the data to be verified.
     Once the data verification process has been successful, the case will move to the next stage.
     Should the data verification process fail, the case will remain in this stage, waiting for manual intervention.
     """
-    with st.expander("Data verified", icon=_icon()):
-        st.write("Inside the expander.")
+    if not database:
+        db = Database.get_instance()
+    else:
+        db = database
+
+    with st.expander("Data verification", expanded=(current_stage == 2), icon=_icon((current_stage > 2))):
+        if current_stage <= 2:
+            st.write("Client data needs to be verified against our records.")
+        elif current_stage > 2:
+            st.write("Client data has been verified against our records.")
+
+        # Button to manually update the case
+        if current_stage == 2 and st.button("Process document"):
+            db.query("UPDATE audit_case SET stage = 3 WHERE id = ?", (case_id,))
+            st.success("Certificate Issued!")
+            # Clear cache and refresh
+            st.cache_data.clear()
+            st.rerun()
+        # TODO: Continue here!!! Implement the new document from db stuff
 
 
 # Stage 3: Certification
