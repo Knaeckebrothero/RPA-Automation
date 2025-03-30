@@ -228,16 +228,147 @@ def active_cases():
                     st.rerun()
 
 
+# TODO: Check if this works as expected!
 def settings():
     """
     This is the settings ui page for the application.
     """
     log.debug('Rendering settings page')
 
-
     # Page title and description
     st.header('Settings')
     st.write('Configure the application settings below.')
+
+    # New section for audit process initialization
+    st.subheader("Audit Process")
+
+    with st.expander("Initialize Annual Audit Process", expanded=True):
+        st.write("""
+        This will create a new audit case (stage 1) for every client in the database 
+        that doesn't already have an active case. Use this to start the annual audit process.
+        """)
+
+        # Add a confirmation checkbox for safety
+        confirm_init = st.checkbox("I understand this will create new audit cases for all clients")
+
+        if st.button("Initialize Audit Cases", disabled=not confirm_init):
+            with st.spinner("Creating audit cases..."):
+                # Get database instance
+                db = Database.get_instance()
+
+                # Find clients without active audit cases
+                clients_without_cases = db.query("""
+                    SELECT id FROM client 
+                    WHERE id NOT IN (
+                        SELECT client_id FROM audit_case 
+                        WHERE stage < 5
+                    )
+                """)
+
+                if not clients_without_cases:
+                    st.warning("All clients already have active audit cases.")
+                else:
+                    # Create a new audit case for each client
+                    created_count = 0
+                    for client_id in clients_without_cases:
+                        db.insert("""
+                            INSERT INTO audit_case (client_id, stage, comments)
+                            VALUES (?, 1, 'Automatically created for annual audit process')
+                        """, (client_id[0],))
+                        created_count += 1
+
+                    # Success message
+                    st.success(f"Successfully created {created_count} new audit cases.")
+
+                    # Log the action
+                    log.info(f"Created {created_count} new audit cases for annual audit process")
+
+    # Archive cases section
+    with st.expander("Archive Completed Cases", expanded=True):
+        st.write("""
+        This will archive all audit cases that are in stage 4 (Process Completion).
+        Archived cases will no longer appear in the active cases view.
+        """)
+
+        # Get database instance
+        db = Database.get_instance()
+
+        # Get case statistics
+        stage_counts = db.query("""
+            SELECT stage, COUNT(*) 
+            FROM audit_case 
+            WHERE stage < 5 
+            GROUP BY stage
+        """)
+
+        # Create a dictionary of stage counts
+        stage_stats = {1: 0, 2: 0, 3: 0, 4: 0}
+        for stage, count in stage_counts:
+            stage_stats[stage] = count
+
+        # Display statistics
+        st.write("Current audit case statistics:")
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            st.metric("Stage 1", stage_stats[1], help="Waiting for documents")
+        with col2:
+            st.metric("Stage 2", stage_stats[2], help="Data verification")
+        with col3:
+            st.metric("Stage 3", stage_stats[3], help="Certification")
+        with col4:
+            st.metric("Stage 4", stage_stats[4], help="Process completion")
+
+        # Warning if there are cases not in stage 4
+        not_completed = stage_stats[1] + stage_stats[2] + stage_stats[3]
+        if not_completed > 0:
+            st.warning(f"⚠️ There are still {not_completed} active cases that are not ready for archiving (stages 1-3).")
+
+        # Add a confirmation checkbox for safety
+        confirm_archive = st.checkbox("I understand this will archive all cases in stage 4")
+
+        if st.button("Archive Completed Cases", disabled=not confirm_archive):
+            with st.spinner("Archiving completed cases..."):
+                # Count cases to be archived
+                cases_to_archive = db.query("""
+                    SELECT COUNT(*) FROM audit_case 
+                    WHERE stage = 4
+                """)[0][0]
+
+                if cases_to_archive == 0:
+                    st.info("No completed cases to archive.")
+                else:
+                    # TODO: Implement archiving logic - this would include:
+                    # 1. Move documents to archive storage
+                    # 2. Update database records
+                    # 3. Create archive logs
+
+                    # For now, just update the stage to 5 (Archived)
+                    db.query("""
+                        UPDATE audit_case 
+                        SET stage = 5,
+                            comments = CASE 
+                                WHEN comments IS NULL THEN 'Archived automatically'
+                                ELSE comments || ' | Archived automatically'
+                            END
+                        WHERE stage = 4
+                    """)
+
+                    # Success message
+                    st.success(f"Successfully archived {cases_to_archive} completed cases.")
+
+                    # Log the action
+                    log.info(f"Archived {cases_to_archive} completed cases")
+
+                    # Refresh the statistics
+                    st.rerun()
+
+    # Divider before other settings
+    st.divider()
+
+    # You can add other settings sections below
+    st.subheader("Application Settings")
+    # Add other settings as needed
 
 
 def about():

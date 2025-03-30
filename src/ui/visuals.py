@@ -23,10 +23,11 @@ def pie_submission_ratio() -> plt.Figure:
     WHERE stage = 5
     """)[0][0]
 
+    # This does not include cases that are in stage 1 and don't have an email attached to it!
     clients_processing = db.query("""
     SELECT COUNT(DISTINCT client_id)
     FROM audit_case
-    WHERE stage > 1 AND stage < 5
+    WHERE stage > 1 AND stage < 5 OR (stage = 1 AND email_id NOT null)
     """)[0][0]
 
     clients_no_submission = db.query("""

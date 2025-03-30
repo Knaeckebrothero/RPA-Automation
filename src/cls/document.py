@@ -1,6 +1,8 @@
 """
 This module holds the document class.
 """
+import os
+import json
 import cv2
 import numpy as np
 import re
@@ -21,8 +23,7 @@ class Document:
     The Document class represents a basic document.
     It provides core functionality for storing and managing document content and attributes.
     """
-    # TODO: Add a method to store and retrieve the document in the database
-    def __init__(self, content: bytes, attributes: dict = None):
+    def __init__(self, content: bytes, attributes: dict = None, content_path: str = None):
         """
         The constructor for the Document class.
 
@@ -31,12 +32,14 @@ class Document:
         """
         self._content: bytes = content
         self._attributes: dict = attributes if attributes else {}
-        log.debug(f"Document created: {len(self._content)}, {len(self._attributes.keys())}")
+        self._content_path: str = content_path
+        log.debug(f"Document created: {len(self._content) if self._content else 0}, {len(self._attributes.keys())}")
 
     def __str__(self):
         return f"""
         Document: of size {len(self._content)} bytes, with: {len(self._attributes.keys())} number of attributes.
         Attributes: {self._attributes}
+        Content path: {self._content_path} 
         """
 
     def get_content(self) -> bytes:
@@ -93,18 +96,139 @@ class Document:
         else:
             self._attributes.clear()
 
-    def save_to_file(self, file_path: str):
+    def save_to_file(self, file_path: str, save_as_json: bool = False):
         """
-        Save the document's content to a file at the specified path.
+        Save the document to files:
+        - Content is saved to the specified file path
+        - If save_as_json is True, document metadata is saved to a JSON file with the same base name
 
-        :param file_path: The path where the file should be saved.
+        :param file_path: The path where the content file should be saved
+        :param save_as_json: Whether to also save document metadata as JSON (default: False)
+        :return: Path to the JSON file if save_as_json is True, otherwise path to the content file
         """
         try:
+            # Ensure the directory exists
+            os.makedirs(os.path.dirname(os.path.abspath(file_path)), exist_ok=True)
+
+            # Save the content to the specified file
             with open(file_path, 'wb') as file:
                 file.write(self._content)
-            log.info(f"Document saved to: {file_path}")
+            log.info(f"Document content saved to: {file_path}")
+
+            # Store the content path
+            self._content_path = file_path
+
+            # If JSON serialization is requested, save metadata to a JSON file
+            if save_as_json:
+                json_path = f"{os.path.splitext(file_path)[0]}.json"
+                self.save_to_json(json_path)
+                return json_path
+
+            return file_path
+
         except IOError as e:
             log.error(f"Error saving document: {e}")
+            return None
+
+    def save_to_json(self, json_path: str = None):
+        """
+        Save the document metadata to a JSON file.
+
+        :param json_path: Path to save the JSON file. If None, uses the content_path with .json extension.
+        :return: Path to the JSON file
+        """
+        if not json_path and not self._content_path:
+            log.error("No JSON path provided and no content path set")
+            return None
+
+        if not json_path:
+            json_path = f"{os.path.splitext(self._content_path)[0]}.json"
+
+        try:
+            # Create a serializable representation of the document
+            serialized = self._get_serializable_data()
+
+            # Save to JSON file
+            with open(json_path, 'w', encoding='utf-8') as f:
+                json.dump(serialized, f, ensure_ascii=False, indent=2)
+
+            log.info(f"Document metadata saved to: {json_path}")
+            return json_path
+
+        except (IOError, TypeError) as e:
+            log.error(f"Error saving document metadata to JSON: {e}")
+            return None
+
+    def _get_serializable_data(self):
+        """
+        Get a serializable representation of the document.
+        This method should be overridden by subclasses to include their specific attributes.
+
+        :return: Dictionary with serializable document data
+        """
+        return {
+            "document_type": self.__class__.__name__,
+            "attributes": self._attributes,
+            "content_path": self._content_path
+        }
+
+    @classmethod
+    def from_json(cls, json_path: str, load_content: bool = True):
+        """
+        Create a Document instance from a JSON file.
+
+        :param json_path: Path to the JSON file
+        :param load_content: Whether to load the content file into memory (default: True)
+        :return: A Document instance or an instance of an appropriate subclass
+        """
+        try:
+            with open(json_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            # Determine what type of document to create
+            document_type = data.get('document_type', 'Document')
+
+            # Create the appropriate document type
+            if document_type == 'Document':
+                return cls._create_from_json_data(data, load_content)
+            elif document_type == 'PDF':
+                # Import locally to avoid circular imports
+                return PDF._create_from_json_data(data, load_content)
+            else:
+                log.warning(f"Unknown document type: {document_type}, creating base Document")
+                return cls._create_from_json_data(data, load_content)
+
+        except (IOError, json.JSONDecodeError) as e:
+            log.error(f"Error loading document from JSON: {e}")
+            return None
+
+    @classmethod
+    def _create_from_json_data(cls, data, load_content):
+        """
+        Create a Document instance from parsed JSON data.
+        This method should be overridden by subclasses to handle their specific attributes.
+
+        :param data: Dictionary with document data
+        :param load_content: Whether to load the content file
+        :return: A Document instance
+        """
+        # Get the content path from the JSON
+        content_path = data.get('content_path')
+        attributes = data.get('attributes', {})
+
+        # Load content if requested and the content file exists
+        content = None
+        if load_content and content_path and os.path.exists(content_path):
+            with open(content_path, 'rb') as file:
+                content = file.read()
+            log.debug(f"Content loaded from file: {content_path}")
+
+        # Create the document
+        document = cls(content=content, attributes=attributes)
+        document._content_path = content_path
+
+        log.info(f"Document loaded from JSON data, type: {cls.__name__}")
+        return document
 
     @classmethod
     def to_pdf(cls, document):
@@ -133,16 +257,15 @@ class PDF(Document):
     The PDF class represents a PDF document.
     It extends the Document class with PDF-specific functionality like OCR and table extraction.
     """
-    # TODO: Add attributes such as client_id, email_id, etc. to the PDF class
     def __init__(self, content: bytes, email_id: int = None, client_id: int = None, bafin_id: int = None,
-                 attributes: dict = None):
+                 attributes: dict = None, content_path: str = None):
         """
         The constructor for the PDF class.
 
         :param content: The raw content of the PDF document.
         :param attributes: A set of attributes for the document.
         """
-        super().__init__(content, attributes)
+        super().__init__(content, attributes, content_path)
         self.email_id = email_id
         self.client_id = client_id
         self.bafin_id = bafin_id
@@ -156,6 +279,56 @@ class PDF(Document):
         BaFin ID: {self.bafin_id}
         {base_str.rstrip()} 
         """
+
+    def _get_serializable_data(self):
+        """
+        Override to add PDF-specific attributes to the serializable data.
+
+        :return: Dictionary with serializable document data including PDF attributes
+        """
+        data = super()._get_serializable_data()
+
+        # Add PDF-specific attributes
+        data.update({
+            "email_id": self.email_id,
+            "client_id": self.client_id,
+            "bafin_id": self.bafin_id
+        })
+
+        return data
+
+    @classmethod
+    def _create_from_json_data(cls, data, load_content):
+        """
+        Create a PDF instance from parsed JSON data.
+
+        :param data: Dictionary with document data
+        :param load_content: Whether to load the content file
+        :return: A PDF instance
+        """
+        # Get the content path from the JSON
+        content_path = data.get('content_path')
+        attributes = data.get('attributes', {})
+
+        # Load content if requested and the content file exists
+        content = None
+        if load_content and content_path and os.path.exists(content_path):
+            with open(content_path, 'rb') as file:
+                content = file.read()
+            log.debug(f"Content loaded from file: {content_path}")
+
+        # Create the PDF instance with its specific attributes
+        pdf = cls(
+            content=content,
+            email_id=data.get('email_id'),
+            client_id=data.get('client_id'),
+            bafin_id=data.get('bafin_id'),
+            attributes=attributes
+        )
+        pdf._content_path = content_path
+
+        log.info(f"PDF document loaded from JSON data")
+        return pdf
 
     def extract_table_data(self, ocr_reader = None):
         """

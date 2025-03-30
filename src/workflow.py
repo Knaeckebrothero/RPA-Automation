@@ -23,6 +23,14 @@ def get_emails():
     return Mailclient.get_instance().get_mails()
 
 
+def check_for_documents(bafin_id: int):
+    """
+    Function to check if there are any documents already stored on the filesystem.
+    """
+    pass
+    # TODO: Implement this function to check if there are any documents already stored on the filesystem.
+
+
 def assess_emails(emails: pd.DataFrame):
     """
     Function to assess a set of mails and process them accordingly.
@@ -106,6 +114,14 @@ def assess_emails(emails: pd.DataFrame):
 
                         # TODO: Add a proper method to save the attachment to the filesystem (aka. implement folder
                         #  paths and stuff)
+
+
+
+                        # TODO: CONTINUE IMPLEMENTING THE STORAGE OF THE DOCUMENTS AFTER THEY HAVE BEEN PROCESSED !!!
+
+
+
+
                         # Save the attachment to the filesystem's downloads folder if it should be kept
                         if keep_attachment:
                             attachment.save_to_file(os.path.join(
