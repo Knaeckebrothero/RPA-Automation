@@ -9,9 +9,9 @@ import pandas as pd
 # Custom imports
 from cls.singleton import Singleton
 
+
 # Set up logging
 log  = logging.getLogger(__name__)
-
 
 class Database(Singleton):
     """

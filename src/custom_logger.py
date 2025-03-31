@@ -7,6 +7,8 @@ import logging
 import streamlit as st
 
 
+# TODO: Find a way to add the username to the logging format
+
 @st.cache_resource
 def configure_global_logger(
         console_level: int = 20,

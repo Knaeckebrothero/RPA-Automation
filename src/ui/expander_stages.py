@@ -8,6 +8,9 @@ import logging
 from cls.database import Database
 
 
+# Set up logging
+log = logging.getLogger(__name__)
+
 def _icon(icon: bool = False) -> str:
     """
     This function returns the icon for the expander.

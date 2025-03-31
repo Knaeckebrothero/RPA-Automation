@@ -4,15 +4,19 @@ This module holds the main ui page for the application.
 import os
 import pandas as pd
 import streamlit as st
-import logging as log
+import logging
 
 # Custom imports
 import ui.visuals as visuals
-from workflow import get_emails, assess_emails
+from workflow.audit import get_emails, assess_emails
 from cls.mailclient import Mailclient
 from cls.database import Database
 import ui.expander_stages as expander_stages
+from workflow.security import verify_password, create_session
 
+
+# Set up logging
+log = logging.getLogger(__name__)
 
 def home():
     """
@@ -368,14 +372,135 @@ def settings():
 
     # You can add other settings sections below
     st.subheader("Application Settings")
-    # Add other settings as needed
+    st.write("Other settings will go here!")
 
 
 def about():
     """
     This is the about ui page for the application.
     """
-    # TODO: Limit the amount of text displayed in the log file to prevent long loading times
-    # Display the contents of the log file in a code block (as a placeholder)
-    with open(os.path.join(os.getenv('LOG_PATH', ''), 'application.log'), 'r') as file:
-        st.code(file.read())
+    st.header('About')
+    st.write('FinDAG Document Processing Application')
+
+    # Display log file with configurable number of lines
+    log_path = os.path.join(os.getenv('LOG_PATH', ''), 'application.log')
+    if os.path.exists(log_path):
+        try:
+            # Use a deque to efficiently get the last 300 lines
+            from collections import deque
+
+            # Read the last 300 lines
+            with open(log_path, 'r') as file:
+                last_lines = deque(file, maxlen=300)
+                last_lines = list(last_lines)
+
+            # Add a slider to control how many lines to display
+            num_lines = st.slider('Number of log lines to display',
+                                  min_value=10,
+                                  max_value=len(last_lines),
+                                  value=min(100, len(last_lines)),
+                                  step=10)
+
+            # Get the selected number of lines from the end of the list
+            displayed_lines = last_lines[-num_lines:] if num_lines < len(last_lines) else last_lines
+
+            # Join the lines into a single string
+            log_content = ''.join(displayed_lines)
+
+            st.subheader(f'Application Logs (Last {num_lines} of {len(last_lines)} lines)')
+            st.code(log_content)
+        except Exception as e:
+            st.error(f"Error reading log file: {str(e)}")
+    else:
+        st.warning(f"Log file not found at {log_path}")
+
+    # Bug report section
+    st.subheader('Report an Issue')
+    st.write('If you encounter any problems with the application, please describe the issue below:')
+
+    issue_description = st.text_area('Issue Description', height=100)
+    steps_to_reproduce = st.text_area('Steps to Reproduce', height=100)
+
+    if st.button('Submit Issue Report'):
+        if issue_description:
+            # Here you would implement the logic to save or send the bug report
+            # For now, just show a success message
+            st.success('Thank you for your report! The issue has been logged.')
+        else:
+            st.warning('Please provide a description of the issue.')
+
+
+def login():
+    """
+    Display a login form and handle authentication.
+    """
+    st.title("Document Fetcher - Login")
+    st.markdown("Please enter your credentials to access the application.")
+
+    # Create columns for layout
+    col1, col2 = st.columns([1, 1])
+
+    with col1:
+        # Create a form for better UX
+        with st.form("login_form"):
+            username = st.text_input("Username")
+            password = st.text_input("Password", type="password")
+            submit = st.form_submit_button("Login")
+
+        if submit:
+            if not username or not password:
+                st.error("Please enter both username and password")
+                return False
+
+            # Get database connection
+            db = Database.get_instance()
+
+            # Query for user with the given username
+            user_data = db.query("""
+                SELECT id, password_hash, password_salt, role
+                FROM user
+                WHERE username_email = ?
+            """, (username,))
+
+            if not user_data:
+                st.error("Invalid username or password")
+                return False
+
+            user_id, password_hash, password_salt, role = user_data[0]
+
+            # Verify password
+            if not verify_password(password_hash, password_salt, password):
+                st.error("Invalid username or password")
+                return False
+
+            # Create a new session
+            session_key = create_session(user_id, db)
+
+            if not session_key:
+                st.error("Failed to create session")
+                return False
+
+            # Store session information in session state
+            st.session_state['session_key'] = session_key
+            st.session_state['user_id'] = user_id
+            st.session_state['user_role'] = role
+
+            st.success(f"Welcome, {username}!")
+            st.rerun()  # Reload the page to apply authentication
+            # TODO: Fix the rerun issue, it doesn't work as expected
+            return True
+
+    with col2:
+        st.markdown("""
+        ### Demo Accounts
+        
+        **Admin User**  
+        Username: admin@example.com  
+        Password: admin123
+        
+        **Auditor User**  
+        Username: auditor@example.com  
+        Password: auditor123
+        """)
+
+    return False

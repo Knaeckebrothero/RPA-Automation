@@ -7,7 +7,7 @@ import logging
 from cls.document import PDF
 from cls.database import Database
 from cls.mailclient import Mailclient
-from process.ocr import create_ocr_reader
+from processing.ocr import create_ocr_reader
 
 
 # Set up logging

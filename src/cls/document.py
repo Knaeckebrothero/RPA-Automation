@@ -9,9 +9,9 @@ import re
 import logging
 
 # Custom imports
-import process.detect as dtc
-from process.ocr import ocr_cell, create_ocr_reader
-from process.files import get_images_from_pdf
+import processing.detect as dtc
+from processing.ocr import ocr_cell, create_ocr_reader
+from processing.files import get_images_from_pdf
 from cls.database import Database
 
 
@@ -23,6 +23,8 @@ class Document:
     The Document class represents a basic document.
     It provides core functionality for storing and managing document content and attributes.
     """
+    _db = Database.get_instance()
+
     def __init__(self, content: bytes, attributes: dict = None, content_path: str = None):
         """
         The constructor for the Document class.
@@ -468,14 +470,13 @@ class PDF(Document):
         :param stage: The stage to initialize the audit case with.
         :return: The audit case id if the initialization was successful, otherwise None.
         """
-        db = Database().get_instance()
 
         log.debug(f'Initializing audit case for document: {self.email_id}')
-        client_id = db.query("SELECT id FROM client WHERE bafin_id = ? ", (self.bafin_id,))
+        client_id = self._db.query("SELECT id FROM client WHERE bafin_id = ? ", (self.bafin_id,))
 
         # Insert the audit case into the database if a matching client is found
         if client_id:
-            inserted_id = db.insert(
+            inserted_id = self._db.insert(
                 f"""
                 INSERT INTO audit_case (client_id, email_id, stage)
                 VALUES (?, ?, ?)
@@ -503,8 +504,7 @@ class PDF(Document):
         log.debug(f"Starting value comparison for document with BaFin ID: {self.bafin_id}")
 
         # Fetch client data from database
-        db = Database().get_instance()
-        client_data = db.query(f"""
+        client_data = self._db.query(f"""
         SELECT 
             id,
             p033, p034, p035, p036,
@@ -639,8 +639,6 @@ class PDF(Document):
         :param add_client_id: Whether to add the bafin id to the document attributes if it is found.
         :return: The client id if the bafin id is found in the database or None if no client is found.
         """
-        db = Database().get_instance()
-
         # Use the bafin id from the document if none is provided
         if not bafin_id:
             log.debug(f"No bafin id provided, using bafin id from document: {self.email_id}")
@@ -648,7 +646,7 @@ class PDF(Document):
 
         if bafin_id:
             # Check if the bafin id matches a client in the database
-            result = db.query("SELECT id FROM client WHERE bafin_id = ?", (bafin_id,))
+            result = self._db.query("SELECT id FROM client WHERE bafin_id = ?", (bafin_id,))
             if result:
                 log.info(f"Client with BaFin ID {bafin_id} found in database")
 
@@ -683,8 +681,7 @@ class PDF(Document):
 
         # Check if the client id is not None
         if client_id:
-            db = Database().get_instance()
-            stage = db.query("SELECT stage FROM audit_case WHERE client_id = ?", (client_id,))
+            stage = self._db.query("SELECT stage FROM audit_case WHERE client_id = ?", (client_id,))
             if stage:
                 return stage[0][0]
             else:

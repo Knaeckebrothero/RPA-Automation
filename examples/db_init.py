@@ -5,6 +5,7 @@ This script initializes the SQLite database by:
 1. Creating the database file if it doesn't exist
 2. Creating or updating the tables structure
 3. Inserting example data if the database is empty
+4. Creating default users if they don't exist
 
 Usage:
     python db_init.py [--db-path PATH] [--schema-path PATH] [--data-path PATH]
@@ -15,6 +16,8 @@ import logging
 import os
 import sqlite3
 import sys
+import hashlib
+import secrets
 
 
 def setup_logging():
@@ -88,6 +91,80 @@ def execute_sql_file(conn, filepath, logger):
         logger.error(f"Unexpected error while executing {filepath}: {e}")
         conn.rollback()
     return False
+
+
+def hash_password(password, salt=None):
+    """
+    Hash a password using SHA-256 with a salt.
+
+    :param password: Plain text password
+    :param salt: Optional salt, will be generated if not provided
+    :return: Tuple of (hash, salt)
+    """
+    if salt is None:
+        salt = os.urandom(32)  # 32 bytes = 256 bits
+    elif isinstance(salt, str):
+        salt = bytes.fromhex(salt)
+
+    # Convert password to bytes if it's a string
+    if isinstance(password, str):
+        password = password.encode('utf-8')
+
+    # Hash the password with the salt
+    password_hash = hashlib.pbkdf2_hmac(
+        'sha256',
+        password,
+        salt,
+        100000  # Number of iterations
+    )
+
+    return password_hash.hex(), salt.hex()
+
+
+def insert_default_users(conn, logger):
+    """
+    Insert default admin and auditor users if they don't exist.
+
+    :param conn: SQLite connection
+    :param logger: Logger instance
+    :return: True if successful, False otherwise
+    """
+    try:
+        cursor = conn.cursor()
+
+        # Check if users already exist
+        cursor.execute("SELECT COUNT(*) FROM user")
+        count = cursor.fetchone()[0]
+
+        if count == 0:
+            logger.info("Creating default users...")
+
+            # Create admin user
+            admin_pass, admin_salt = hash_password("admin123")
+            cursor.execute("""
+                INSERT INTO user (username_email, password_hash, password_salt, role)
+                VALUES (?, ?, ?, ?)
+            """, ("admin@example.com", admin_pass, admin_salt, "admin"))
+
+            # Create auditor user
+            auditor_pass, auditor_salt = hash_password("auditor123")
+            cursor.execute("""
+                INSERT INTO user (username_email, password_hash, password_salt, role)
+                VALUES (?, ?, ?, ?)
+            """, ("auditor@example.com", auditor_pass, auditor_salt, "auditor"))
+
+            conn.commit()
+            logger.info("Default users created: admin and auditor")
+            return True
+        else:
+            logger.info(f"Users already exist ({count} users found), skipping default user creation")
+            return True
+
+    except Exception as e:
+        logger.error(f"Error creating default users: {e}")
+        if conn:
+            conn.rollback()
+        return False
 
 
 def insert_json_data(conn, json_filepath, logger):
@@ -246,6 +323,12 @@ def initialize_database(db_path, schema_path, json_path, force_reset, logger):
             logger.info("Inserted example data from JSON")
         else:
             logger.info(f"Skipped data insertion because client table already has {count} records")
+
+        # Insert default users if they don't exist
+        if not insert_default_users(conn, logger):
+            logger.error("Failed to insert default users")
+            conn.close()
+            return False
 
         # Verify tables
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")

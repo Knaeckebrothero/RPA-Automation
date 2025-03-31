@@ -8,9 +8,9 @@ https://pdf2image.readthedocs.io/en/latest/installation.html
 import streamlit as st
 import cv2
 import numpy as np
-import src.process.detect as dct
-from src.process.ocr import ocr_cell, create_ocr_reader
-from src.process.files import get_images_from_pdf
+import src.processing.detect as dct
+from src.processing.ocr import ocr_cell, create_ocr_reader
+from src.processing.files import get_images_from_pdf
 
 
 # File upload

@@ -2,7 +2,15 @@
 This module holds the sidebar ui page for the application.
 """
 import streamlit
-import logging as log
+import logging
+
+# Custom imports
+#from workflow.security import logout
+#from cls.database import Database
+
+
+# Set up logging
+log = logging.getLogger(__name__)
 
 
 def navbar() -> int:
@@ -41,5 +49,27 @@ def navbar() -> int:
     if st.button('About'):
         log.debug('About button clicked')
         page = 3
+
+    # Add a separator before the logout button
+    st.markdown("---")
+
+    # Add logout button
+    if st.button('Logout'):
+        log.debug('Logout button clicked')
+
+        # Import here to avoid circular imports
+        from workflow.security import logout
+        from cls.database import Database
+
+        db = Database.get_instance()
+        logout(streamlit.session_state['session_key'], db)
+
+        # Clear session state
+        streamlit.session_state['session_key'] = None
+        streamlit.session_state['user_id'] = None
+        streamlit.session_state['user_role'] = None
+
+        # Force reload to show login page
+        st.rerun()
 
     return page
