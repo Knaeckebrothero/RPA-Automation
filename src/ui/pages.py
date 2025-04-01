@@ -12,11 +12,12 @@ from workflow.audit import get_emails, assess_emails
 from cls.mailclient import Mailclient
 from cls.database import Database
 import ui.expander_stages as expander_stages
-from workflow.security import verify_password, create_session
+import workflow.security as sec
 
 
 # Set up logging
 log = logging.getLogger(__name__)
+
 
 def home():
     """
@@ -437,6 +438,9 @@ def login() -> bool:
     st.title("Document Fetcher - Login")
     st.markdown("Please enter your credentials to access the application.")
 
+    # Get client IP as early as possible
+    client_ip = sec.get_client_ip()
+
     # Create columns for layout
     col1, col2 = st.columns([1, 1])
 
@@ -449,34 +453,46 @@ def login() -> bool:
 
         if submit:
             if not username or not password:
+                log.warning(f"Login attempt with empty credentials from IP: {client_ip}")
                 st.error("Please enter both username and password")
                 return False
 
             # Get database connection
             db = Database.get_instance()
 
+            # Check for too many failed attempts from this IP
+            if sec.check_login_attempts(client_ip, db):
+                log.warning(f"Too many failed login attempts from IP: {client_ip}")
+                st.error("Too many failed login attempts. Please try again later.")
+                return False
+
             # Query for user with the given username
             user_data = db.query("""
-                SELECT id, password_hash, password_salt, role
-                FROM user
-                WHERE username_email = ?
-            """, (username,))
+            SELECT id, password_hash, password_salt, role
+            FROM user
+            WHERE username_email = ?
+        """, (username,))
 
             if not user_data:
+                log.warning(f"Failed login attempt for username: {username} from IP: {client_ip}")
+                sec.record_failed_attempt(client_ip, username, db)
                 st.error("Invalid username or password")
                 return False
 
             user_id, password_hash, password_salt, role = user_data[0]
 
             # Verify password
-            if not verify_password(password_hash, password_salt, password):
+            if not sec.verify_password(password_hash, password_salt, password):
+                log.warning(f"Failed login attempt for user: {user_id} from IP: {client_ip}")
+                sec.record_failed_attempt(client_ip, username, db)
                 st.error("Invalid username or password")
                 return False
 
             # Create a new session
-            session_key = create_session(user_id, db)
+            session_key = sec.create_session(user_id, db)
 
             if not session_key:
+                log.error(f"Failed to create session for user: {user_id} from IP: {client_ip}")
                 st.error("Failed to create session")
                 return False
 
@@ -484,6 +500,11 @@ def login() -> bool:
             st.session_state['session_key'] = session_key
             st.session_state['user_id'] = user_id
             st.session_state['user_role'] = role
+            st.session_state['client_ip'] = client_ip  # Store IP in session state for later use
+
+            # Log successful login
+            log.info(f"Successful login for user: {user_id} ({username}) from IP: {client_ip}")
+            sec.record_successful_login(client_ip, user_id, db)
 
             st.success(f"Welcome, {username}!")
             return True

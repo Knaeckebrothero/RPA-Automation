@@ -68,13 +68,23 @@ CREATE TABLE IF NOT EXISTS session_key (
     FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
 );
 
--- Indexes
+-- Login attempts tracking table
+CREATE TABLE IF NOT EXISTS login_attempts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ip_address TEXT NOT NULL,
+    attempt_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    successful BOOLEAN NOT NULL DEFAULT 0,
+    username_attempted TEXT
+);
+
+-- Indexes for faster lookups
 CREATE INDEX IF NOT EXISTS idx_client_bafin_id ON client(bafin_id);
 CREATE INDEX IF NOT EXISTS idx_stage_client_id ON audit_case(client_id);
 CREATE INDEX IF NOT EXISTS idx_stage_email_id ON audit_case(email_id);
 CREATE INDEX IF NOT EXISTS idx_stage_created_at ON audit_case(created_at);
 CREATE INDEX IF NOT EXISTS idx_session_key_session_key ON session_key(session_key);
 CREATE INDEX IF NOT EXISTS idx_user_role ON user(role);
+CREATE INDEX IF NOT EXISTS idx_login_attempts_ip_time ON login_attempts(ip_address, attempt_time);
 
 -- Trigger to update the last_updated_at timestamp when a stage record is updated
 CREATE TRIGGER IF NOT EXISTS update_stage_last_updated

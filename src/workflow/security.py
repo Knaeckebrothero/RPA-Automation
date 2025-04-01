@@ -7,12 +7,145 @@ import secrets
 import logging
 from datetime import datetime, timedelta
 import streamlit as st
+from streamlit import runtime
+from streamlit.runtime.scriptrunner import get_script_run_ctx
 
 
 # Set up logging
 log = logging.getLogger(__name__)
 
 
+def get_client_ip():
+    """
+    Get the client's remote IP address using Streamlit's runtime API.
+    Returns the IP or 'unknown' if not found.
+    """
+    try:
+        # Get the current script run context
+        ctx = get_script_run_ctx()
+        if ctx is None:
+            log.warning("No script run context available")
+            return 'unknown'
+
+        # Get the client info from the runtime
+        session_info = runtime.get_instance().get_client(ctx.session_id)
+        if session_info is None:
+            log.warning("No session info available")
+            return 'unknown'
+
+        # Return the remote IP address
+        return session_info.request.remote_ip
+    except Exception as e:
+        log.error(f"Error getting client IP: {e}")
+        return 'unknown'
+
+
+def check_login_attempts(ip_address, db, max_attempts=5, window_minutes=15):
+    """
+    Check if an IP address has exceeded the maximum number of failed login attempts.
+
+    :param ip_address: The client IP address
+    :param db: Database connection
+    :param max_attempts: Maximum number of failed attempts allowed
+    :param window_minutes: Time window in minutes to consider for failed attempts
+    :return: True if too many attempts, False otherwise
+    """
+    if ip_address == 'unknown':
+        # Can't reliably track unknown IPs, so don't block
+        return False
+
+    try:
+        # Create login_attempts table if it doesn't exist
+        db.query("""
+        CREATE TABLE IF NOT EXISTS login_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ip_address TEXT NOT NULL,
+            attempt_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            successful BOOLEAN NOT NULL DEFAULT 0
+        )
+        """)
+
+        # Calculate the time window
+        window_start = (datetime.now() - timedelta(minutes=window_minutes)).isoformat()
+
+        # Count failed attempts within the time window
+        result = db.query("""
+        SELECT COUNT(*) FROM login_attempts 
+        WHERE ip_address = ? 
+        AND attempt_time > ? 
+        AND successful = 0
+        """, (ip_address, window_start))
+
+        failed_attempts = result[0][0] if result else 0
+
+        # Log if approaching limit
+        if failed_attempts >= max_attempts - 1:
+            log.warning(f"IP {ip_address} has {failed_attempts} failed login attempts")
+
+        return failed_attempts >= max_attempts
+
+    except Exception as e:
+        log.error(f"Error checking login attempts: {e}")
+        # On error, don't block (fail open for usability)
+        return False
+
+
+def record_failed_attempt(ip_address, username, db):
+    """
+    Record a failed login attempt.
+
+    :param ip_address: The client IP address
+    :param username: The username that was attempted
+    :param db: Database connection
+    """
+    if ip_address == 'unknown':
+        return
+
+    try:
+        db.insert("""
+        INSERT INTO login_attempts (ip_address, successful, username_attempted)
+        VALUES (?, 0, ?)
+        """, (ip_address, username))
+
+        log.info(f"Recorded failed login attempt for username: {username} from IP: {ip_address}")
+
+    except Exception as e:
+        log.error(f"Error recording failed login attempt: {e}")
+
+
+def record_successful_login(ip_address, user_id, db):
+    """
+    Record a successful login and clean up old failed attempts.
+
+    :param ip_address: The client IP address
+    :param user_id: The user ID that successfully logged in
+    :param db: Database connection
+    """
+    if ip_address == 'unknown':
+        return
+
+    try:
+        # Record the successful login
+        db.insert("""
+        INSERT INTO login_attempts (ip_address, successful)
+        VALUES (?, 1)
+        """, (ip_address,))
+
+        # Optionally, clean up old records to keep the table size manageable
+        # Keep only the last 30 days of data
+        cleanup_before = (datetime.now() - timedelta(days=30)).isoformat()
+        db.query("""
+        DELETE FROM login_attempts 
+        WHERE attempt_time < ?
+        """, (cleanup_before,))
+
+        log.info(f"Recorded successful login for user {user_id} from IP: {ip_address}")
+
+    except Exception as e:
+        log.error(f"Error recording successful login: {e}")
+
+
+# TODO: Move this stuff to a separate user class!
 def generate_session_key(length=32):
     """
     Generate a random session key.
