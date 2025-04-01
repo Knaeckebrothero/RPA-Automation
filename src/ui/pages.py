@@ -430,7 +430,7 @@ def about():
             st.warning('Please provide a description of the issue.')
 
 
-def login():
+def login() -> bool:
     """
     Display a login form and handle authentication.
     """
@@ -486,8 +486,6 @@ def login():
             st.session_state['user_role'] = role
 
             st.success(f"Welcome, {username}!")
-            st.rerun()  # Reload the page to apply authentication
-            # TODO: Fix the rerun issue, it doesn't work as expected
             return True
 
     with col2:

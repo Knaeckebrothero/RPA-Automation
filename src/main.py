@@ -27,10 +27,37 @@ import ui.pages as page
 from ui.navbar import navbar
 from cls.database import Database
 from workflow.audit import get_emails as workflow_get_emails
-from workflow.security import init_session_state, validate_session, get_user_role
+import workflow.security as sec
 
 
 def main():
+    is_authenticated = False
+
+    # Initialize session state for authentication
+    sec.init_session_state()
+
+    # TODO: Add this stuff to the initialization spinner instead!
+    # Check if the session key is set in the session state
+    if st.session_state['session_key']:
+        db = Database().get_instance()
+        user_id = sec.validate_session(st.session_state['session_key'], db)
+        if user_id:
+            is_authenticated = True
+            # Make sure role is up-to-date
+            st.session_state['user_id'] = user_id
+            st.session_state['user_role'] = sec.get_user_role(user_id, db)
+
+    # Show login page if not authenticated
+    if not is_authenticated:
+        # TODO: Add .strip() to the username and password to avoid issues with spacing
+        if page.login():
+            # Reload the page to apply authentication
+            st.rerun()
+        else:
+            # Stop execution to prevent the rest of the app from loading
+            st.stop()
+
+    # Once authenticated, continue with the rest of the app
     with st.spinner(text="Initializing..."):  # TODO: Fix loading spinner not being formatted correctly
         # Initialize the session if the counter is not set
         if 'rerun_counter' not in st.session_state:
@@ -46,33 +73,13 @@ def main():
             # TODO: Questionable value, check if this is necessary
 
             # Fetch the mails and store them in the cache
-            workflow_get_emails()
+            workflow_get_emails()  # Slows down the app too much, so it's commented out for now
 
             # Initialize the database
-            Database().get_instance()
-
-            # Initialize session state for authentication
-            init_session_state()
+            # Database().get_instance()  # Already called during authentication check
 
             # TODO: Add a check for the existence of the .env file
             # TODO: Add json or yaml configuration file to load the non-sensitive configuration from
-
-    is_authenticated = False
-    if st.session_state['session_key']:
-        db = Database().get_instance()
-        user_id = validate_session(st.session_state['session_key'], db)
-        if user_id:
-            is_authenticated = True
-            # Make sure role is up-to-date
-            st.session_state['user_id'] = user_id
-            st.session_state['user_role'] = get_user_role(user_id, db)
-
-    # Show login page if not authenticated
-    if not is_authenticated:
-        page.login()
-        st.stop()  # Stop execution here to prevent the rest of the app from loading
-
-    # User is authenticated, proceed with the application
 
     # Render the navbar and store the selected page in the session state
     st.session_state['page'] = navbar()

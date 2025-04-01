@@ -25,6 +25,8 @@ def navbar() -> int:
     else:
         page = streamlit.session_state['page']
 
+    access_role = streamlit.session_state['user_role']
+
     # Set the sidebar to st for easier access and to make sure everything happens
     # inside the sidebar unless explicitly stated
     st = streamlit.sidebar
@@ -42,9 +44,10 @@ def navbar() -> int:
         log.debug('Active cases button clicked')
         page = 1
 
-    if st.button('Settings'):
-        log.debug('Settings button clicked')
-        page = 2
+    if access_role == 'admin':
+        if st.button('Settings'):
+            log.debug('Settings button clicked')
+            page = 2
 
     if st.button('About'):
         log.debug('About button clicked')
@@ -70,6 +73,6 @@ def navbar() -> int:
         streamlit.session_state['user_role'] = None
 
         # Force reload to show login page
-        st.rerun()
+        streamlit.rerun()
 
     return page
