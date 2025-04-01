@@ -1,0 +1,110 @@
+# PersistentVolumeClaim for the findag application
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: findag-pvc
+  namespace: findag
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn-ssd
+  resources:
+    requests:
+      storage: 16Gi
+---
+# Deployment for the findag application
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: findag
+  namespace: findag
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: findag
+  template:
+    metadata:
+      labels:
+        app: findag
+    spec:
+      containers:
+      - name: findag
+        image: knaeckebrothero/findag-processor:latest # Your specified image
+        ports:
+        - containerPort: 8501
+        resources:
+          requests:
+            cpu: 1000m
+            memory: 2Gi
+          limits:
+            cpu: 3000m
+            memory: 6Gi
+        env:
+        # Streamlit configuration
+        - name: STREAMLIT_SERVER_ENABLE_CORS
+          value: "true"
+        - name: STREAMLIT_SERVER_HEADLESS
+          value: "true"
+
+        # Application configuration
+        - name: LOG_LEVEL_CONSOLE
+          value: "0"
+        - name: LOG_LEVEL_FILE
+          value: "20"
+        - name: LOG_PATH
+          value: "./.filesystem/"
+        - name: FILESYSTEM_PATH
+          value: "./.filesystem/"
+        - name: EXAMPLE_MAIL_PATH
+          value: "./.filesystem/examples/test_emails"
+        - name: OCR_USE_GPU
+          value: "false"
+        - name: DEV_MODE
+          value: "false"
+        # Application secrets
+        - name: IMAP_HOST
+          valueFrom:
+            secretKeyRef:
+              name: findag-secrets
+              key: IMAP_HOST
+        - name: IMAP_PORT
+          valueFrom:
+            secretKeyRef:
+              name: findag-secrets
+              key: IMAP_PORT
+        - name: IMAP_USER
+          valueFrom:
+            secretKeyRef:
+              name: findag-secrets
+              key: IMAP_USER
+        - name: IMAP_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: findag-secrets
+              key: IMAP_PASSWORD
+        - name: INBOX
+          valueFrom:
+            secretKeyRef:
+              name: findag-secrets
+              key: INBOX
+        volumeMounts:
+        - name: findag-data
+          mountPath: /app/.filesystem
+      volumes:
+      - name: findag-data
+        persistentVolumeClaim:
+          claimName: findag-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: findag
+  namespace: findag
+spec:
+  selector:
+    app: findag
+  ports:
+    - protocol: TCP
+      port: 8501
+      targetPort: 8501
