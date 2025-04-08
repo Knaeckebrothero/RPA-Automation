@@ -8,54 +8,28 @@ import streamlit as st
 import logging as log
 import os
 
-# TODO: Fix the issue with the page config not being the first thing in the script
-st.set_page_config(
-    layout="wide",
-    page_title="Document Fetcher",
-    initial_sidebar_state="collapsed",
-    page_icon=":page_with_curl:",
-    menu_items={
-        'Get Help': 'https://www.extremelycoolapp.com/help',
-        'Report a bug': "https://www.extremelycoolapp.com/bug",
-        'About': "# This is a header. This is an *extremely* cool app!"
-    }
-)
-
 # Custom imports
 from custom_logger import configure_global_logger
-import ui.pages as page
 from ui.navbar import navbar
 from cls.database import Database
+import ui.pages as page
 from workflow.audit import get_emails as workflow_get_emails
 import workflow.security as sec
 
 
 def main():
-    is_authenticated = False
-
-    # Initialize session state for authentication
-    sec.init_session_state()
-
-    # TODO: Add this stuff to the initialization spinner instead!
-    # Check if the session key is set in the session state
-    if st.session_state['session_key']:
-        db = Database().get_instance()
-        user_id = sec.validate_session(st.session_state['session_key'], db)
-        if user_id:
-            is_authenticated = True
-            # Make sure role is up-to-date
-            st.session_state['user_id'] = user_id
-            st.session_state['user_role'] = sec.get_user_role(user_id, db)
-
-    # Show login page if not authenticated
-    if not is_authenticated:
-        # TODO: Add .strip() to the username and password to avoid issues with spacing
-        if page.login():
-            # Reload the page to apply authentication
-            st.rerun()
-        else:
-            # Stop execution to prevent the rest of the app from loading
-            st.stop()
+    # TODO: Fix the issue with the page config not being the first thing in the script
+    st.set_page_config(
+        layout="wide",
+        page_title="Document Fetcher",
+        initial_sidebar_state="collapsed",
+        page_icon=":page_with_curl:",
+        menu_items={
+            'Get Help': 'https://www.extremelycoolapp.com/help',
+            'Report a bug': "https://www.extremelycoolapp.com/bug",
+            'About': "# This is a header. This is an *extremely* cool app!"
+        }
+    )
 
     # Once authenticated, continue with the rest of the app
     with st.spinner(text="Initializing..."):  # TODO: Fix loading spinner not being formatted correctly
@@ -70,16 +44,51 @@ def main():
                 logging_directory=os.getenv('LOG_PATH')
             )
 
+            # Configure the session state
+            st.session_state['authenticated'] = False
+            st.session_state['session_key'] = None
+            st.session_state['user_id'] = None
+            st.session_state['user_role'] = None
+
             # TODO: Questionable value, check if this is necessary
 
             # Fetch the mails and store them in the cache
-            workflow_get_emails()  # Slows down the app too much, so it's commented out for now
+            workflow_get_emails() 
+            # TODO: Implement a cache or something to avoid having to fetch all the emails (with their attachments
+            #  every time the app is loaded). A DB table could be used.
 
             # Initialize the database
             # Database().get_instance()  # Already called during authentication check
 
             # TODO: Add a check for the existence of the .env file
             # TODO: Add json or yaml configuration file to load the non-sensitive configuration from
+        
+        # TODO: Check if a fallback is needed
+        #elif 'authenticated' or 'session_key' or 'user_id' or 'user_role' not in st.session_state:
+        #    st.session_state['authenticated'] = False
+
+
+    # TODO: Add this stuff to the initialization spinner instead!
+    # Check if the session key is set in the session state
+    if st.session_state['session_key']:
+        db = Database().get_instance()
+        user_id = sec.validate_session(st.session_state['session_key'], db)
+
+        if user_id:
+            st.session_state['authenticated'] = True
+            # Make sure role is up-to-date
+            st.session_state['user_id'] = user_id
+            st.session_state['user_role'] = sec.get_user_role(user_id, db)
+
+    # Show login page if not authenticated
+    if not st.session_state['authenticated']:
+        # TODO: Add .strip() to the username and password to avoid issues with spacing
+        if page.login():
+            # Reload the page to apply authentication
+            st.rerun()
+        else:
+            # Stop execution to prevent the rest of the app from loading
+            st.stop()
 
     # Render the navbar and store the selected page in the session state
     st.session_state['page'] = navbar()

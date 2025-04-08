@@ -14,8 +14,9 @@ class Singleton:
     """
     _instance = None
 
+    # TODO: Find a way to add the @st.cache_resource decorator back to the class method to cache the instances
     @classmethod
-    @st.cache_resource # Tell Streamlit to cache the resource across reruns
+    #@st.cache_resource # Tell Streamlit to cache the resource across reruns
     def get_instance(cls, *args, **kwargs):
         """
         Get the singleton instance of the class.

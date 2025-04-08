@@ -332,15 +332,3 @@ def require_auth(db, required_role=None):
     return True
 
 
-def init_session_state():
-    """
-    Initialize the session state with authentication variables if they don't exist.
-    """
-    if 'session_key' not in st.session_state:
-        st.session_state['session_key'] = None
-
-    if 'user_id' not in st.session_state:
-        st.session_state['user_id'] = None
-
-    if 'user_role' not in st.session_state:
-        st.session_state['user_role'] = None

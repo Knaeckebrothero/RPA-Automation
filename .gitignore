@@ -6,6 +6,7 @@ examples/recorded_emails/
 
 # Local environment
 .env
+.venv
 
 # Yaml
 *.yaml

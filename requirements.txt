@@ -16,5 +16,6 @@ easyocr
 # pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
 
 # Might require updating 
+# sudo apt-get update
 # sudo apt-get updating mesa
 # sudo apt-get install libgl1-mesa-glx

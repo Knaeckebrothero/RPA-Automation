@@ -207,7 +207,7 @@ def active_cases():
 
             # Display expandable sections for each step of the process
             expander_stages.stage_1(case_id, current_stage, db)
-            #expander_stages.stage_2(case_id, current_stage)
+            expander_stages.stage_2(case_id, current_stage)
             #expander_stages.stage_3(case_id, current_stage)
             #expander_stages.stage_4(case_id, current_stage)
 
