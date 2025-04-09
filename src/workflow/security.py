@@ -10,15 +10,19 @@ import streamlit as st
 from streamlit import runtime
 from streamlit.runtime.scriptrunner import get_script_run_ctx
 
+# Custom imports
+from cls import Database
+
 
 # Set up logging
 log = logging.getLogger(__name__)
 
 
-def get_client_ip():
+def get_client_ip() -> str:
     """
     Get the client's remote IP address using Streamlit's runtime API.
-    Returns the IP or 'unknown' if not found.
+
+    :return: Client IP address or 'unknown' if not found
     """
     try:
         # Get the current script run context
@@ -40,19 +44,24 @@ def get_client_ip():
         return 'unknown'
 
 
-def check_login_attempts(ip_address, db, max_attempts=5, window_minutes=15):
+def check_login_attempts(ip_address, database: Database = None, max_attempts=5, window_minutes=15):
     """
     Check if an IP address has exceeded the maximum number of failed login attempts.
 
     :param ip_address: The client IP address
-    :param db: Database connection
+    :param database: Database connection
     :param max_attempts: Maximum number of failed attempts allowed
     :param window_minutes: Time window in minutes to consider for failed attempts
     :return: True if too many attempts, False otherwise
     """
     if ip_address == 'unknown':
-        # Can't reliably track unknown IPs, so don't block
         return False
+
+    # Check if the database instance is provided, otherwise fetch the instance
+    if database:
+        db = database
+    else:
+        db = Database().get_instance()
 
     try:
         # Create login_attempts table if it doesn't exist
@@ -86,43 +95,54 @@ def check_login_attempts(ip_address, db, max_attempts=5, window_minutes=15):
 
     except Exception as e:
         log.error(f"Error checking login attempts: {e}")
-        # On error, don't block (fail open for usability)
+        # TODO: On error, don't block (fail open for usability)
         return False
 
 
-def record_failed_attempt(ip_address, username, db):
+def record_failed_attempt(ip_address, username, database: Database = None):
     """
     Record a failed login attempt.
 
     :param ip_address: The client IP address
     :param username: The username that was attempted
-    :param db: Database connection
+    :param database: Database connection
     """
     if ip_address == 'unknown':
         return
 
+    # Check if the database instance is provided, otherwise fetch the instance
+    if database:
+        db = database
+    else:
+        db = Database().get_instance()
+
     try:
+        # Record the failed login attempt
         db.insert("""
         INSERT INTO login_attempts (ip_address, successful, username_attempted)
         VALUES (?, 0, ?)
         """, (ip_address, username))
-
         log.info(f"Recorded failed login attempt for username: {username} from IP: {ip_address}")
-
     except Exception as e:
         log.error(f"Error recording failed login attempt: {e}")
 
 
-def record_successful_login(ip_address, user_id, db):
+def record_successful_login(ip_address, user_id, database: Database = None):
     """
     Record a successful login and clean up old failed attempts.
 
     :param ip_address: The client IP address
     :param user_id: The user ID that successfully logged in
-    :param db: Database connection
+    :param database: Database connection
     """
     if ip_address == 'unknown':
         return
+
+    # Check if the database instance is provided, otherwise fetch the instance
+    if database:
+        db = database
+    else:
+        db = Database().get_instance()
 
     try:
         # Record the successful login
@@ -138,9 +158,7 @@ def record_successful_login(ip_address, user_id, db):
         DELETE FROM login_attempts 
         WHERE attempt_time < ?
         """, (cleanup_before,))
-
         log.info(f"Recorded successful login for user {user_id} from IP: {ip_address}")
-
     except Exception as e:
         log.error(f"Error recording successful login: {e}")
 
@@ -165,8 +183,10 @@ def hash_password(password, salt=None):
     :return: Tuple of (hash, salt)
     """
     if salt is None:
+        # Generate a random salt if not provided
         salt = os.urandom(32)  # 32 bytes = 256 bits
     elif isinstance(salt, str):
+        # Convert hex string to bytes
         salt = bytes.fromhex(salt)
 
     # Convert password to bytes if it's a string
@@ -199,29 +219,37 @@ def verify_password(stored_hash, stored_salt, provided_password):
     # Hash the provided password with the stored salt
     new_hash, _ = hash_password(provided_password, salt)
 
+    # Compare the new hash with the stored hash and return the result
     return new_hash == stored_hash
 
 
-def create_session(user_id, db, session_duration_hours=1):
+def create_session(user_id, database: Database = None, session_duration_hours=1):
     """
     Create a new session for the user.
 
     :param user_id: User ID
-    :param db: Database connection
+    :param database: Database connection
     :param session_duration_hours: Session duration in hours
     :return: Session key
     """
     session_key = generate_session_key()
     expires_at = datetime.now() + timedelta(hours=session_duration_hours)
 
+    # Check if the database instance is provided, otherwise fetch the instance
+    if database:
+        db = database
+    else:
+        db = Database().get_instance()
+
     try:
+        # Add the session key to the database
         db.insert("""
             INSERT INTO session_key (session_key, user_id, expires_at)
             VALUES (?, ?, ?)
         """, (session_key, user_id, expires_at.isoformat()))
 
-        # Update user's last login time
         # TODO: Do we still need last_login?
+        # Update user's last login time
         #db.query("""
         #    UPDATE user
         #    SET last_login = CURRENT_TIMESTAMP
@@ -235,16 +263,22 @@ def create_session(user_id, db, session_duration_hours=1):
         return None
 
 
-def validate_session(session_key, db):
+def validate_session(session_key, database: Database = None):
     """
     Validate a session key.
 
     :param session_key: Session key to validate
-    :param db: Database connection
+    :param database: Database connection
     :return: User ID if session is valid, None otherwise
     """
     if not session_key:
         return None
+
+    # Check if the database instance is provided, otherwise fetch the instance
+    if database:
+        db = database
+    else:
+        db = Database().get_instance()
 
     try:
         result = db.query("""
@@ -253,16 +287,18 @@ def validate_session(session_key, db):
             WHERE session_key = ?
         """, (session_key,))
 
+        # Check if the session key exists
         if not result:
             log.warning(f"Session key not found: {session_key[:8]}...")
             return None
 
+        # Check if the session key is expired
         user_id, expires_at = result[0]
         expires_at = datetime.fromisoformat(expires_at)
 
+        # If the session key is expired, delete it from the database
         if expires_at < datetime.now():
             log.warning(f"Session expired for user {user_id}")
-            # Delete expired session
             db.query("DELETE FROM session_key WHERE session_key = ?", (session_key,))
             return None
 
@@ -272,33 +308,47 @@ def validate_session(session_key, db):
         return None
 
 
-def get_user_role(user_id, db):
+def get_user_role(user_id, database: Database = None):
     """
     Get the role of a user.
 
     :param user_id: User ID
-    :param db: Database connection
+    :param database: Database connection
     :return: User role or None if user not found
     """
+    if database:
+        db = database
+    else:
+        db = Database().get_instance()
+
     try:
+        # Search for the user in the database
         result = db.query("SELECT role FROM user WHERE id = ?", (user_id,))
         if result:
+            # Return the user's role if one was found
             return result[0][0]
+
         return None
     except Exception as e:
         log.error(f"Error getting user role: {e}")
         return None
 
 
-def logout(session_key, db):
+def logout(session_key, database: Database = None):
     """
     Log out a user by deleting their session.
 
     :param session_key: Session key
-    :param db: Database connection
+    :param database: Database connection
     :return: True if successful, False otherwise
     """
+    if database:
+        db = database
+    else:
+        db = Database().get_instance()
+
     try:
+        # Delete the session key from the database
         db.query("DELETE FROM session_key WHERE session_key = ?", (session_key,))
         log.info(f"User logged out: {session_key[:8]}...")
         return True
@@ -307,28 +357,33 @@ def logout(session_key, db):
         return False
 
 
-def require_auth(db, required_role=None):
+def require_auth(database: Database = None, required_role=None):
     """
     Check if current user is authenticated and has required role.
 
-    :param db: Database connection
+    :param database: Database connection
     :param required_role: Role required to access the page (optional)
     :return: True if authenticated with required role, False otherwise
     """
     if 'session_key' not in st.session_state or not st.session_state['session_key']:
         return False
 
-    user_id = validate_session(st.session_state['session_key'], db)
+    # Check if the database instance is provided, otherwise fetch the instance
+    if database:
+        db = database
+    else:
+        db = Database().get_instance()
 
+    # Validate the session key
+    user_id = validate_session(st.session_state['session_key'], db)
     if not user_id:
         return False
 
+    # Check if the user has the required role
     if required_role:
         user_role = get_user_role(user_id, db)
         if user_role != required_role:
-            log.warning(f"User {user_id} with role {user_role} tried to access a {required_role} page")
+            log.warning(f"User {user_id} with role {user_role} tried to access a {required_role} page he doesn't have access to.")
             return False
 
     return True
-
-

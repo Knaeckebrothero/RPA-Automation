@@ -19,7 +19,7 @@ import workflow.security as sec
 log = logging.getLogger(__name__)
 
 
-def home():
+def home(mailclient: Mailclient = None, database: Database = None):
     """
     This is the main ui page for the application.
     It serves as a landing page and provides the user with options to navigate the application.
@@ -60,8 +60,16 @@ def home():
 
         # Process all the documents
         if st.button('Process all documents'):
-            db = Database.get_instance()
-            mailclient = Mailclient.get_instance()
+
+            # Check if the mailclient instance is provided, otherwise fetch the instance
+            if not mailclient:
+                mailclient = Mailclient.get_instance()
+
+            # Check if the database instance is provided, otherwise fetch the instance
+            if database:
+                db = database
+            else:
+                db = Database().get_instance()
 
             # Get all mails that are already part of an active audit case
             already_processed_mails = [x[0] for x in db.query(
@@ -84,12 +92,17 @@ def home():
             st.rerun()
 
 
-def active_cases():
+def active_cases(database: Database = None):
     """
     UI page for viewing and managing active audit cases.
     """
     log.debug('Rendering active cases page')
-    db = Database().get_instance()
+
+    # Check if the database instance is provided, otherwise fetch the instance
+    if database:
+        db = database
+    else:
+        db = Database().get_instance()
 
     # Fetch the active cases and clients
     active_cases_df = db.get_active_client_cases()
@@ -126,7 +139,7 @@ def active_cases():
 
         # Add a button to refresh the data
         if st.button("Refresh Cases"):
-            st.cache_data.clear()
+            st.cache_data.clear()  # TODO: Check if this deletes the database and stuff as well
             st.rerun()
 
     with tab2:
@@ -234,7 +247,7 @@ def active_cases():
 
 
 # TODO: Check if this works as expected!
-def settings():
+def settings(database: Database = None):
     """
     This is the settings ui page for the application.
     """
@@ -256,11 +269,14 @@ def settings():
         # Add a confirmation checkbox for safety
         confirm_init = st.checkbox("I understand this will create new audit cases for all clients")
 
+        # Check if the database instance is provided, otherwise fetch the instance
+        if database:
+            db = database
+        else:
+            db = Database().get_instance()
+
         if st.button("Initialize Audit Cases", disabled=not confirm_init):
             with st.spinner("Creating audit cases..."):
-                # Get database instance
-                db = Database.get_instance()
-
                 # Find clients without active audit cases
                 clients_without_cases = db.query("""
                     SELECT id FROM client 
@@ -290,13 +306,12 @@ def settings():
 
     # Archive cases section
     with st.expander("Archive Completed Cases", expanded=True):
-        st.write("""
-        This will archive all audit cases that are in stage 4 (Process Completion).
-        Archived cases will no longer appear in the active cases view.
-        """)
-
-        # Get database instance
-        db = Database.get_instance()
+        st.write(
+            """
+            This will archive all audit cases that are in stage 4 (Process Completion).
+            Archived cases will no longer appear in the active cases view.
+            """
+        )
 
         # Get case statistics
         stage_counts = db.query("""
@@ -420,7 +435,7 @@ def about():
     st.write('If you encounter any problems with the application, please describe the issue below:')
 
     issue_description = st.text_area('Issue Description', height=100)
-    steps_to_reproduce = st.text_area('Steps to Reproduce', height=100)
+    # steps_to_reproduce = st.text_area('Steps to Reproduce', height=100)
 
     if st.button('Submit Issue Report'):
         if issue_description:
@@ -431,9 +446,11 @@ def about():
             st.warning('Please provide a description of the issue.')
 
 
-def login() -> bool:
+def login(database: Database = None) -> bool:
     """
     Display a login form and handle authentication.
+
+    :return: True if login is successful, False otherwise.
     """
     st.title("Document Fetcher - Login")
     st.markdown("Please enter your credentials to access the application.")
@@ -447,8 +464,8 @@ def login() -> bool:
     with col1:
         # Create a form for better UX
         with st.form("login_form"):
-            username = st.text_input("Username")
-            password = st.text_input("Password", type="password")
+            username = st.text_input("Username").strip()
+            password = st.text_input("Password", type="password").strip()
             submit = st.form_submit_button("Login")
 
         if submit:
@@ -457,8 +474,11 @@ def login() -> bool:
                 st.error("Please enter both username and password")
                 return False
 
-            # Get database connection
-            db = Database.get_instance()
+        # Check if the database instance is provided, otherwise fetch the instance
+        if database:
+            db = database
+        else:
+            db = Database().get_instance()
 
             # Check for too many failed attempts from this IP
             if sec.check_login_attempts(client_ip, db):
@@ -467,11 +487,13 @@ def login() -> bool:
                 return False
 
             # Query for user with the given username
-            user_data = db.query("""
-            SELECT id, password_hash, password_salt, role
-            FROM user
-            WHERE username_email = ?
-        """, (username,))
+            user_data = db.query(
+                """
+                SELECT id, password_hash, password_salt, role
+                FROM user
+                WHERE username_email = ?
+                """, (username,)
+            )
 
             if not user_data:
                 log.warning(f"Failed login attempt for username: {username} from IP: {client_ip}")
@@ -490,7 +512,6 @@ def login() -> bool:
 
             # Create a new session
             session_key = sec.create_session(user_id, db)
-
             if not session_key:
                 log.error(f"Failed to create session for user: {user_id} from IP: {client_ip}")
                 st.error("Failed to create session")
@@ -509,6 +530,7 @@ def login() -> bool:
             st.success(f"Welcome, {username}!")
             return True
 
+    # Display demo accounts for testing
     with col2:
         st.markdown("""
         ### Demo Accounts

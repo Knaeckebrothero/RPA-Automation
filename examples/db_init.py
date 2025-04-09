@@ -93,6 +93,7 @@ def execute_sql_file(conn, filepath, logger):
     return False
 
 
+# TODO: This function is a duplicate of the one in workflow.security!
 def hash_password(password, salt=None):
     """
     Hash a password using SHA-256 with a salt.

@@ -13,7 +13,7 @@ import logging
 log = logging.getLogger(__name__)
 
 
-def navbar() -> int:
+def navbar(database = None) -> int:
     """
     This is the sidebar ui page for the application.
 
@@ -63,8 +63,14 @@ def navbar() -> int:
         # Import here to avoid circular imports
         from workflow.security import logout
         from cls.database import Database
+        # TODO: Why is this necessary?
 
-        db = Database.get_instance()
+        # Check if the database instance is provided, otherwise fetch the instance
+        if database:
+            db = database
+        else:
+            db = Database().get_instance()
+
         logout(streamlit.session_state['session_key'], db)
 
         # Clear session state
