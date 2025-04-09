@@ -4,17 +4,22 @@ This module holds the main ui page for the application.
 import os
 import pandas as pd
 import streamlit as st
-import logging as log
+import logging
 
 # Custom imports
 import ui.visuals as visuals
-from workflow import get_emails, assess_emails
+from workflow.audit import get_emails, assess_emails
 from cls.mailclient import Mailclient
 from cls.database import Database
 import ui.expander_stages as expander_stages
+import workflow.security as sec
 
 
-def home():
+# Set up logging
+log = logging.getLogger(__name__)
+
+
+def home(mailclient: Mailclient = None, database: Database = None):
     """
     This is the main ui page for the application.
     It serves as a landing page and provides the user with options to navigate the application.
@@ -55,8 +60,16 @@ def home():
 
         # Process all the documents
         if st.button('Process all documents'):
-            db = Database.get_instance()
-            mailclient = Mailclient.get_instance()
+
+            # Check if the mailclient instance is provided, otherwise fetch the instance
+            if not mailclient:
+                mailclient = Mailclient.get_instance()
+
+            # Check if the database instance is provided, otherwise fetch the instance
+            if database:
+                db = database
+            else:
+                db = Database().get_instance()
 
             # Get all mails that are already part of an active audit case
             already_processed_mails = [x[0] for x in db.query(
@@ -79,12 +92,17 @@ def home():
             st.rerun()
 
 
-def active_cases():
+def active_cases(database: Database = None):
     """
     UI page for viewing and managing active audit cases.
     """
     log.debug('Rendering active cases page')
-    db = Database().get_instance()
+
+    # Check if the database instance is provided, otherwise fetch the instance
+    if database:
+        db = database
+    else:
+        db = Database().get_instance()
 
     # Fetch the active cases and clients
     active_cases_df = db.get_active_client_cases()
@@ -121,7 +139,7 @@ def active_cases():
 
         # Add a button to refresh the data
         if st.button("Refresh Cases"):
-            st.cache_data.clear()
+            st.cache_data.clear()  # TODO: Check if this deletes the database and stuff as well
             st.rerun()
 
     with tab2:
@@ -202,7 +220,7 @@ def active_cases():
 
             # Display expandable sections for each step of the process
             expander_stages.stage_1(case_id, current_stage, db)
-            #expander_stages.stage_2(case_id, current_stage)
+            expander_stages.stage_2(case_id, current_stage)
             #expander_stages.stage_3(case_id, current_stage)
             #expander_stages.stage_4(case_id, current_stage)
 
@@ -229,7 +247,7 @@ def active_cases():
 
 
 # TODO: Check if this works as expected!
-def settings():
+def settings(database: Database = None):
     """
     This is the settings ui page for the application.
     """
@@ -251,11 +269,14 @@ def settings():
         # Add a confirmation checkbox for safety
         confirm_init = st.checkbox("I understand this will create new audit cases for all clients")
 
+        # Check if the database instance is provided, otherwise fetch the instance
+        if database:
+            db = database
+        else:
+            db = Database().get_instance()
+
         if st.button("Initialize Audit Cases", disabled=not confirm_init):
             with st.spinner("Creating audit cases..."):
-                # Get database instance
-                db = Database.get_instance()
-
                 # Find clients without active audit cases
                 clients_without_cases = db.query("""
                     SELECT id FROM client 
@@ -285,13 +306,12 @@ def settings():
 
     # Archive cases section
     with st.expander("Archive Completed Cases", expanded=True):
-        st.write("""
-        This will archive all audit cases that are in stage 4 (Process Completion).
-        Archived cases will no longer appear in the active cases view.
-        """)
-
-        # Get database instance
-        db = Database.get_instance()
+        st.write(
+            """
+            This will archive all audit cases that are in stage 4 (Process Completion).
+            Archived cases will no longer appear in the active cases view.
+            """
+        )
 
         # Get case statistics
         stage_counts = db.query("""
@@ -368,14 +388,160 @@ def settings():
 
     # You can add other settings sections below
     st.subheader("Application Settings")
-    # Add other settings as needed
+    st.write("Other settings will go here!")
 
 
 def about():
     """
     This is the about ui page for the application.
     """
-    # TODO: Limit the amount of text displayed in the log file to prevent long loading times
-    # Display the contents of the log file in a code block (as a placeholder)
-    with open(os.path.join(os.getenv('LOG_PATH', ''), 'application.log'), 'r') as file:
-        st.code(file.read())
+    st.header('About')
+    st.write('FinDAG Document Processing Application')
+
+    # Display log file with configurable number of lines
+    log_path = os.path.join(os.getenv('LOG_PATH', ''), 'application.log')
+    if os.path.exists(log_path):
+        try:
+            # Use a deque to efficiently get the last 300 lines
+            from collections import deque
+
+            # Read the last 300 lines
+            with open(log_path, 'r') as file:
+                last_lines = deque(file, maxlen=300)
+                last_lines = list(last_lines)
+
+            # Add a slider to control how many lines to display
+            num_lines = st.slider('Number of log lines to display',
+                                  min_value=10,
+                                  max_value=len(last_lines),
+                                  value=min(100, len(last_lines)),
+                                  step=10)
+
+            # Get the selected number of lines from the end of the list
+            displayed_lines = last_lines[-num_lines:] if num_lines < len(last_lines) else last_lines
+
+            # Join the lines into a single string
+            log_content = ''.join(displayed_lines)
+
+            st.subheader(f'Application Logs (Last {num_lines} of {len(last_lines)} lines)')
+            st.code(log_content)
+        except Exception as e:
+            st.error(f"Error reading log file: {str(e)}")
+    else:
+        st.warning(f"Log file not found at {log_path}")
+
+    # Bug report section
+    st.subheader('Report an Issue')
+    st.write('If you encounter any problems with the application, please describe the issue below:')
+
+    issue_description = st.text_area('Issue Description', height=100)
+    # steps_to_reproduce = st.text_area('Steps to Reproduce', height=100)
+
+    if st.button('Submit Issue Report'):
+        if issue_description:
+            # Here you would implement the logic to save or send the bug report
+            # For now, just show a success message
+            st.success('Thank you for your report! The issue has been logged.')
+        else:
+            st.warning('Please provide a description of the issue.')
+
+
+def login(database: Database = None) -> bool:
+    """
+    Display a login form and handle authentication.
+
+    :return: True if login is successful, False otherwise.
+    """
+    st.title("Document Fetcher - Login")
+    st.markdown("Please enter your credentials to access the application.")
+
+    # Get client IP as early as possible
+    client_ip = sec.get_client_ip()
+
+    # Create columns for layout
+    col1, col2 = st.columns([1, 1])
+
+    with col1:
+        # Create a form for better UX
+        with st.form("login_form"):
+            username = st.text_input("Username").strip()
+            password = st.text_input("Password", type="password").strip()
+            submit = st.form_submit_button("Login")
+
+        if submit:
+            if not username or not password:
+                log.warning(f"Login attempt with empty credentials from IP: {client_ip}")
+                st.error("Please enter both username and password")
+                return False
+
+        # Check if the database instance is provided, otherwise fetch the instance
+        if database:
+            db = database
+        else:
+            db = Database().get_instance()
+
+            # Check for too many failed attempts from this IP
+            if sec.check_login_attempts(client_ip, db):
+                log.warning(f"Too many failed login attempts from IP: {client_ip}")
+                st.error("Too many failed login attempts. Please try again later.")
+                return False
+
+            # Query for user with the given username
+            user_data = db.query(
+                """
+                SELECT id, password_hash, password_salt, role
+                FROM user
+                WHERE username_email = ?
+                """, (username,)
+            )
+
+            if not user_data:
+                log.warning(f"Failed login attempt for username: {username} from IP: {client_ip}")
+                sec.record_failed_attempt(client_ip, username, db)
+                st.error("Invalid username or password")
+                return False
+
+            user_id, password_hash, password_salt, role = user_data[0]
+
+            # Verify password
+            if not sec.verify_password(password_hash, password_salt, password):
+                log.warning(f"Failed login attempt for user: {user_id} from IP: {client_ip}")
+                sec.record_failed_attempt(client_ip, username, db)
+                st.error("Invalid username or password")
+                return False
+
+            # Create a new session
+            session_key = sec.create_session(user_id, db)
+            if not session_key:
+                log.error(f"Failed to create session for user: {user_id} from IP: {client_ip}")
+                st.error("Failed to create session")
+                return False
+
+            # Store session information in session state
+            st.session_state['session_key'] = session_key
+            st.session_state['user_id'] = user_id
+            st.session_state['user_role'] = role
+            st.session_state['client_ip'] = client_ip  # Store IP in session state for later use
+
+            # Log successful login
+            log.info(f"Successful login for user: {user_id} ({username}) from IP: {client_ip}")
+            sec.record_successful_login(client_ip, user_id, db)
+
+            st.success(f"Welcome, {username}!")
+            return True
+
+    # Display demo accounts for testing
+    with col2:
+        st.markdown("""
+        ### Demo Accounts
+        
+        **Admin User**  
+        Username: admin@example.com  
+        Password: admin123
+        
+        **Auditor User**  
+        Username: auditor@example.com  
+        Password: auditor123
+        """)
+
+    return False

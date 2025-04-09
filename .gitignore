@@ -2,10 +2,11 @@
 
 # Logs & working directories
 .filesystem/
-examples/test_emails/
+examples/recorded_emails/
 
 # Local environment
 .env
+.venv
 
 # Yaml
 *.yaml
