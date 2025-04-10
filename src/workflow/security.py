@@ -357,7 +357,7 @@ def logout(session_key, database: Database = None):
         return False
 
 
-def require_auth(database: Database = None, required_role=None):
+def require_auth(database: Database = None, required_role=None) -> bool:
     """
     Check if current user is authenticated and has required role.
 

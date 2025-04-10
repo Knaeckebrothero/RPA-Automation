@@ -84,6 +84,7 @@ class Database(Singleton):
         """
         if required_tables is None:
             required_tables = ['client', 'audit_case']
+            # TODO: Add the missing tables!
 
         try:
             self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")

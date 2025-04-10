@@ -11,6 +11,7 @@ from cls.database import Database
 # Set up logging
 log = logging.getLogger(__name__)
 
+
 def _icon(icon: bool = False) -> str:
     """
     This function returns the icon for the expander.
@@ -32,6 +33,10 @@ def stage_1(case_id: int, current_stage: int, database: Database = None):
     Cases in this stage are part of this year's audit and are waiting for the documents to be received.
     Once a document is received, meaning the application has received an email that contains a document with the
     client's baFin ID, the case will move to the next stage.
+
+    :param case_id: The ID of the case.
+    :param current_stage: The current stage of the case.
+    :param database: The database instance to use. If None, the default instance will be used.
     """
     if not database:
         db = Database.get_instance()

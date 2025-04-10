@@ -224,8 +224,7 @@ def active_cases(database: Database = None):
             #expander_stages.stage_3(case_id, current_stage)
             #expander_stages.stage_4(case_id, current_stage)
 
-
-
+            # TODO: Continue to implement the rest of the stages!
 
             with st.expander("Step 3: Certificate Issued", expanded=(current_stage == 3)):
                 st.write("Certificate has been issued to BaFin.")
@@ -474,11 +473,11 @@ def login(database: Database = None) -> bool:
                 st.error("Please enter both username and password")
                 return False
 
-        # Check if the database instance is provided, otherwise fetch the instance
-        if database:
-            db = database
-        else:
-            db = Database().get_instance()
+            # Check if the database instance is provided, otherwise fetch the instance
+            if database:
+                db = database
+            else:
+                db = Database().get_instance()
 
             # Check for too many failed attempts from this IP
             if sec.check_login_attempts(client_ip, db):

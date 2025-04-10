@@ -24,8 +24,6 @@ if not os.getenv('DEV_MODE'):
 
 # Check if the environment variable is set to 'test'
 if os.getenv('DEV_MODE') == 'true':
-    log.warning('DEV_MODE flag set, starting in development mode...')
-
     # Import the mock IMAP4_SSL class for testing
     from mock_imaplib import MockIMAP4_SSL as IMAP4_SSL
 
