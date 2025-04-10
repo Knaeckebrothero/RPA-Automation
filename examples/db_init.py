@@ -17,12 +17,13 @@ import os
 import sqlite3
 import sys
 import hashlib
-import secrets
 
 
 def setup_logging():
     """
     Set up logging configuration.
+
+    :return: Logger instance
     """
     logging.basicConfig(
         level=logging.INFO,
@@ -35,6 +36,8 @@ def setup_logging():
 def parse_args():
     """
     Parse command line arguments.
+
+    :return: Parsed arguments
     """
     parser = argparse.ArgumentParser(description='Initialize the SQLite database.')
     parser.add_argument(
@@ -63,6 +66,9 @@ def parse_args():
 def ensure_directory_exists(path):
     """
     Ensure the directory for the given file path exists.
+
+    :param path: File path
+    :return: True if directory was created, False if it already exists
     """
     directory = os.path.dirname(path)
     if directory and not os.path.exists(directory):
@@ -74,6 +80,11 @@ def ensure_directory_exists(path):
 def execute_sql_file(conn, filepath, logger):
     """
     Execute SQL commands from a file.
+
+    :param conn: SQLite connection
+    :param filepath: Path to the SQL file
+    :param logger: Logger instance
+    :return: True if successful, False otherwise
     """
     try:
         with open(filepath, 'r', encoding='utf-8') as sql_file:
@@ -93,7 +104,7 @@ def execute_sql_file(conn, filepath, logger):
     return False
 
 
-# TODO: This function is a duplicate of the one in workflow.security!
+# This function is a duplicate of the one in workflow.security, make sure to keep them in sync!
 def hash_password(password, salt=None):
     """
     Hash a password using SHA-256 with a salt.
@@ -172,11 +183,17 @@ def insert_json_data(conn, json_filepath, logger):
     """
     Insert data from a JSON file into the database.
     The JSON file should contain a list of client objects with properties that map to database columns.
+
+    :param conn: SQLite connection
+    :param json_filepath: Path to the JSON file
+    :param logger: Logger instance
+    :return: True if successful, False otherwise
     """
     try:
         with open(json_filepath, 'r', encoding='utf-8') as json_file:
             data = json.load(json_file)
 
+        # Check if the data is a list
         if not isinstance(data, list):
             logger.error(f"JSON data is not a list. Found type: {type(data)}")
             return False
@@ -218,6 +235,7 @@ def insert_json_data(conn, json_filepath, logger):
                     except (ValueError, TypeError):
                         return default
 
+                # Insert data into the client table
                 cursor.execute("""
                 INSERT INTO client (
                     institute, bafin_id, address, city, contact_person,
@@ -282,6 +300,13 @@ def insert_json_data(conn, json_filepath, logger):
 def initialize_database(db_path, schema_path, json_path, force_reset, logger):
     """
     Initialize the database with schema and example data.
+
+    :param db_path: Path to the SQLite database file
+    :param schema_path: Path to the SQL schema file
+    :param json_path: Path to the JSON file with example data
+    :param force_reset: If True, delete existing database and recreate it
+    :param logger: Logger instance
+    :return: True if successful, False otherwise
     """
     if ensure_directory_exists(db_path):
         logger.info(f"Created directory for database at {os.path.dirname(db_path)}")
@@ -315,8 +340,8 @@ def initialize_database(db_path, schema_path, json_path, force_reset, logger):
         cursor.execute("SELECT COUNT(*) FROM client")
         count = cursor.fetchone()[0]
 
+        # Insert data from JSON file
         if count == 0:
-            # Insert data from JSON file
             if not insert_json_data(conn, json_path, logger):
                 logger.error("Failed to insert example data from JSON")
                 conn.close()
@@ -352,14 +377,17 @@ def main():
 
     logger.info("Starting database initialization")
 
+    # Check if the database path is valid
     if not os.path.exists(args.schema_path):
         logger.error(f"Schema file not found: {args.schema_path}")
         return 1
 
+    # Check if the JSON data path is valid
     if not os.path.exists(args.json_path):
         logger.error(f"JSON data file not found: {args.json_path}")
         return 1
 
+    # Initialize the database
     success = initialize_database(
         args.db_path,
         args.schema_path,

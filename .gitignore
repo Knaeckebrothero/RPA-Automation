@@ -2,7 +2,7 @@
 
 # Logs & working directories
 .filesystem/
-examples/recorded_emails/
+example_mails/
 
 # Local environment
 .env
