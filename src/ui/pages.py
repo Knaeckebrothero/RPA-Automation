@@ -8,7 +8,7 @@ import logging
 
 # Custom imports
 import ui.visuals as visuals
-from workflow.audit import get_emails, assess_emails
+import workflow.audit as auditflow
 from cls.mailclient import Mailclient
 from cls.database import Database
 import ui.expander_stages as expander_stages
@@ -30,8 +30,15 @@ def home(mailclient: Mailclient = None, database: Database = None):
     st.header('Document Fetcher')
     st.write('Welcome to the Document Fetcher application!')
 
-    # Fetch the emails and client
-    emails = get_emails()
+    # Check for mails who have already been downloaded
+    already_present_mails = auditflow.get_already_downloaded_email_ids()
+    # TODO: Check if this interferes with the visuals!
+
+    # Fetch the emails (exclude those who have already been downloaded)
+    if already_present_mails:
+        emails = auditflow.get_emails(already_present_mails)
+    else:
+        emails = auditflow.get_emails()
 
     # Configure visuals layout
     column_left, column_right = st.columns(2)
@@ -249,6 +256,8 @@ def active_cases(database: Database = None):
 def settings(database: Database = None):
     """
     This is the settings ui page for the application.
+
+    :param database: Optional database instance to use.
     """
     log.debug('Rendering settings page')
 

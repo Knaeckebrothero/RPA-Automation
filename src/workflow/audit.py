@@ -9,9 +9,9 @@ from cls.database import Database
 from cls.mailclient import Mailclient
 from processing.ocr import create_ocr_reader
 
-
 # Set up logging
-log  = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
+
 
 @st.cache_data
 def get_emails():
@@ -23,7 +23,7 @@ def get_emails():
     return Mailclient.get_instance().get_mails()
 
 
-def check_for_documents(bafin_id: int):
+def check_for_documents():
     """
     Function to check if there are any documents already stored on the filesystem.
     """
@@ -57,7 +57,7 @@ def assess_emails(emails: pd.DataFrame):
             # st.warning(f'Processing mail with ID {email_list_email_id}')
 
             for attachment in attachments:
-                keep_attachment = False
+                attachment_case_id = None
                 if attachment.get_attributes('content_type') == 'application/pdf':
                     log.info(f'Processing pdf attachment {attachment.get_attributes("filename")}')
 
@@ -78,10 +78,9 @@ def assess_emails(emails: pd.DataFrame):
                             case 1:  # Waiting for documents
                                 log.info(f'Document found in mail with email_id: {email_list_email_id} for'
                                          f' client_id: {attachment.client_id}.')
-
                                 # Start the validation process
                                 process_audit_case(attachment)
-                                keep_attachment = True
+
                             case 2:  # Data verification
                                 log.info(f'Document with email_id: {email_list_email_id} and'
                                          f' client_id: {attachment.client_id} is already in the database.')
@@ -91,42 +90,39 @@ def assess_emails(emails: pd.DataFrame):
 
                                 # Start the validation process
                                 process_audit_case(attachment)
-                                keep_attachment = True
+
                             case 3:  # Issuing certificate
-                                log.warning(f"Client with id: {attachment.client_id} has already passed the value check ("
-                                         f"is currently in phase 3), but submitted a new document with email_id:"
-                                         f" {email_list_email_id}.")
-                                # keep_attachment = False
-                            case 4: # Completing process
+                                log.warning(
+                                    f"Client with id: {attachment.client_id} has already passed the value check ("
+                                    f"is currently in phase 3), but submitted a new document with email_id:"
+                                    f" {email_list_email_id}.")
+
+                            case 4:  # Completing process
                                 log.warning(f"Client with id: {attachment.client_id} has already been certified"
-                                         f" (is currently in phase 4), but submitted a new document with email_id: {email_list_email_id}.")
-                                # keep_attachment = False # No need since it's redundant
+                                            f" (is currently in phase 4), but submitted a new document with email_id: {email_list_email_id}.")
+
                             case _:  # Default case
                                 log.info(f'No case found for client_id: {attachment.client_id}, adding case for'
                                          f' document with email_id: {email_list_email_id}.')
 
                                 # Initialize the audit case
                                 attachment.initialize_audit_case(stage=2)
-
                                 # Start the validation process
                                 process_audit_case(attachment)
-                                keep_attachment = True
+                                # Get the audit case ID if it exists
+                                attachment_case_id = attachment.get_audit_case_id()
 
                         # TODO: Add a proper method to save the attachment to the filesystem (aka. implement folder
                         #  paths and stuff)
 
-
-
                         # TODO: CONTINUE IMPLEMENTING THE STORAGE OF THE DOCUMENTS AFTER THEY HAVE BEEN PROCESSED !!!
 
-
-
-
                         # Save the attachment to the filesystem's downloads folder if it should be kept
-                        if keep_attachment:
+                        if attachment_case_id:
                             attachment.save_to_file(os.path.join(
                                 os.getenv('FILESYSTEM_PATH'),
                                 "downloads",
+                                str(attachment_case_id),
                                 str(email_list_email_id) + "_" + attachment.get_attributes("filename")
                             ))
                             log.info(f'Saved attachment {attachment.get_attributes("filename")} to filesystem.')
@@ -171,7 +167,8 @@ def process_audit_case(document: PDF):
         #  the values can be added/referenced there!)
 
 
-def update_audit_case(document: PDF):  # TODO: Remove this method since the update_audit_case() method already covers this functionality
+# TODO: Remove this method since the update_audit_case() method already covers this functionality
+def update_audit_case(document: PDF):
     """
     Function to update an audit case which has already received a document.
 
@@ -191,3 +188,21 @@ def update_audit_case(document: PDF):  # TODO: Remove this method since the upda
     else:
         log.info(f'Skipping document since email id: {document.email_id} for case with client id:'
                  f' {document.client_id} is the same as the one in the database.')
+
+
+def get_already_downloaded_email_ids(database: Database = None) -> list[int]:
+    """
+    Function to get the mail ids of the mails who have already been downloaded.
+
+    :param database: The database instance to use (optional).
+    :return: The mail ids of the fetched mails.
+    """
+    if database:
+        db = database
+    else:
+        db = Database.get_instance()
+
+    mail_ids = db.query("SELECT DISTINCT email_id FROM audit_case")[0][0]
+    log.info(f'Found a total of {len(mail_ids)} mail ids already in the database.')
+
+    return mail_ids

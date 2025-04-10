@@ -260,17 +260,23 @@ class PDF(Document):
     It extends the Document class with PDF-specific functionality like OCR and table extraction.
     """
     def __init__(self, content: bytes, email_id: int = None, client_id: int = None, bafin_id: int = None,
-                 attributes: dict = None, content_path: str = None):
+                 attributes: dict = None, content_path: str = None, audit_case_id: int = None):
         """
         The constructor for the PDF class.
 
         :param content: The raw content of the PDF document.
         :param attributes: A set of attributes for the document.
+        :param email_id: The email ID associated with the document.
+        :param client_id: The client ID associated with the document.
+        :param bafin_id: The BaFin ID associated with the document.
+        :param content_path: The path to the content file.
+        :param audit_case_id: The audit case ID associated with the document.
         """
         super().__init__(content, attributes, content_path)
         self.email_id = email_id
         self.client_id = client_id
         self.bafin_id = bafin_id
+        self.audit_case_id = audit_case_id
         log.debug("PDF document created")
 
     def __str__(self):
@@ -687,4 +693,33 @@ class PDF(Document):
             else:
                 return None
         else:
+            return None
+
+    def get_audit_case_id(self, add_audit_case_id: bool = True) -> int | None:
+        """
+        This method returns the audit case id if it exists.
+
+        :return: The audit case id if it exists, otherwise None.
+        """
+        client_id = self.client_id if not self.client_id else client_id = self.verify_bafin_id()
+
+        # Check if the client id is not None
+        if client_id:
+            log.debug(f"Getting audit case id for client id: {client_id}")
+            audit_case_id = self._db.query("SELECT id FROM audit_case WHERE client_id = ?", (client_id,))
+
+            if audit_case_id:
+                log.debug(f"Audit case id: {audit_case_id[0][0]} found for client id: {client_id}")
+
+                if add_audit_case_id:
+                    log.debug(f"Adding audit case id: {audit_case_id[0][0]} to document: {self.email_id}")
+                    self.audit_case_id = audit_case_id[0][0]
+                    self.add_attributes({"audit_case_id": audit_case_id[0][0]})
+
+                return audit_case_id[0][0]
+            else:
+                log.debug(f"No audit case found for client id: {client_id}")
+                return None
+        else:
+            log.debug(f"No client id found for document: {self.email_id}")
             return None
