@@ -5,6 +5,7 @@ This script initializes the SQLite database by:
 1. Creating the database file if it doesn't exist
 2. Creating or updating the tables structure
 3. Inserting example data if the database is empty
+4. Creating default users if they don't exist
 
 Usage:
     python db_init.py [--db-path PATH] [--schema-path PATH] [--data-path PATH]
@@ -15,11 +16,14 @@ import logging
 import os
 import sqlite3
 import sys
+import hashlib
 
 
 def setup_logging():
     """
     Set up logging configuration.
+
+    :return: Logger instance
     """
     logging.basicConfig(
         level=logging.INFO,
@@ -32,6 +36,8 @@ def setup_logging():
 def parse_args():
     """
     Parse command line arguments.
+
+    :return: Parsed arguments
     """
     parser = argparse.ArgumentParser(description='Initialize the SQLite database.')
     parser.add_argument(
@@ -60,6 +66,9 @@ def parse_args():
 def ensure_directory_exists(path):
     """
     Ensure the directory for the given file path exists.
+
+    :param path: File path
+    :return: True if directory was created, False if it already exists
     """
     directory = os.path.dirname(path)
     if directory and not os.path.exists(directory):
@@ -71,6 +80,11 @@ def ensure_directory_exists(path):
 def execute_sql_file(conn, filepath, logger):
     """
     Execute SQL commands from a file.
+
+    :param conn: SQLite connection
+    :param filepath: Path to the SQL file
+    :param logger: Logger instance
+    :return: True if successful, False otherwise
     """
     try:
         with open(filepath, 'r', encoding='utf-8') as sql_file:
@@ -90,15 +104,96 @@ def execute_sql_file(conn, filepath, logger):
     return False
 
 
+# This function is a duplicate of the one in workflow.security, make sure to keep them in sync!
+def hash_password(password, salt=None):
+    """
+    Hash a password using SHA-256 with a salt.
+
+    :param password: Plain text password
+    :param salt: Optional salt, will be generated if not provided
+    :return: Tuple of (hash, salt)
+    """
+    if salt is None:
+        salt = os.urandom(32)  # 32 bytes = 256 bits
+    elif isinstance(salt, str):
+        salt = bytes.fromhex(salt)
+
+    # Convert password to bytes if it's a string
+    if isinstance(password, str):
+        password = password.encode('utf-8')
+
+    # Hash the password with the salt
+    password_hash = hashlib.pbkdf2_hmac(
+        'sha256',
+        password,
+        salt,
+        100000  # Number of iterations
+    )
+
+    return password_hash.hex(), salt.hex()
+
+
+def insert_default_users(conn, logger):
+    """
+    Insert default admin and auditor users if they don't exist.
+
+    :param conn: SQLite connection
+    :param logger: Logger instance
+    :return: True if successful, False otherwise
+    """
+    try:
+        cursor = conn.cursor()
+
+        # Check if users already exist
+        cursor.execute("SELECT COUNT(*) FROM user")
+        count = cursor.fetchone()[0]
+
+        if count == 0:
+            logger.info("Creating default users...")
+
+            # Create admin user
+            admin_pass, admin_salt = hash_password("admin123")
+            cursor.execute("""
+                INSERT INTO user (username_email, password_hash, password_salt, role)
+                VALUES (?, ?, ?, ?)
+            """, ("admin@example.com", admin_pass, admin_salt, "admin"))
+
+            # Create auditor user
+            auditor_pass, auditor_salt = hash_password("auditor123")
+            cursor.execute("""
+                INSERT INTO user (username_email, password_hash, password_salt, role)
+                VALUES (?, ?, ?, ?)
+            """, ("auditor@example.com", auditor_pass, auditor_salt, "auditor"))
+
+            conn.commit()
+            logger.info("Default users created: admin and auditor")
+            return True
+        else:
+            logger.info(f"Users already exist ({count} users found), skipping default user creation")
+            return True
+
+    except Exception as e:
+        logger.error(f"Error creating default users: {e}")
+        if conn:
+            conn.rollback()
+        return False
+
+
 def insert_json_data(conn, json_filepath, logger):
     """
     Insert data from a JSON file into the database.
     The JSON file should contain a list of client objects with properties that map to database columns.
+
+    :param conn: SQLite connection
+    :param json_filepath: Path to the JSON file
+    :param logger: Logger instance
+    :return: True if successful, False otherwise
     """
     try:
         with open(json_filepath, 'r', encoding='utf-8') as json_file:
             data = json.load(json_file)
 
+        # Check if the data is a list
         if not isinstance(data, list):
             logger.error(f"JSON data is not a list. Found type: {type(data)}")
             return False
@@ -140,6 +235,7 @@ def insert_json_data(conn, json_filepath, logger):
                     except (ValueError, TypeError):
                         return default
 
+                # Insert data into the client table
                 cursor.execute("""
                 INSERT INTO client (
                     institute, bafin_id, address, city, contact_person,
@@ -204,6 +300,13 @@ def insert_json_data(conn, json_filepath, logger):
 def initialize_database(db_path, schema_path, json_path, force_reset, logger):
     """
     Initialize the database with schema and example data.
+
+    :param db_path: Path to the SQLite database file
+    :param schema_path: Path to the SQL schema file
+    :param json_path: Path to the JSON file with example data
+    :param force_reset: If True, delete existing database and recreate it
+    :param logger: Logger instance
+    :return: True if successful, False otherwise
     """
     if ensure_directory_exists(db_path):
         logger.info(f"Created directory for database at {os.path.dirname(db_path)}")
@@ -237,8 +340,8 @@ def initialize_database(db_path, schema_path, json_path, force_reset, logger):
         cursor.execute("SELECT COUNT(*) FROM client")
         count = cursor.fetchone()[0]
 
+        # Insert data from JSON file
         if count == 0:
-            # Insert data from JSON file
             if not insert_json_data(conn, json_path, logger):
                 logger.error("Failed to insert example data from JSON")
                 conn.close()
@@ -246,6 +349,12 @@ def initialize_database(db_path, schema_path, json_path, force_reset, logger):
             logger.info("Inserted example data from JSON")
         else:
             logger.info(f"Skipped data insertion because client table already has {count} records")
+
+        # Insert default users if they don't exist
+        if not insert_default_users(conn, logger):
+            logger.error("Failed to insert default users")
+            conn.close()
+            return False
 
         # Verify tables
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
@@ -268,14 +377,17 @@ def main():
 
     logger.info("Starting database initialization")
 
+    # Check if the database path is valid
     if not os.path.exists(args.schema_path):
         logger.error(f"Schema file not found: {args.schema_path}")
         return 1
 
+    # Check if the JSON data path is valid
     if not os.path.exists(args.json_path):
         logger.error(f"JSON data file not found: {args.json_path}")
         return 1
 
+    # Initialize the database
     success = initialize_database(
         args.db_path,
         args.schema_path,

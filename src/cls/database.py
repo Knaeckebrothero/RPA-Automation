@@ -5,13 +5,14 @@ import os
 import sqlite3
 import logging
 import pandas as pd
+import streamlit as st
 
 # Custom imports
 from cls.singleton import Singleton
 
+
 # Set up logging
 log  = logging.getLogger(__name__)
-
 
 class Database(Singleton):
     """
@@ -83,6 +84,7 @@ class Database(Singleton):
         """
         if required_tables is None:
             required_tables = ['client', 'audit_case']
+            # TODO: Add the missing tables!
 
         try:
             self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")

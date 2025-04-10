@@ -3,7 +3,6 @@ This module holds the mail.Client class.
 """
 import os
 import logging
-from mock_imaplib import MockIMAP4_SSL as IMAP4_SSL  # from imaplib import IMAP4_SSL
 import email
 from email.header import decode_header
 from bs4 import BeautifulSoup
@@ -16,6 +15,31 @@ from cls.document import Document, PDF
 
 # Set up logging
 log = logging.getLogger(__name__)
+
+
+# Check if the script is running in development mode
+if not os.getenv('DEV_MODE'):
+    import dotenv
+    dotenv.load_dotenv(dotenv.find_dotenv())
+
+# Check if the environment variable is set to 'test'
+if os.getenv('DEV_MODE') == 'true':
+    # Import the mock IMAP4_SSL class for testing
+    from mock_imaplib import MockIMAP4_SSL as IMAP4_SSL
+
+    # Replace the email environment variables with the credentials for the mock imap server
+    os.environ['IMAP_HOST'] = 'right.host.com'
+    os.environ['IMAP_PORT'] = '993'
+    os.environ['IMAP_USER'] = 'right@example.com'
+    os.environ['IMAP_PASSWORD'] = 'right_password'
+    os.environ['INBOX'] = 'right_mailbox'
+
+else:
+    log.debug('DEV_MODE flag not set, starting in production mode...')
+
+    # Otherwise, use the real IMAP4_SSL class
+    from imaplib import IMAP4_SSL
+
 
 # TODO: Refactor this class to use pythons email library instead of BeautifulSoup
 class Mailclient(Singleton):

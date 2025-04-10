@@ -4,16 +4,22 @@ This module holds the main ui page for the application.
 import os
 import pandas as pd
 import streamlit as st
-import logging as log
+import logging
 
 # Custom imports
 import ui.visuals as visuals
-from workflow import get_emails, assess_emails
+from workflow.audit import get_emails, assess_emails
 from cls.mailclient import Mailclient
 from cls.database import Database
+import ui.expander_stages as expander_stages
+import workflow.security as sec
 
 
-def home():
+# Set up logging
+log = logging.getLogger(__name__)
+
+
+def home(mailclient: Mailclient = None, database: Database = None):
     """
     This is the main ui page for the application.
     It serves as a landing page and provides the user with options to navigate the application.
@@ -46,15 +52,24 @@ def home():
 
         # Process only the selected documents
         if st.button('Process selected documents'):
-            assess_emails(docs_to_process)
+            with st.spinner(f'Processing mails'):
+                assess_emails(docs_to_process)
 
             # Rerun the app to update the display
             st.rerun()
 
         # Process all the documents
         if st.button('Process all documents'):
-            db = Database.get_instance()
-            mailclient = Mailclient.get_instance()
+
+            # Check if the mailclient instance is provided, otherwise fetch the instance
+            if not mailclient:
+                mailclient = Mailclient.get_instance()
+
+            # Check if the database instance is provided, otherwise fetch the instance
+            if database:
+                db = database
+            else:
+                db = Database().get_instance()
 
             # Get all mails that are already part of an active audit case
             already_processed_mails = [x[0] for x in db.query(
@@ -67,20 +82,27 @@ def home():
 
             # If no mails are in the database, fetch all mails
             if len(already_processed_mails) > 0:
-                assess_emails(mailclient.get_mails(excluded_ids=already_processed_mails)['ID'])
+                with st.spinner(f'Processing mails'):
+                    assess_emails(mailclient.get_mails(excluded_ids=already_processed_mails)['ID'])
             else:
-                assess_emails(emails['ID'])
+                with st.spinner(f'Processing mails'):
+                    assess_emails(emails['ID'])
 
             # Rerun the app to update the display
             st.rerun()
 
 
-def active_cases():
+def active_cases(database: Database = None):
     """
     UI page for viewing and managing active audit cases.
     """
     log.debug('Rendering active cases page')
-    db = Database().get_instance()
+
+    # Check if the database instance is provided, otherwise fetch the instance
+    if database:
+        db = database
+    else:
+        db = Database().get_instance()
 
     # Fetch the active cases and clients
     active_cases_df = db.get_active_client_cases()
@@ -100,16 +122,16 @@ def active_cases():
         st.subheader("All Active Cases")
 
         # Create a more user-friendly display table
-        display_df = active_cases_df[['case_id', 'institute', 'bafin_id', 'stage', 'created_at', 'last_updated_at']].copy()
-        display_df.columns = ['Case ID', 'Institute', 'BaFin ID', 'Stage', 'Created', 'Last Updated']
+        display_df = active_cases_df[['case_id', 'bafin_id', 'institute', 'stage', 'created_at', 'last_updated_at']].copy()
+        display_df.columns = ['Case ID', 'BaFin ID', 'Institute', 'Stage', 'Created', 'Last Updated']
 
         # Format dates
-        display_df['Created'] = display_df['Created'].dt.strftime('%Y-%m-%d')
-        display_df['Last Updated'] = display_df['Last Updated'].dt.strftime('%Y-%m-%d %H:%M')
+        display_df['Created'] = display_df['Created'].dt.strftime('%d.%m.%Y')
+        display_df['Last Updated'] = display_df['Last Updated'].dt.strftime('%d.%m.%Y %H:%M')
 
         # Add stage badges
         display_df['Stage'] = active_cases_df['stage'].apply(
-            lambda x: visuals.stage_badge(x)
+            lambda x: visuals.stage_badge(x, pure_string=True)
         )
 
         # Display the table with HTML rendering enabled
@@ -117,7 +139,7 @@ def active_cases():
 
         # Add a button to refresh the data
         if st.button("Refresh Cases"):
-            st.cache_data.clear()
+            st.cache_data.clear()  # TODO: Check if this deletes the database and stuff as well
             st.rerun()
 
     with tab2:
@@ -197,23 +219,12 @@ def active_cases():
             current_stage = selected_case['stage']
 
             # Display expandable sections for each step of the process
-            with st.expander("Step 1: Documents Received", expanded=(current_stage == 1)):
-                st.write("Documents have been received from the client.")
-                if current_stage == 1 and st.button("Mark as Verified"):
-                    db.query("UPDATE audit_case SET stage = 2 WHERE id = ?", (case_id,))
-                    st.success("Case marked as Verified!")
-                    # Clear cache and refresh
-                    st.cache_data.clear()
-                    st.rerun()
+            expander_stages.stage_1(case_id, current_stage, db)
+            expander_stages.stage_2(case_id, current_stage)
+            #expander_stages.stage_3(case_id, current_stage)
+            #expander_stages.stage_4(case_id, current_stage)
 
-            with st.expander("Step 2: Data Verified", expanded=(current_stage == 2)):
-                st.write("Client data has been verified against our records.")
-                if current_stage == 2 and st.button("Issue Certificate"):
-                    db.query("UPDATE audit_case SET stage = 3 WHERE id = ?", (case_id,))
-                    st.success("Certificate Issued!")
-                    # Clear cache and refresh
-                    st.cache_data.clear()
-                    st.rerun()
+            # TODO: Continue to implement the rest of the stages!
 
             with st.expander("Step 3: Certificate Issued", expanded=(current_stage == 3)):
                 st.write("Certificate has been issued to BaFin.")
@@ -234,23 +245,302 @@ def active_cases():
                     st.rerun()
 
 
-def settings():
+# TODO: Check if this works as expected!
+def settings(database: Database = None):
     """
     This is the settings ui page for the application.
     """
     log.debug('Rendering settings page')
 
-
     # Page title and description
     st.header('Settings')
     st.write('Configure the application settings below.')
+
+    # New section for audit process initialization
+    st.subheader("Audit Process")
+
+    with st.expander("Initialize Annual Audit Process", expanded=True):
+        st.write("""
+        This will create a new audit case (stage 1) for every client in the database 
+        that doesn't already have an active case. Use this to start the annual audit process.
+        """)
+
+        # Add a confirmation checkbox for safety
+        confirm_init = st.checkbox("I understand this will create new audit cases for all clients")
+
+        # Check if the database instance is provided, otherwise fetch the instance
+        if database:
+            db = database
+        else:
+            db = Database().get_instance()
+
+        if st.button("Initialize Audit Cases", disabled=not confirm_init):
+            with st.spinner("Creating audit cases..."):
+                # Find clients without active audit cases
+                clients_without_cases = db.query("""
+                    SELECT id FROM client 
+                    WHERE id NOT IN (
+                        SELECT client_id FROM audit_case 
+                        WHERE stage < 5
+                    )
+                """)
+
+                if not clients_without_cases:
+                    st.warning("All clients already have active audit cases.")
+                else:
+                    # Create a new audit case for each client
+                    created_count = 0
+                    for client_id in clients_without_cases:
+                        db.insert("""
+                            INSERT INTO audit_case (client_id, stage, comments)
+                            VALUES (?, 1, 'Automatically created for annual audit process')
+                        """, (client_id[0],))
+                        created_count += 1
+
+                    # Success message
+                    st.success(f"Successfully created {created_count} new audit cases.")
+
+                    # Log the action
+                    log.info(f"Created {created_count} new audit cases for annual audit process")
+
+    # Archive cases section
+    with st.expander("Archive Completed Cases", expanded=True):
+        st.write(
+            """
+            This will archive all audit cases that are in stage 4 (Process Completion).
+            Archived cases will no longer appear in the active cases view.
+            """
+        )
+
+        # Get case statistics
+        stage_counts = db.query("""
+            SELECT stage, COUNT(*) 
+            FROM audit_case 
+            WHERE stage < 5 
+            GROUP BY stage
+        """)
+
+        # Create a dictionary of stage counts
+        stage_stats = {1: 0, 2: 0, 3: 0, 4: 0}
+        for stage, count in stage_counts:
+            stage_stats[stage] = count
+
+        # Display statistics
+        st.write("Current audit case statistics:")
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            st.metric("Stage 1", stage_stats[1], help="Waiting for documents")
+        with col2:
+            st.metric("Stage 2", stage_stats[2], help="Data verification")
+        with col3:
+            st.metric("Stage 3", stage_stats[3], help="Certification")
+        with col4:
+            st.metric("Stage 4", stage_stats[4], help="Process completion")
+
+        # Warning if there are cases not in stage 4
+        not_completed = stage_stats[1] + stage_stats[2] + stage_stats[3]
+        if not_completed > 0:
+            st.warning(f"⚠️ There are still {not_completed} active cases that are not ready for archiving (stages 1-3).")
+
+        # Add a confirmation checkbox for safety
+        confirm_archive = st.checkbox("I understand this will archive all cases in stage 4")
+
+        if st.button("Archive Completed Cases", disabled=not confirm_archive):
+            with st.spinner("Archiving completed cases..."):
+                # Count cases to be archived
+                cases_to_archive = db.query("""
+                    SELECT COUNT(*) FROM audit_case 
+                    WHERE stage = 4
+                """)[0][0]
+
+                if cases_to_archive == 0:
+                    st.info("No completed cases to archive.")
+                else:
+                    # TODO: Implement archiving logic - this would include:
+                    # 1. Move documents to archive storage
+                    # 2. Update database records
+                    # 3. Create archive logs
+
+                    # For now, just update the stage to 5 (Archived)
+                    db.query("""
+                        UPDATE audit_case 
+                        SET stage = 5,
+                            comments = CASE 
+                                WHEN comments IS NULL THEN 'Archived automatically'
+                                ELSE comments || ' | Archived automatically'
+                            END
+                        WHERE stage = 4
+                    """)
+
+                    # Success message
+                    st.success(f"Successfully archived {cases_to_archive} completed cases.")
+
+                    # Log the action
+                    log.info(f"Archived {cases_to_archive} completed cases")
+
+                    # Refresh the statistics
+                    st.rerun()
+
+    # Divider before other settings
+    st.divider()
+
+    # You can add other settings sections below
+    st.subheader("Application Settings")
+    st.write("Other settings will go here!")
 
 
 def about():
     """
     This is the about ui page for the application.
     """
-    # TODO: Limit the amount of text displayed in the log file to prevent long loading times
-    # Display the contents of the log file in a code block (as a placeholder)
-    with open(os.path.join(os.getenv('LOG_PATH', ''), 'application.log'), 'r') as file:
-        st.code(file.read())
+    st.header('About')
+    st.write('FinDAG Document Processing Application')
+
+    # Display log file with configurable number of lines
+    log_path = os.path.join(os.getenv('LOG_PATH', ''), 'application.log')
+    if os.path.exists(log_path):
+        try:
+            # Use a deque to efficiently get the last 300 lines
+            from collections import deque
+
+            # Read the last 300 lines
+            with open(log_path, 'r') as file:
+                last_lines = deque(file, maxlen=300)
+                last_lines = list(last_lines)
+
+            # Add a slider to control how many lines to display
+            num_lines = st.slider('Number of log lines to display',
+                                  min_value=10,
+                                  max_value=len(last_lines),
+                                  value=min(100, len(last_lines)),
+                                  step=10)
+
+            # Get the selected number of lines from the end of the list
+            displayed_lines = last_lines[-num_lines:] if num_lines < len(last_lines) else last_lines
+
+            # Join the lines into a single string
+            log_content = ''.join(displayed_lines)
+
+            st.subheader(f'Application Logs (Last {num_lines} of {len(last_lines)} lines)')
+            st.code(log_content)
+        except Exception as e:
+            st.error(f"Error reading log file: {str(e)}")
+    else:
+        st.warning(f"Log file not found at {log_path}")
+
+    # Bug report section
+    st.subheader('Report an Issue')
+    st.write('If you encounter any problems with the application, please describe the issue below:')
+
+    issue_description = st.text_area('Issue Description', height=100)
+    # steps_to_reproduce = st.text_area('Steps to Reproduce', height=100)
+
+    if st.button('Submit Issue Report'):
+        if issue_description:
+            # Here you would implement the logic to save or send the bug report
+            # For now, just show a success message
+            st.success('Thank you for your report! The issue has been logged.')
+        else:
+            st.warning('Please provide a description of the issue.')
+
+
+def login(database: Database = None) -> bool:
+    """
+    Display a login form and handle authentication.
+
+    :return: True if login is successful, False otherwise.
+    """
+    st.title("Document Fetcher - Login")
+    st.markdown("Please enter your credentials to access the application.")
+
+    # Get client IP as early as possible
+    client_ip = sec.get_client_ip()
+
+    # Create columns for layout
+    col1, col2 = st.columns([1, 1])
+
+    with col1:
+        # Create a form for better UX
+        with st.form("login_form"):
+            username = st.text_input("Username").strip()
+            password = st.text_input("Password", type="password").strip()
+            submit = st.form_submit_button("Login")
+
+        if submit:
+            if not username or not password:
+                log.warning(f"Login attempt with empty credentials from IP: {client_ip}")
+                st.error("Please enter both username and password")
+                return False
+
+            # Check if the database instance is provided, otherwise fetch the instance
+            if database:
+                db = database
+            else:
+                db = Database().get_instance()
+
+            # Check for too many failed attempts from this IP
+            if sec.check_login_attempts(client_ip, db):
+                log.warning(f"Too many failed login attempts from IP: {client_ip}")
+                st.error("Too many failed login attempts. Please try again later.")
+                return False
+
+            # Query for user with the given username
+            user_data = db.query(
+                """
+                SELECT id, password_hash, password_salt, role
+                FROM user
+                WHERE username_email = ?
+                """, (username,)
+            )
+
+            if not user_data:
+                log.warning(f"Failed login attempt for username: {username} from IP: {client_ip}")
+                sec.record_failed_attempt(client_ip, username, db)
+                st.error("Invalid username or password")
+                return False
+
+            user_id, password_hash, password_salt, role = user_data[0]
+
+            # Verify password
+            if not sec.verify_password(password_hash, password_salt, password):
+                log.warning(f"Failed login attempt for user: {user_id} from IP: {client_ip}")
+                sec.record_failed_attempt(client_ip, username, db)
+                st.error("Invalid username or password")
+                return False
+
+            # Create a new session
+            session_key = sec.create_session(user_id, db)
+            if not session_key:
+                log.error(f"Failed to create session for user: {user_id} from IP: {client_ip}")
+                st.error("Failed to create session")
+                return False
+
+            # Store session information in session state
+            st.session_state['session_key'] = session_key
+            st.session_state['user_id'] = user_id
+            st.session_state['user_role'] = role
+            st.session_state['client_ip'] = client_ip  # Store IP in session state for later use
+
+            # Log successful login
+            log.info(f"Successful login for user: {user_id} ({username}) from IP: {client_ip}")
+            sec.record_successful_login(client_ip, user_id, db)
+
+            st.success(f"Welcome, {username}!")
+            return True
+
+    # Display demo accounts for testing
+    with col2:
+        st.markdown("""
+        ### Demo Accounts
+        
+        **Admin User**  
+        Username: admin@example.com  
+        Password: admin123
+        
+        **Auditor User**  
+        Username: auditor@example.com  
+        Password: auditor123
+        """)
+
+    return False
