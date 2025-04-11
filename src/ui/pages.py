@@ -29,22 +29,17 @@ def home(mailclient: Mailclient = None, database: Database = None):
     # Page title and description
     st.header('Document Fetcher')
     st.write('Welcome to the Document Fetcher application!')
-
-    # Check for mails who have already been downloaded
-    already_present_mails = auditflow.get_already_downloaded_email_ids()
-    # TODO: Check if this interferes with the visuals!
-
+    
     # Fetch the emails (exclude those who have already been downloaded)
-    if already_present_mails:
-        emails = auditflow.get_emails(already_present_mails)
-    else:
-        emails = auditflow.get_emails()
+    emails = auditflow.fetch_new_emails(mailclient, database)
+    # TODO: Check if this interferes with the visuals (since we don't just load all emails present)
 
     # Configure visuals layout
     column_left, column_right = st.columns(2)
 
     # Display the mails
     st.dataframe(emails)
+    # TODO: Check if the new selector ids work (e.g. the list number matches the number used by the selector)
 
     # Display a plot on the right
     with column_left:
@@ -60,7 +55,7 @@ def home(mailclient: Mailclient = None, database: Database = None):
         # Process only the selected documents
         if st.button('Process selected documents'):
             with st.spinner(f'Processing mails'):
-                assess_emails(docs_to_process)
+                auditflow.assess_emails(docs_to_process)
 
             # Rerun the app to update the display
             st.rerun()
@@ -90,10 +85,10 @@ def home(mailclient: Mailclient = None, database: Database = None):
             # If no mails are in the database, fetch all mails
             if len(already_processed_mails) > 0:
                 with st.spinner(f'Processing mails'):
-                    assess_emails(mailclient.get_mails(excluded_ids=already_processed_mails)['ID'])
+                    auditflow.assess_emails(mailclient.get_mails(excluded_ids=already_processed_mails)['ID'])
             else:
                 with st.spinner(f'Processing mails'):
-                    assess_emails(emails['ID'])
+                    auditflow.assess_emails(emails['ID'])
 
             # Rerun the app to update the display
             st.rerun()

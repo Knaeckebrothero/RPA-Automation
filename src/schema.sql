@@ -38,12 +38,25 @@ CREATE TABLE IF NOT EXISTS client (
 CREATE TABLE IF NOT EXISTS audit_case (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     client_id INTEGER NOT NULL UNIQUE,
-    email_id INTEGER,
+    email_id INTEGER,  -- TODO: This attribute is depricated and should be removed at some point! 
     stage INTEGER NOT NULL DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     comments TEXT,
     FOREIGN KEY (client_id) REFERENCES client(id)
+);
+
+-- Document table
+CREATE TABLE IF NOT EXISTS document (
+    document_hash TEXT NOT NULL,
+    audit_case_id INTEGER NOT NULL,
+    email_id INTEGER,
+    document_filename TEXT,
+    document_path TEXT,
+    processed BOOLEAN DEFAULT FALSE,
+    processing_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (document_hash, audit_case_id),
+    FOREIGN KEY (audit_case_id) REFERENCES audit_case(id) ON DELETE CASCADE
 );
 
 -- User table
@@ -82,6 +95,8 @@ CREATE INDEX IF NOT EXISTS idx_client_bafin_id ON client(bafin_id);
 CREATE INDEX IF NOT EXISTS idx_stage_client_id ON audit_case(client_id);
 CREATE INDEX IF NOT EXISTS idx_stage_email_id ON audit_case(email_id);
 CREATE INDEX IF NOT EXISTS idx_stage_created_at ON audit_case(created_at);
+CREATE INDEX IF NOT EXISTS idx_document_email_id ON document(email_id);
+CREATE INDEX IF NOT EXISTS idx_document_hash ON document(document_hash);
 CREATE INDEX IF NOT EXISTS idx_session_key_session_key ON session_key(session_key);
 CREATE INDEX IF NOT EXISTS idx_user_role ON user(role);
 CREATE INDEX IF NOT EXISTS idx_login_attempts_ip_time ON login_attempts(ip_address, attempt_time);

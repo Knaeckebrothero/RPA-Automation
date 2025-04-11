@@ -9,6 +9,7 @@ from cls.database import Database
 from cls.mailclient import Mailclient
 from processing.ocr import create_ocr_reader
 
+
 # Set up logging
 log = logging.getLogger(__name__)
 
@@ -117,6 +118,8 @@ def assess_emails(emails: pd.DataFrame):
 
                         # TODO: CONTINUE IMPLEMENTING THE STORAGE OF THE DOCUMENTS AFTER THEY HAVE BEEN PROCESSED !!!
 
+                        # Save the attachment to the database
+
                         # Save the attachment to the filesystem's downloads folder if it should be kept
                         if attachment_case_id:
                             attachment.save_to_file(os.path.join(
@@ -190,19 +193,32 @@ def update_audit_case(document: PDF):
                  f' {document.client_id} is the same as the one in the database.')
 
 
-def get_already_downloaded_email_ids(database: Database = None) -> list[int]:
+def fetch_new_emails(mailclient: Mailclient = None, database: Database = None) -> pd.DataFrame:
     """
-    Function to get the mail ids of the mails who have already been downloaded.
+    Function to fetch new emails from the mail client.
 
+    :param mailclient: The mail client instance to use (optional).
     :param database: The database instance to use (optional).
-    :return: The mail ids of the fetched mails.
+    :return: The new emails fetched from the mail client.
     """
     if database:
         db = database
     else:
         db = Database.get_instance()
 
-    mail_ids = db.query("SELECT DISTINCT email_id FROM audit_case")[0][0]
-    log.info(f'Found a total of {len(mail_ids)} mail ids already in the database.')
+    if not mailclient:
+        mailclient = Mailclient.get_instance()
 
-    return mail_ids
+    # TODO: Make sure that a email is not marked as processed unless the process finished successfully 
+    #  (e.g. if the app crashes but the mail has already been makred "processed", 
+    #   then we might run into an issue with emails slipping through without processing!)
+
+    # Check what emails have already been processed
+    processed_mails = db.query("SELECT DISTINCT email_id FROM document")[0][0]
+    log.debug(f'Found a total of {len(processed_mails)} mails already in the database.')
+
+    # Fetch the emails from the mail client
+    new_mails = get_emails(processed_mails)
+    log.info(f'Found a total of {len(new_mails)} new mails.')
+
+    return new_mails

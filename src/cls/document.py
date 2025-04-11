@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 import re
 import logging
+import hashlib
 
 # Custom imports
 import processing.detect as dtc
@@ -18,6 +19,7 @@ from cls.database import Database
 # Set up logging
 log  = logging.getLogger(__name__)
 
+
 class Document:
     """
     The Document class represents a basic document.
@@ -25,16 +27,19 @@ class Document:
     """
     _db = Database.get_instance()
 
-    def __init__(self, content: bytes, attributes: dict = None, content_path: str = None):
+    def __init__(self, content: bytes, attributes: dict = None, content_path: str = None, document_hash: str = None):
         """
         The constructor for the Document class.
 
         :param content: The raw content of the document.
         :param attributes: A set of attributes for the document.
+        :param content_path: The path to the content file.
+        :param document_hash: The hash of the document content.
         """
         self._content: bytes = content
         self._attributes: dict = attributes if attributes else {}
         self._content_path: str = content_path
+        self.document_hash: str = document_hash if document_hash else self._generate_document_hash()
         log.debug(f"Document created: {len(self._content) if self._content else 0}, {len(self._attributes.keys())}")
 
     def __str__(self):
@@ -44,6 +49,7 @@ class Document:
         Content path: {self._content_path} 
         """
 
+    # TODO: Perhaps we should move to using getters and setters for all attributes (e.g. be consistant with the attributes)
     def get_content(self) -> bytes:
         return self._content
 
@@ -174,6 +180,28 @@ class Document:
             "content_path": self._content_path
         }
 
+    def _generate_document_hash(self, add_document_hash: bool = True) -> str | None:
+        """
+        Generate an MD5 hash of the document content to uniquely identify it.
+        
+        :return: The document hash as a string, or None if content is empty.
+        """
+        if not self._content:
+            log.warning("No content available to generate hash")
+            return None
+
+        # Generate MD5 hash of the content            
+        md5_hash = hashlib.md5(self._content).hexdigest()
+        log.debug(f"Document hash generated: {md5_hash}")
+
+        # Add the hash to the attributes if requested
+        if add_document_hash:
+            self.document_hash = md5_hash
+            self._attributes["document_hash"] = md5_hash
+            log.debug(f"Document hash added to attributes: {md5_hash}")
+
+        return md5_hash
+
     @classmethod
     def from_json(cls, json_path: str, load_content: bool = True):
         """
@@ -260,7 +288,7 @@ class PDF(Document):
     It extends the Document class with PDF-specific functionality like OCR and table extraction.
     """
     def __init__(self, content: bytes, email_id: int = None, client_id: int = None, bafin_id: int = None,
-                 attributes: dict = None, content_path: str = None, audit_case_id: int = None):
+                 attributes: dict = None, content_path: str = None, audit_case_id: int = None, document_hash: str = None):
         """
         The constructor for the PDF class.
 
@@ -271,8 +299,9 @@ class PDF(Document):
         :param bafin_id: The BaFin ID associated with the document.
         :param content_path: The path to the content file.
         :param audit_case_id: The audit case ID associated with the document.
+        :param document_hash: The hash of the document content.
         """
-        super().__init__(content, attributes, content_path)
+        super().__init__(content, attributes, content_path, document_hash)
         self.email_id = email_id
         self.client_id = client_id
         self.bafin_id = bafin_id
@@ -723,3 +752,66 @@ class PDF(Document):
         else:
             log.debug(f"No client id found for document: {self.email_id}")
             return None
+
+    # TODO: CONTINUE HERE, CHECK IF THIS METHOD IS WHAT YOU WANT!!!
+    def store_document(self, audit_case_id: int) -> bool:
+        """
+        Store the document on disk and create an entry in the document table.
+        This method ensures that the database entry is only created if the file
+        is successfully saved to disk.
+        
+        :param audit_case_id: The ID of the audit case associated with the document.
+        :return: True if successful, False otherwise.
+        """
+        try:
+            if not self.document_hash:
+                log.debug("Document hash not set, generating hash")
+                if not self._generate_document_hash():
+                    log.error("Failed to generate the document hash")
+                    return False
+            
+            # Check if this document already exists for this audit case
+            existing_doc = self._db.query(
+                "SELECT document_path FROM document WHERE document_hash = ? AND audit_case_id = ?",
+                (self.document_hash, audit_case_id)
+            )
+            
+            if existing_doc:
+                log.info(f"Document with hash {self.document_hash[:8]} already exists for audit case {audit_case_id}")
+                return True
+            
+            # Create filename and path
+            filename = self.get_attributes("filename") or f"document_{self.document_hash[:8]}.pdf"
+            if self.email_id:
+                filename = f"{self.email_id}_{filename}"
+            
+            base_path = os.path.join(
+                os.getenv('FILESYSTEM_PATH', './.filesystem'),
+                "downloads",
+                str(audit_case_id)
+            )
+            full_path = os.path.join(base_path, filename)
+            
+            # Save file to disk using the existing method
+            saved_path = self.save_to_file(full_path)
+            
+            if not saved_path:
+                log.error(f"Failed to save document to {full_path}")
+                return False
+            
+            # If file saved successfully, create database entry
+            self._db.insert(
+                """
+                INSERT INTO document 
+                (document_hash, audit_case_id, email_id, document_filename, document_path, processed) 
+                VALUES (?, ?, ?, ?, ?, ?)
+                """, 
+                (self.document_hash, audit_case_id, self.email_id, filename, saved_path, False)
+            )
+            
+            log.info(f"Document with hash {self.document_hash[:8]} saved to {saved_path} and added to database")
+            return True
+            
+        except Exception as e:
+            log.error(f"Error storing document: {e}")
+            return False
