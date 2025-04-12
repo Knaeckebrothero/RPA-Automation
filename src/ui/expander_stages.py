@@ -63,7 +63,7 @@ def _display_document_verification(case_id, doc_hash, filename, path, processed,
                     with open(path, "rb") as file:
                         pdf_bytes = file.read()
                     st.write("**Document Preview:**")
-                    st.pdf(pdf_bytes, width=300)
+                    # st.pdf(pdf_bytes, width=300)  # TODO: This function doesn't exist in Streamlit
             else:
                 st.error(f"Document file not found at: {path}")
         except Exception as e:
@@ -263,6 +263,7 @@ def stage_2(case_id: int, current_stage: int, database: Database = None):
         db = Database.get_instance()
     else:
         db = database
+    # TODO: Move this logic into a function
 
     with st.expander("Data verification", expanded=(current_stage == 2), icon=_icon((current_stage > 2))):
         if current_stage <= 2:
@@ -295,6 +296,11 @@ def stage_2(case_id: int, current_stage: int, database: Database = None):
                     doc_hash, filename, path, processed, proc_date = documents[0]
                     _display_document_verification(case_id, doc_hash, filename, path, processed, proc_date, db)
             else:
+
+                # TODO: This case shouldn't exist since the case can't entr stage 2 without a document!
+                #  Thouhgh a fallback option might be implemented here (something like set back to stage 1)
+                #   Or the error should be logged since a doc might went missing.
+                #    The code can still be used if put in expander stage_1()!
                 st.warning("No documents found for this case. Please upload or process a document first.")
 
                 # Option to manually upload a document
