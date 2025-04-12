@@ -155,6 +155,9 @@ def client_db_value_comparison(client_document: PDF, include_all_fields=True, da
     else:
         db = Database.get_instance()
 
+    # print(client_document.__str__())
+    # TODO: CONTINUE HERE IMPLEMENTING THE NEW DISPLAY FUNCTION!!!
+
     if not client_document.bafin_id:
         log.warning("No BaFin ID found for document, cannot compare values")
         return pd.DataFrame(columns=["Key figure", "Database value", "Document value", "Match status"])

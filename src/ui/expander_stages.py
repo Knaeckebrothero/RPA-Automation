@@ -290,7 +290,8 @@ def stage_2(case_id: int, current_stage: int, database: Database = None):
 
                     for i, (doc_hash, filename, path, processed, proc_date) in enumerate(documents):
                         with doc_tabs[i]:
-                            _display_document_verification(case_id, doc_hash, filename, path, processed, proc_date, db)
+                            client_db_value_comparison()
+                            #_display_document_verification(case_id, doc_hash, filename, path, processed, proc_date, db)
                 else:
                     # Only one document, no need for tabs
                     doc_hash, filename, path, processed, proc_date = documents[0]

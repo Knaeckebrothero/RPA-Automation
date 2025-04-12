@@ -46,7 +46,8 @@ class Document:
         return f"""
         Document: of size {len(self._content)} bytes, with: {len(self._attributes.keys())} number of attributes.
         Attributes: {self._attributes}
-        Content path: {self._content_path} 
+        Content path: {self._content_path}
+        Document Hash: {self.document_hash}
         """
 
     # TODO: Perhaps we should move to using getters and setters for all attributes (e.g. be consistant with the attributes)
@@ -317,7 +318,9 @@ class PDF(Document):
         Email ID: {self.email_id}
         Client ID: {self.client_id}
         BaFin ID: {self.bafin_id}
-        {base_str.rstrip()} 
+        Audit Case ID: {self.audit_case_id}
+        Audit Values: {self._audit_values}
+        {base_str.rstrip()}
         """
 
     def _get_serializable_data(self):
