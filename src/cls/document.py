@@ -287,8 +287,10 @@ class PDF(Document):
     The PDF class represents a PDF document.
     It extends the Document class with PDF-specific functionality like OCR and table extraction.
     """
-    def __init__(self, content: bytes, email_id: int = None, client_id: int = None, bafin_id: int = None,
-                 attributes: dict = None, content_path: str = None, audit_case_id: int = None, document_hash: str = None):
+    def __init__(
+            self, content: bytes, email_id: int = None, client_id: int = None, bafin_id: int = None,
+            attributes: dict = None, content_path: str = None, audit_case_id: int = None,
+            document_hash: str = None, audit_values: dict = None):
         """
         The constructor for the PDF class.
 
@@ -306,6 +308,7 @@ class PDF(Document):
         self.client_id = client_id
         self.bafin_id = bafin_id
         self.audit_case_id = audit_case_id
+        self._audit_values = audit_values
         log.debug("PDF document created")
 
     def __str__(self):
@@ -538,6 +541,10 @@ class PDF(Document):
 
         log.debug(f"Starting value comparison for document with BaFin ID: {self.bafin_id}")
 
+        # Initialize audit_values dictionary if it doesn't exist
+        if not hasattr(self, '_audit_values') or self._audit_values is None:
+            self._audit_values = {}
+
         # Fetch client data from database
         client_data = self._db.query(f"""
         SELECT 
@@ -587,9 +594,22 @@ class PDF(Document):
             15: [r"Nr\.? 11 FinDAG", r"Nr\.? 11", r"sonstigen Bearbeitungsentgelten"]
         }
 
+        # Map field codes to names for storing in audit_values
+        field_codes = {
+            1: "p033", 2: "p034", 3: "p035", 4: "p036",
+            5: "ab2s1n01", 6: "ab2s1n02", 7: "ab2s1n03", 8: "ab2s1n04",
+            9: "ab2s1n05", 10: "ab2s1n06", 11: "ab2s1n07", 12: "ab2s1n08",
+            13: "ab2s1n09", 14: "ab2s1n10", 15: "ab2s1n11"
+        }
+
         # Track matches and mismatches
         matches = {}
         mismatches = {}
+
+        # Store database values for all fields in audit_values
+        for db_index, field_code in field_codes.items():
+            if db_index < len(client_data):
+                self._audit_values[f"db_{field_code}"] = client_data[db_index]
 
         for key, value in document_attributes.items():
             matched = False
@@ -607,6 +627,12 @@ class PDF(Document):
                 for pattern in patterns:
                     if re.search(pattern, key, re.IGNORECASE):
                         matched = True
+                        field_code = field_codes[db_index]
+
+                        # Store the raw extracted value and key in audit_values
+                        self._audit_values[f"raw_{field_code}"] = value
+                        self._audit_values[f"key_{field_code}"] = key
+
                         # Try to convert document value to integer for comparison
                         try:
                             # Remove dots (thousand separators) and convert commas to periods for decimal values
@@ -622,30 +648,41 @@ class PDF(Document):
                                 # For integers
                                 doc_value = int(processed_value)
 
+                            # Store the processed numeric value
+                            self._audit_values[field_code] = doc_value
+
                             db_value = client_data[db_index]
 
                             # Compare values
                             if doc_value == db_value:
                                 matches[db_index] = (key, value, db_value)
+                                # Store match status
+                                self._audit_values[f"match_{field_code}"] = True
                                 log.debug(f"Match for {key}: Document value '{value}' matches database value '{db_value}'")
                             else:
                                 mismatches[db_index] = (key, value, db_value)
+                                # Store match status
+                                self._audit_values[f"match_{field_code}"] = False
                                 log.warning(f"Mismatch for {key}: Document value '{value}' ({doc_value}) does not match database value '{db_value}'")
 
                         except (ValueError, TypeError) as e:
-                            log.warning(f"Could not convert '{value}' to number for comparison: {e}")
+                            # Store the error
+                            self._audit_values[f"error_{field_code}"] = str(e)
                             mismatches[db_index] = (key, value, "Conversion error")
+                            log.warning(f"Could not convert '{value}' to number for comparison: {e}")
 
                         break  # Stop checking patterns for this field
 
-                if matched:
-                    break  # Stop checking db fields for this attribute
+                    if matched:
+                        break  # Stop checking db fields for this attribute
 
         # Check for required fields that weren't found in the document
         required_fields = [1, 5, 6, 7, 8, 9, 10]  # p033 and ab2s1n01-ab2s1n06 are mandatory
         missing_fields = [idx for idx in required_fields if idx not in matches and idx not in mismatches]
 
         for idx in missing_fields:
+            field_code = field_codes[idx]
+            self._audit_values[f"missing_{field_code}"] = True
             log.warning(f"Required field {idx} not found in document")
             mismatches[idx] = ("Not found", "N/A", client_data[idx])
 
@@ -653,6 +690,13 @@ class PDF(Document):
         total_fields = len(required_fields)
         matched_fields = sum(1 for idx in required_fields if idx in matches)
         match_percentage = (matched_fields / total_fields) * 100 if total_fields > 0 else 0
+
+        # Store overall match information
+        self._audit_values["match_percentage"] = match_percentage
+        self._audit_values["total_required_fields"] = total_fields
+        self._audit_values["matched_required_fields"] = matched_fields
+        self._audit_values["missing_fields"] = len(missing_fields)
+        self._audit_values["mismatched_fields"] = len(mismatches) - len(missing_fields)
 
         log.info(f"Value comparison complete - {matched_fields}/{total_fields} required fields match ({match_percentage:.1f}%)")
 
