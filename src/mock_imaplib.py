@@ -154,7 +154,7 @@ class MockIMAP4_SSL():
                 load_dotenv()
 
             # Load the saved response
-            with open(f"{os.getenv("EXAMPLE_MAIL_PATH")}/test_mail_{message_id_str}.pickle", 'rb') as f:
+            with open(f"{os.getenv('EXAMPLE_MAIL_PATH')}/test_mail_{message_id_str}.pickle", 'rb') as f:
                 msg_data = pickle.load(f)
 
             return 'OK', msg_data

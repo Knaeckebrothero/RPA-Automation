@@ -31,7 +31,7 @@ def home(mailclient: Mailclient = None, database: Database = None):
     st.write('Welcome to the Document Fetcher application!')
     
     # Fetch the emails (exclude those who have already been downloaded)
-    emails = auditflow.fetch_new_emails(mailclient, database)
+    emails = auditflow.fetch_new_emails(database)
     # TODO: Check if this interferes with the visuals (since we don't just load all emails present)
 
     # Configure visuals layout
@@ -49,6 +49,10 @@ def home(mailclient: Mailclient = None, database: Database = None):
 
     # Display a table on the left
     with column_right:
+        if emails.empty:
+            st.warning("No new emails to process.")
+            return
+
         # Display a multiselect box to select documents to process
         docs_to_process = st.multiselect('Select documents to process', emails['ID'])
 

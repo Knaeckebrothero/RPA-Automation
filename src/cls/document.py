@@ -38,7 +38,7 @@ class Document:
         """
         self._content: bytes = content
         self._attributes: dict = attributes if attributes else {}
-        self._content_path: str = content_path
+        self._content_path: str = content_path  # TODO: Check if this is still needed!
         self.document_hash: str = document_hash if document_hash else self._generate_document_hash()
         log.debug(f"Document created: {len(self._content) if self._content else 0}, {len(self._attributes.keys())}")
 
@@ -730,15 +730,17 @@ class PDF(Document):
 
         :return: The audit case id if it exists, otherwise None.
         """
-        client_id = self.client_id if not self.client_id else client_id = self.verify_bafin_id()
+        if not self.client_id:
+            log.debug(f"No client id on document: {self.email_id}")
+            self.verify_bafin_id()
 
         # Check if the client id is not None
-        if client_id:
-            log.debug(f"Getting audit case id for client id: {client_id}")
-            audit_case_id = self._db.query("SELECT id FROM audit_case WHERE client_id = ?", (client_id,))
+        if self.client_id:
+            log.debug(f"Getting audit case id for client id: {self.client_id}")
+            audit_case_id = self._db.query("SELECT id FROM audit_case WHERE client_id = ?", (self.client_id,))
 
             if audit_case_id:
-                log.debug(f"Audit case id: {audit_case_id[0][0]} found for client id: {client_id}")
+                log.debug(f"Audit case id: {audit_case_id[0][0]} found for client id: {self.client_id}")
 
                 if add_audit_case_id:
                     log.debug(f"Adding audit case id: {audit_case_id[0][0]} to document: {self.email_id}")
@@ -747,13 +749,12 @@ class PDF(Document):
 
                 return audit_case_id[0][0]
             else:
-                log.debug(f"No audit case found for client id: {client_id}")
+                log.debug(f"No audit case found for client id: {self.client_id}")
                 return None
         else:
             log.debug(f"No client id found for document: {self.email_id}")
             return None
 
-    # TODO: CONTINUE HERE, CHECK IF THIS METHOD IS WHAT YOU WANT!!!
     def store_document(self, audit_case_id: int) -> bool:
         """
         Store the document on disk and create an entry in the document table.
@@ -771,12 +772,11 @@ class PDF(Document):
                     return False
             
             # Check if this document already exists for this audit case
-            existing_doc = self._db.query(
+            existing_doc_path = self._db.query(
                 "SELECT document_path FROM document WHERE document_hash = ? AND audit_case_id = ?",
                 (self.document_hash, audit_case_id)
             )
-            
-            if existing_doc:
+            if existing_doc_path:
                 log.info(f"Document with hash {self.document_hash[:8]} already exists for audit case {audit_case_id}")
                 return True
             
@@ -784,19 +784,22 @@ class PDF(Document):
             filename = self.get_attributes("filename") or f"document_{self.document_hash[:8]}.pdf"
             if self.email_id:
                 filename = f"{self.email_id}_{filename}"
-            
-            base_path = os.path.join(
+
+            # Create the path
+            document_path = os.path.join(
                 os.getenv('FILESYSTEM_PATH', './.filesystem'),
-                "downloads",
-                str(audit_case_id)
+                "documents",
+                str(audit_case_id),
+                filename
             )
-            full_path = os.path.join(base_path, filename)
-            
+
             # Save file to disk using the existing method
-            saved_path = self.save_to_file(full_path)
+            self._content_path = document_path
+            saved_path = self.save_to_file(document_path, save_as_json=True)
             
             if not saved_path:
-                log.error(f"Failed to save document to {full_path}")
+                log.error(f"Failed to save document to {document_path}")
+                self._content_path = None
                 return False
             
             # If file saved successfully, create database entry

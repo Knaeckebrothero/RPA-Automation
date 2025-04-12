@@ -1,4 +1,3 @@
-import os
 import streamlit as st
 import pandas as pd
 import logging
@@ -15,13 +14,16 @@ log = logging.getLogger(__name__)
 
 
 @st.cache_data
-def get_emails():
+def get_emails(excluded_ids: list[int] = None):
     """
     Fetch the emails from the mail client.
 
     :return: The emails fetched from the mail client.
     """
-    return Mailclient.get_instance().get_mails()
+    if excluded_ids:
+        return Mailclient.get_instance().get_mails(excluded_ids)
+    else:
+        return Mailclient.get_instance().get_mails()
 
 
 def check_for_documents():
@@ -113,22 +115,12 @@ def assess_emails(emails: pd.DataFrame):
                                 # Get the audit case ID if it exists
                                 attachment_case_id = attachment.get_audit_case_id()
 
-                        # TODO: Add a proper method to save the attachment to the filesystem (aka. implement folder
-                        #  paths and stuff)
-
-                        # TODO: CONTINUE IMPLEMENTING THE STORAGE OF THE DOCUMENTS AFTER THEY HAVE BEEN PROCESSED !!!
-
-                        # Save the attachment to the database
-
-                        # Save the attachment to the filesystem's downloads folder if it should be kept
+                        # Store the document if we have an audit case ID
                         if attachment_case_id:
-                            attachment.save_to_file(os.path.join(
-                                os.getenv('FILESYSTEM_PATH'),
-                                "downloads",
-                                str(attachment_case_id),
-                                str(email_list_email_id) + "_" + attachment.get_attributes("filename")
-                            ))
-                            log.info(f'Saved attachment {attachment.get_attributes("filename")} to filesystem.')
+                            if attachment.store_document(attachment_case_id):
+                                log.info(f'Document {attachment.get_attributes("filename")} stored successfully for audit case {attachment_case_id}')
+                            else:
+                                log.error(f'Failed to store document {attachment.get_attributes("filename")} for audit case {attachment_case_id}')
                     else:
                         log.warning(f'No BaFin ID found in document {attachment.get_attributes("filename")}, '
                                     f'email_id: {attachment.email_id}')
@@ -193,11 +185,10 @@ def update_audit_case(document: PDF):
                  f' {document.client_id} is the same as the one in the database.')
 
 
-def fetch_new_emails(mailclient: Mailclient = None, database: Database = None) -> pd.DataFrame:
+def fetch_new_emails(database: Database = None) -> pd.DataFrame:
     """
     Function to fetch new emails from the mail client.
 
-    :param mailclient: The mail client instance to use (optional).
     :param database: The database instance to use (optional).
     :return: The new emails fetched from the mail client.
     """
@@ -206,19 +197,19 @@ def fetch_new_emails(mailclient: Mailclient = None, database: Database = None) -
     else:
         db = Database.get_instance()
 
-    if not mailclient:
-        mailclient = Mailclient.get_instance()
-
     # TODO: Make sure that a email is not marked as processed unless the process finished successfully 
-    #  (e.g. if the app crashes but the mail has already been makred "processed", 
+    #  (e.g. if the app crashes but the mail has already been marked "processed",
     #   then we might run into an issue with emails slipping through without processing!)
 
     # Check what emails have already been processed
-    processed_mails = db.query("SELECT DISTINCT email_id FROM document")[0][0]
-    log.debug(f'Found a total of {len(processed_mails)} mails already in the database.')
+    processed_mails = db.query("SELECT DISTINCT email_id FROM document")
 
     # Fetch the emails from the mail client
-    new_mails = get_emails(processed_mails)
-    log.info(f'Found a total of {len(new_mails)} new mails.')
+    if not processed_mails:
+        log.debug('No mails found in the database, fetching all mails.')
+        new_mails = get_emails()
+    else:
+        new_mails = get_emails(processed_mails)
+        log.debug(f'Found a total of {len(processed_mails)} mails already in the database.')
 
     return new_mails
