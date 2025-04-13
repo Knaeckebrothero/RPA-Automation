@@ -15,7 +15,7 @@ class PythonProjectCopier:
         'README.md',
         '.devcontainer/devcontainer.json',
         'table_detection.py', # Example file at root that might also be a .py file
-        'deployment/docker-compose.yml',
+        'deployment/Dockerfile',
         'examples/db_init.py' # Files in subdirectories
         # Add any other files you want to copy (use relative paths)
     ]
