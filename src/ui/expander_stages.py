@@ -64,7 +64,7 @@ def _display_document_verification(case_id, doc_hash, filename, path, processed,
                     with open(path, "rb") as file:
                         pdf_bytes = file.read()
                     st.write("**Document Preview:**")
-                    st.pdf(pdf_bytes, width=300)
+                    # st.pdf(pdf_bytes, width=300)  # TODO: Find a proper way to display the PDF
             else:
                 st.error(f"Document file not found at: {path}")
         except Exception as e:

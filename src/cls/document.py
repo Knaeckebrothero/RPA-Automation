@@ -52,7 +52,7 @@ class Document:
         Document Hash: {self.document_hash}
         """
 
-    # TODO: Perhaps we should move to using getters and setters for all attributes (e.g. be consistant with the attributes)
+    # TODO: Perhaps we should move to using getters and setters for all attributes (e.g. be consistent with the attributes)
     def get_content(self) -> bytes:
         return self._content
 
@@ -346,35 +346,6 @@ class PDF(Document):
 
         return data
 
-    def save_to_json(self, json_path: str = None):
-        """
-        Save the document metadata to a JSON file.
-
-        :param json_path: Path to save the JSON file. If None, uses the content_path with .json extension.
-        :return: Path to the JSON file
-        """
-        if not json_path and not self._content_path:
-            log.error("No JSON path provided and no content path set")
-            return None
-
-        if not json_path:
-            json_path = f"{os.path.splitext(self._content_path)[0]}.json"
-
-        try:
-            # Create a serializable representation of the document
-            serialized = self._get_serializable_data()
-
-            # Save to JSON file
-            with open(json_path, 'w', encoding='utf-8') as f:
-                json.dump(serialized, f, ensure_ascii=False, indent=2)
-
-            log.info(f"Document metadata saved to: {json_path}")
-            return json_path
-
-        except (IOError, TypeError) as e:
-            log.error(f"Error saving document metadata to JSON: {e}")
-            return None
-
     @classmethod
     def _create_from_json_data(cls, data, load_content):
         """
@@ -594,12 +565,12 @@ class PDF(Document):
         """, (self.bafin_id,))
 
         # Check if client exists in database
-        if not client_data:
+        if client_data:
+            client_data = client_data[0]
+            log.debug(f"Retrieved client data: {client_data}")
+        else:
             log.warning(f"Client with BaFin ID {self.bafin_id} not found in database")
             return False
-
-        client_data = client_data[0]  # Get first row of results
-        log.debug(f"Retrieved client data: {client_data}")
 
         # Define field codes and their corresponding positions in client_data
         field_codes = {
@@ -827,13 +798,13 @@ class PDF(Document):
             log.error(f"Error storing document: {e}")
             return False
 
-    def extract_audit_values(self) -> dict:
+    def extract_audit_values(self, patterns_file_path: str = None) -> dict:
         """
         Extract audit-relevant values from document attributes and populate self._audit_values.
-
         This function processes document attributes to identify fields relevant for audit
         verification, applying normalization to make comparison with database values more reliable.
 
+        :param patterns_file_path: Path to the JSON file containing regex patterns. If None, uses default path.
         :return: Dictionary containing extracted and normalized audit values
         """
         if not hasattr(self, '_audit_values') or self._audit_values is None:
@@ -845,27 +816,19 @@ class PDF(Document):
             log.warning("No attributes found in document")
             return self._audit_values
 
-        # Define field mappings between document text patterns and field codes
-        field_mappings = {
-            # Position fields
-            "p033": [r"Position 033", r"Position033", r"Pos\.? 033", r"Provisionsergebnis"],
-            "p034": [r"Position 034", r"Position034", r"Pos\.? 034", r"Nettoergebnis.*Wertpapieren"],
-            "p035": [r"Position 035", r"Position035", r"Pos\.? 035", r"Nettoergebnis.*Devisen"],
-            "p036": [r"Position 036", r"Position036", r"Pos\.? 036", r"Nettoergebnis.*Derivaten"],
+        # Load regex patterns from file
+        if not patterns_file_path:
+            # Default path is in the same directory as schema.sql
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            patterns_file_path = os.path.join(base_dir, 'regex_patterns.json')
 
-            # Section fields (§ 16j Abs. 2 Satz 1 Nr. X FinDAG)
-            "ab2s1n01": [r"Nr\.? 1 FinDAG", r"Nr\.? 1", r"Zahlungsverkehr"],
-            "ab2s1n02": [r"Nr\.? 2 FinDAG", r"Nr\.? 2", r"Außenhandelsgeschäft"],
-            "ab2s1n03": [r"Nr\.? 3 FinDAG", r"Nr\.? 3", r"Reisezahlungsmittelgeschäft"],
-            "ab2s1n04": [r"Nr\.? 4 FinDAG", r"Nr\.? 4", r"Treuhandkredite"],
-            "ab2s1n05": [r"Nr\.? 5 FinDAG", r"Nr\.? 5", r"Vermittlung von Kredit"],
-            "ab2s1n06": [r"Nr\.? 6 FinDAG", r"Nr\.? 6", r"Kreditbearbeitung"],
-            "ab2s1n07": [r"Nr\.? 7 FinDAG", r"Nr\.? 7", r"ausländischen Tochterunternehmen"],
-            "ab2s1n08": [r"Nr\.? 8 FinDAG", r"Nr\.? 8", r"Nachlassbearbeitungen"],
-            "ab2s1n09": [r"Nr\.? 9 FinDAG", r"Nr\.? 9", r"Electronic Banking"],
-            "ab2s1n10": [r"Nr\.? 10 FinDAG", r"Nr\.? 10", r"Gutachtertätigkeiten"],
-            "ab2s1n11": [r"Nr\.? 11 FinDAG", r"Nr\.? 11", r"sonstigen Bearbeitungsentgelten"]
-        }
+        try:
+            with open(patterns_file_path, 'r', encoding='utf-8') as f:
+                field_mappings = json.load(f)
+            log.debug(f"Loaded regex patterns from {patterns_file_path}")
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            log.error(f"Error loading regex patterns file: {e}")
+            return {}
 
         # Process document attributes to find and normalize audit values
         for key, value in document_attributes.items():
@@ -906,6 +869,6 @@ class PDF(Document):
                         # Store error information
                         self._audit_values[f"error_{field_code}"] = str(e)
 
-                    break  # Stop checking patterns once we find a match
+                    break  # Stop checking patterns once a match was found
 
         return self._audit_values
