@@ -162,29 +162,6 @@ def process_audit_case(document: PDF):
         #  the values can be added/referenced there!)
 
 
-# TODO: Remove this method since the update_audit_case() method already covers this functionality
-def update_audit_case(document: PDF):
-    """
-    Function to update an audit case which has already received a document.
-
-    :param document: The document to update the audit case for.
-    """
-    db = Database().get_instance()
-
-    # Check if the email_id is the same as the one in the database
-    email_id_db = db.query("SELECT email_id FROM audit_case WHERE client_id = ?", (document.client_id,))[0][0]
-    if document.email_id != email_id_db:
-        log.info(f'Email id: {document.email_id} for case with client id: {document.client_id} is different from '
-                 f' email id: {email_id_db} already in the one in the database.')
-
-        # Check if the new document matches the values in the database
-        #if document.compare_values():
-        #else:
-    else:
-        log.info(f'Skipping document since email id: {document.email_id} for case with client id:'
-                 f' {document.client_id} is the same as the one in the database.')
-
-
 def fetch_new_emails(database: Database = None) -> pd.DataFrame:
     """
     Function to fetch new emails from the mail client.

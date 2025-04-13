@@ -146,8 +146,10 @@ def client_db_value_comparison(client_document: PDF, include_all_fields=True, da
     """
     Generate a DataFrame comparing values from the database with values extracted from the document.
     
-    :param include_all_fields: If True, includes all fields in the comparison; otherwise only includes
-                              fields that are required for validation.
+    :param include_all_fields: If True, includes all fields in the comparison; otherwise only includes fields that
+     are required for validation.
+    :param client_document: The document to compare values from.
+    :param database: Optional database instance; if not provided, uses the default instance.
     :return: Pandas DataFrame with columns for key figure, database value, document value, and match status
     """
     if database:

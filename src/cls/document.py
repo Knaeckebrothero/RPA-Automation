@@ -44,8 +44,10 @@ class Document:
 
     def __str__(self):
         return f"""
-        Document: of size {len(self._content)} bytes, with: {len(self._attributes.keys())} number of attributes.
+        ----------------- 
+        Document: of size {len(self._content)} bytes, with: {len(self._attributes.keys())} number of attributes. 
         Attributes: {self._attributes}
+        -----------------
         Content path: {self._content_path}
         Document Hash: {self.document_hash}
         """
@@ -315,12 +317,13 @@ class PDF(Document):
     def __str__(self):
         base_str = super().__str__()
         return f"""
+        {base_str.rstrip()} 
         Email ID: {self.email_id}
         Client ID: {self.client_id}
         BaFin ID: {self.bafin_id}
         Audit Case ID: {self.audit_case_id}
         Audit Values: {self._audit_values}
-        {base_str.rstrip()}
+        ----------------- 
         """
 
     def _get_serializable_data(self):
