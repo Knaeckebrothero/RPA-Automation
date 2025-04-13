@@ -145,7 +145,7 @@ def client_info_box(client_data):
 def client_db_value_comparison(client_document: PDF, include_all_fields=True, database: Database = None) -> pd.DataFrame:
     """
     Generate a DataFrame comparing values from the database with values extracted from the document.
-    
+
     :param include_all_fields: If True, includes all fields in the comparison; otherwise only includes fields that
      are required for validation.
     :param client_document: The document to compare values from.
@@ -158,12 +158,14 @@ def client_db_value_comparison(client_document: PDF, include_all_fields=True, da
         db = Database.get_instance()
 
     # print(client_document.__str__())
-    # TODO: CONTINUE HERE IMPLEMENTING THE NEW DISPLAY FUNCTION!!!
+    log.debug(f"Audit values available: {hasattr(client_document, '_audit_values')}")
+    if hasattr(client_document, '_audit_values'):
+        log.debug(f"Audit values keys: {client_document._audit_values.keys() if client_document._audit_values else 'None'}")
 
     if not client_document.bafin_id:
         log.warning("No BaFin ID found for document, cannot compare values")
         return pd.DataFrame(columns=["Key figure", "Database value", "Document value", "Match status"])
-    
+
     # Fetch client data from database
     client_data = db.query(f"""
     SELECT 
@@ -175,110 +177,77 @@ def client_db_value_comparison(client_document: PDF, include_all_fields=True, da
     FROM client 
     WHERE bafin_id = ?
     """, (client_document.bafin_id,))
-    
+
     # Check if client exists in database
     if not client_data:
         log.warning(f"Client with BaFin ID {client_document.bafin_id} not found in database")
         return pd.DataFrame(columns=["Key figure", "Database value", "Document value", "Match status"])
-    
+
     client_data = client_data[0]  # Get first row of results
-    
+
     # Get document attributes
     document_attributes = client_document.get_attributes()
     if not document_attributes:
         log.warning("No attributes found in document")
         return pd.DataFrame(columns=["Key figure", "Database value", "Document value", "Match status"])
-    
+
+    # Extract audit values if they're not already present
+    if not hasattr(client_document, '_audit_values') or not client_document._audit_values:
+        log.info("Extracting audit values from document attributes")
+        client_document.extract_audit_values()
+
     # Required fields as defined in compare_values method
     required_fields = [1, 5, 6, 7, 8, 9, 10]  # p033 and ab2s1n01-ab2s1n06 are mandatory
-    
+
     # Define field mappings and readable names
     field_mappings = {
         # Position fields
-        1: {"patterns": [r"Position 033", r"Position033", r"Pos\.? 033", r"Provisionsergebnis"],
-            "name": "Position 033 (Provisionsergebnis)"},
-        2: {"patterns": [r"Position 034", r"Position034", r"Pos\.? 034", r"Nettoergebnis.*Wertpapieren"],
-            "name": "Position 034 (Nettoergebnis Wertpapieren)"},
-        3: {"patterns": [r"Position 035", r"Position035", r"Pos\.? 035", r"Nettoergebnis.*Devisen"],
-            "name": "Position 035 (Nettoergebnis Devisen)"},
-        4: {"patterns": [r"Position 036", r"Position036", r"Pos\.? 036", r"Nettoergebnis.*Derivaten"],
-            "name": "Position 036 (Nettoergebnis Derivaten)"},
-        
+        1: {"code": "p033", "name": "Position 033 (Provisionsergebnis)"},
+        2: {"code": "p034", "name": "Position 034 (Nettoergebnis Wertpapieren)"},
+        3: {"code": "p035", "name": "Position 035 (Nettoergebnis Devisen)"},
+        4: {"code": "p036", "name": "Position 036 (Nettoergebnis Derivaten)"},
+
         # Section fields (§ 16j Abs. 2 Satz 1 Nr. X FinDAG)
-        5: {"patterns": [r"Nr\.? 1 FinDAG", r"Nr\.? 1", r"Zahlungsverkehr"],
-            "name": "Nr. 1 (Zahlungsverkehr)"},
-        6: {"patterns": [r"Nr\.? 2 FinDAG", r"Nr\.? 2", r"Außenhandelsgeschäft"],
-            "name": "Nr. 2 (Außenhandelsgeschäft)"},
-        7: {"patterns": [r"Nr\.? 3 FinDAG", r"Nr\.? 3", r"Reisezahlungsmittelgeschäft"],
-            "name": "Nr. 3 (Reisezahlungsmittelgeschäft)"},
-        8: {"patterns": [r"Nr\.? 4 FinDAG", r"Nr\.? 4", r"Treuhandkredite"],
-            "name": "Nr. 4 (Treuhandkredite)"},
-        9: {"patterns": [r"Nr\.? 5 FinDAG", r"Nr\.? 5", r"Vermittlung von Kredit"],
-            "name": "Nr. 5 (Vermittlung von Kredit)"},
-        10: {"patterns": [r"Nr\.? 6 FinDAG", r"Nr\.? 6", r"Kreditbearbeitung"],
-             "name": "Nr. 6 (Kreditbearbeitung)"},
-        11: {"patterns": [r"Nr\.? 7 FinDAG", r"Nr\.? 7", r"ausländischen Tochterunternehmen"],
-             "name": "Nr. 7 (ausländischen Tochterunternehmen)"},
-        12: {"patterns": [r"Nr\.? 8 FinDAG", r"Nr\.? 8", r"Nachlassbearbeitungen"],
-             "name": "Nr. 8 (Nachlassbearbeitungen)"},
-        13: {"patterns": [r"Nr\.? 9 FinDAG", r"Nr\.? 9", r"Electronic Banking"],
-             "name": "Nr. 9 (Electronic Banking)"},
-        14: {"patterns": [r"Nr\.? 10 FinDAG", r"Nr\.? 10", r"Gutachtertätigkeiten"],
-             "name": "Nr. 10 (Gutachtertätigkeiten)"},
-        15: {"patterns": [r"Nr\.? 11 FinDAG", r"Nr\.? 11", r"sonstigen Bearbeitungsentgelten"],
-             "name": "Nr. 11 (sonstigen Bearbeitungsentgelten)"}
+        5: {"code": "ab2s1n01", "name": "Nr. 1 (Zahlungsverkehr)"},
+        6: {"code": "ab2s1n02", "name": "Nr. 2 (Außenhandelsgeschäft)"},
+        7: {"code": "ab2s1n03", "name": "Nr. 3 (Reisezahlungsmittelgeschäft)"},
+        8: {"code": "ab2s1n04", "name": "Nr. 4 (Treuhandkredite)"},
+        9: {"code": "ab2s1n05", "name": "Nr. 5 (Vermittlung von Kredit)"},
+        10: {"code": "ab2s1n06", "name": "Nr. 6 (Kreditbearbeitung)"},
+        11: {"code": "ab2s1n07", "name": "Nr. 7 (ausländischen Tochterunternehmen)"},
+        12: {"code": "ab2s1n08", "name": "Nr. 8 (Nachlassbearbeitungen)"},
+        13: {"code": "ab2s1n09", "name": "Nr. 9 (Electronic Banking)"},
+        14: {"code": "ab2s1n10", "name": "Nr. 10 (Gutachtertätigkeiten)"},
+        15: {"code": "ab2s1n11", "name": "Nr. 11 (sonstigen Bearbeitungsentgelten)"}
     }
-    
+
     # Prepare data for the DataFrame
     comparison_data = []
-    
+
     for db_index, field_info in field_mappings.items():
         # Skip non-required fields if include_all_fields is False
         if not include_all_fields and db_index not in required_fields:
             continue
-            
+
+        field_code = field_info["code"]
         key_figure = field_info["name"]
         db_value = client_data[db_index]
         doc_value = "Not found"
         matches = False
-        
-        # Search for this field in document attributes
-        for key, value in document_attributes.items():
-            # Skip non-value attributes and empty values
-            if key in ['filename', 'content_type', 'email_id', 'sender', 'date', 'client_id', 'BaFin-ID'] or not value:
-                continue
-                
-            # Check if the key matches any of the patterns for this field
-            if any(re.search(pattern, key, re.IGNORECASE) for pattern in field_info["patterns"]):
-                # Found a match, try to convert the value for comparison
-                try:
-                    # Remove dots (thousand separators) and convert commas to periods for decimal values
-                    processed_value = value.replace('.', '')
-                    
-                    # Handle decimal values (with comma as decimal separator)
-                    if ',' in processed_value:
-                        # For decimal values, keep the decimal part
-                        processed_value = processed_value.replace(',', '.')
-                        # If it's a legitimate decimal, convert to float first
-                        normalized_value = int(float(processed_value))
-                    else:
-                        # For integers
-                        normalized_value = int(processed_value)
-                    
-                    doc_value = value  # Store the original value for display
-                    # Check if values match
+
+        # Check if this field was extracted from the document
+        if hasattr(client_document, '_audit_values') and client_document._audit_values:
+            if f"raw_{field_code}" in client_document._audit_values:
+                doc_value = client_document._audit_values[f"raw_{field_code}"]
+
+                # If there's a normalized value, use it for comparison
+                if field_code in client_document._audit_values:
+                    normalized_value = client_document._audit_values[field_code]
                     matches = (normalized_value == db_value)
-                    
-                except (ValueError, TypeError):
-                    # Keep original value if conversion fails
-                    doc_value = value
-                    matches = False
-                
-                break  # Stop checking once we find a match
-        
+
         # Use icons for match status
         match_status = "✅" if matches else "❌"
-        
+
         # Add to comparison data
         comparison_data.append({
             "Key figure": key_figure,
@@ -286,6 +255,6 @@ def client_db_value_comparison(client_document: PDF, include_all_fields=True, da
             "Document value": doc_value,
             "Match status": match_status
         })
-    
+
     # Create DataFrame
     return pd.DataFrame(comparison_data)

@@ -90,8 +90,20 @@ def _display_document_verification(case_id, doc_hash, filename, path, processed,
                     with open(json_path, 'r') as f:
                         import json
                         metadata = json.load(f)
+                        # Load document attributes
                         if 'attributes' in metadata:
                             pdf_doc.add_attributes(metadata['attributes'])
+
+                        # Load audit_values if available
+                        if '_audit_values' in metadata:
+                            pdf_doc._audit_values = metadata['_audit_values']
+
+                # If no audit values were loaded, try to extract them
+                if not hasattr(pdf_doc, '_audit_values') or not pdf_doc._audit_values:
+                    # We need to extract audit values from attributes
+                    log.debug("No audit values loaded, attempting to extract them")
+                    if hasattr(pdf_doc, 'extract_audit_values'):
+                        pdf_doc.extract_audit_values()
 
                 # Get BaFin ID from the client
                 bafin_id = db.query("SELECT bafin_id FROM client WHERE id = ?", (client_id,))[0][0]
