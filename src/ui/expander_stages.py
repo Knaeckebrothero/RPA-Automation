@@ -2,6 +2,7 @@
 This module holds the contents for each expander used by the active_cases page.
 """
 import os
+import pandas as pd
 import streamlit as st
 import logging
 
@@ -183,9 +184,67 @@ def stage_1(case_id: int, current_stage: int, database: Database = None):
 
             # Add the option to manually enter an email id
             email_id = st.text_input("Enter email ID")
+
+            # TODO: Implement the functionality
         elif current_stage > 1:
-            st.write(f"Documents received (info will be displayed here).")
-            # TODO: Add date and infos about when the documents were received
+            # Load information about the received document from the db
+            document_info = db.query(
+                """
+                SELECT 
+                    email_id, 
+                    document_filename, 
+                    document_path, 
+                    processed, 
+                    processing_date
+                FROM document 
+                WHERE audit_case_id = ?
+                """, (case_id,)
+            ) # TODO: Add a date when the documents were received
+
+            # Display information about the received documents
+            if document_info:
+                # Define column names for better display
+                columns = ["Email ID", "Filename", "Path", "Processed", "Processing Date"]
+
+                # Convert to dataframe
+                df = pd.DataFrame(document_info, columns=columns)
+
+                # Format the 'Processed' column to show Yes/No instead of True/False
+                df["Processed"] = df["Processed"].apply(lambda x: "Yes" if x else "No")
+
+                # If there's only one document, just show it
+                if len(df) == 1:
+                    st.write("Document received and ready for verification.")
+                    st.dataframe(df, use_container_width=True, hide_index=True)
+                else:
+                    st.write(f"{len(df)} documents received and ready for verification:")
+                    st.dataframe(df, use_container_width=True, hide_index=True)
+
+                # TODO: How can processed be no but processing_date be set?
+
+                # Create download buttons for each document
+                for i, (email_id, filename, path, processed, proc_date) in enumerate(document_info):
+                    try:
+                        if os.path.exists(path):
+                            with open(path, "rb") as file:
+                                st.download_button(
+                                    # Add the filename to the button in case multiple documents have been received
+                                    label="Download Document" if len(df) == 1 else f"Download {filename}",
+                                    data=file,
+                                    file_name=filename,
+                                    mime="application/pdf",
+                                    key=f"download-pdf-{i}"
+                                )
+                                log.info(f"Document {filename} has been downloaded.")
+                        else:
+                            st.error(f"Document file not found: {path}")
+                            log.error(f"Document file not found: {path}")
+                    except Exception as e:
+                        st.error(f"Error accessing document: {str(e)}")
+                        log.error(f"Error accessing document: {str(e)}")
+            else:
+                st.warning("No documents found for this case, even though it's in stage 2 or higher.")
+                log.warning("No documents found for this case, even though it's in stage 2 or higher.")
 
         # Button to manually update the case
         if current_stage == 1 and st.button("Update Case"):
@@ -262,7 +321,8 @@ def stage_2(case_id: int, current_stage: int, database: Database = None):
                 st.warning("No documents found for this case. Please upload or process a document first.")
 
                 # Option to manually upload a document
-                uploaded_file = st.file_uploader("Upload document", type=["pdf"])
+                #uploaded_file = st.file_uploader("Upload document", type=["pdf"])
+                uploaded_file = None
                 if uploaded_file and st.button("Process Document"):
                     # Create a Document instance and process it
                     from cls.document import PDF
