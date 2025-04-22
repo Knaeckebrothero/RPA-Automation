@@ -8,7 +8,7 @@ https://pdf2image.readthedocs.io/en/latest/installation.html
 import streamlit as st
 import cv2
 import numpy as np
-import src.processing.detect as dct
+import src.processing.detect as dtct
 from src.processing.ocr import ocr_cell, create_ocr_reader
 from src.processing.files import get_images_from_pdf
 
@@ -33,8 +33,11 @@ if pdf_document is not None:
         # Convert to BGR format since it is required for OpenCV (BGR is basically RGB but in reverse)
         bgr_image_array = cv2.cvtColor(np_image_array, cv2.COLOR_RGB2BGR)
 
+        # Normalize the image resolution
+        bgr_image_array = dtct.normalize_image_resolution(bgr_image_array)
+
         # Detect tables
-        table_contours = dct.tables(bgr_image_array)
+        table_contours = dtct.tables(bgr_image_array)
 
         st.write(f"Number of tables detected on page {i + 1}: {len(table_contours)}")
 
@@ -52,7 +55,7 @@ if pdf_document is not None:
                          use_column_width=False, width=500)
 
                 # Detect rows in the table
-                rows = dct.rows(table_roi)
+                rows = dtct.rows(table_roi)
                 st.write(f"Number of rows detected: {len(rows)}, Image: {i + 1}, Table: {j + 1}")
 
                 # Process each detected row
@@ -64,7 +67,7 @@ if pdf_document is not None:
                              use_column_width=True)
 
                     # Detect cells in the row
-                    cells = dct.cells(row_image)
+                    cells = dtct.cells(row_image)
 
                     for m, (x1, x2) in enumerate(cells):
                         cell_image = row_image[:, x1:x2]

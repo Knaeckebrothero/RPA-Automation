@@ -38,7 +38,7 @@ def home(mailclient: Mailclient = None, database: Database = None):
     column_left, column_right = st.columns(2)
 
     # Display the mails
-    st.dataframe(emails)
+    st.dataframe(emails, hide_index=True)
     # TODO: Check if the new selector ids work (e.g. the list number matches the number used by the selector)
 
     # Display a plot on the right

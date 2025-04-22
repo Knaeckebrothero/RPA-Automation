@@ -9,7 +9,6 @@ import logging
 # Custom imports
 from cls.database import Database
 from cls.document import PDF
-from ui.visuals import client_db_value_comparison
 
 
 # Set up logging

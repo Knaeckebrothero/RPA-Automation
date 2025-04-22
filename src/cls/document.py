@@ -11,7 +11,7 @@ import hashlib
 import pandas as pd
 
 # Custom imports
-import processing.detect as dtc
+import processing.detect as dtct
 from processing.ocr import ocr_cell, create_ocr_reader
 from processing.files import get_images_from_pdf
 from cls.database import Database
@@ -350,6 +350,8 @@ class PDF(Document):
     def extract_table_data(self, ocr_reader = None):
         """
         Extract the text from the document.
+
+        :param ocr_reader: The OCR reader to use for text extraction. If None, a default reader is created.
         """
         if self._content:
             if not ocr_reader:
@@ -368,8 +370,12 @@ class PDF(Document):
                 # Convert to BGR format since it is required for OpenCV (BGR is basically RGB but in reverse)
                 bgr_image_array = cv2.cvtColor(np_image_array, cv2.COLOR_RGB2BGR)
 
+                # Normalize the image resolution
+                bgr_image_array = dtct.normalize_image_resolution(bgr_image_array)
+                # TODO: Check if this works as expected!
+
                 # Detect tables
-                table_contours = dtc.tables(bgr_image_array)
+                table_contours = dtct.tables(bgr_image_array)
                 log.debug(f"Number of pages in the document: {len(images)}")
 
                 # Process each detected table
@@ -381,7 +387,7 @@ class PDF(Document):
                     table_roi = bgr_image_array[y:y + h, x:x + w]
 
                     # Detect rows in the table
-                    rows = dtc.rows(table_roi)
+                    rows = dtct.rows(table_roi)
 
                     # Process each detected row
                     for k, (y1, y2) in enumerate(rows):
@@ -392,7 +398,7 @@ class PDF(Document):
                         row_image = table_roi[y1:y2, :]
 
                         # Detect cells in the row
-                        cells = dtc.cells(row_image)
+                        cells = dtct.cells(row_image)
 
                         # Process each detected cell
                         for m, (x1, x2) in enumerate(cells):
@@ -443,7 +449,7 @@ class PDF(Document):
                 log.debug("Document does not have a BaFin ID yet, proceeding to check the cell for one.")
 
                 # Check the cell for a BaFin ID
-                bafin_id = dtc.bafin_id(row_data[0])
+                bafin_id = dtct.bafin_id(row_data[0])
 
                 if bafin_id:
                     # TODO: Check if this part works as expected!
