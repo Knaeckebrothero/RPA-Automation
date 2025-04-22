@@ -142,6 +142,7 @@ def client_info_box(client_data):
     st.divider()
 
 
+# TODO: Remove this function since it's not used anymore!
 def client_db_value_comparison(client_document: PDF, include_all_fields=True, database: Database = None) -> pd.DataFrame:
     """
     Generate a DataFrame comparing values from the database with values extracted from the document.

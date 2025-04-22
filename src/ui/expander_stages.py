@@ -30,134 +30,6 @@ def _icon(icon: bool = False) -> str:
         return "❌"
 
 
-def _display_document_verification(case_id, doc_hash, filename, path, processed, proc_date, db):
-    """
-    Display document verification information and controls.
-
-    :param case_id: The audit case ID
-    :param doc_hash: The document hash
-    :param filename: The document filename
-    :param path: The document path
-    :param processed: Whether the document has been processed
-    :param proc_date: The document processing date
-    :param db: The database instance
-    """
-    col1, col2 = st.columns([1, 2])
-
-    with col1:
-        st.write(f"**Filename:** {filename}")
-        st.write(f"**Processed:** {'Yes' if processed else 'No'}")
-        st.write(f"**Date:** {proc_date}")
-
-        # Show document
-        try:
-            if os.path.exists(path):
-                with open(path, "rb") as file:
-                    st.download_button(
-                        label="Download Document",
-                        data=file,
-                        file_name=filename,
-                        mime="application/pdf"
-                    )
-
-                # Option to display the PDF
-                if st.button("View PDF", key=f"view_{doc_hash[:8]}"):
-                    with open(path, "rb") as file:
-                        pdf_bytes = file.read()
-                    st.write("**Document Preview:**")
-                    # st.pdf(pdf_bytes, width=300)  # TODO: Find a proper way to display the PDF
-            else:
-                st.error(f"Document file not found at: {path}")
-        except Exception as e:
-            st.error(f"Error accessing document: {str(e)}")
-
-    with col2:
-        st.write("**Document Verification**")
-        pdf_doc = None
-        try:
-            if os.path.exists(path):
-                with open(path, "rb") as file:
-                    content = file.read()
-
-                # Get the client_id for this case
-                client_id = db.query("SELECT client_id FROM audit_case WHERE id = ?", (case_id,))[0][0]
-
-                # Create a PDF instance
-                pdf_doc = PDF(content=content, client_id=client_id)
-
-                # Load JSON metadata if available
-                json_path = f"{os.path.splitext(path)[0]}.json"
-                if os.path.exists(json_path):
-                    with open(json_path, 'r') as f:
-                        import json
-                        metadata = json.load(f)
-                        # Load document attributes
-                        if 'attributes' in metadata:
-                            pdf_doc.add_attributes(metadata['attributes'])
-
-                        # Load audit_values if available
-                        if '_audit_values' in metadata:
-                            pdf_doc._audit_values = metadata['_audit_values']
-
-                # If no audit values were loaded, try to extract them
-                if not hasattr(pdf_doc, '_audit_values') or not pdf_doc._audit_values:
-                    # We need to extract audit values from attributes
-                    log.debug("No audit values loaded, attempting to extract them")
-                    if hasattr(pdf_doc, 'extract_audit_values'):
-                        pdf_doc.extract_audit_values()
-
-                # Get BaFin ID from the client
-                bafin_id = db.query("SELECT bafin_id FROM client WHERE id = ?", (client_id,))[0][0]
-                pdf_doc.bafin_id = bafin_id
-
-                # Generate comparison table
-                comparison_df = client_db_value_comparison(pdf_doc, database=db)
-
-                # Display the comparison table
-                st.dataframe(comparison_df, use_container_width=True)
-
-                # Calculate match percentage
-                if not comparison_df.empty:
-                    matches = comparison_df['Match status'].value_counts().get('✅', 0)
-                    total = len(comparison_df)
-                    match_percentage = (matches / total) * 100 if total > 0 else 0
-
-                    # Display match information
-                    st.metric(
-                        "Match Percentage",
-                        f"{match_percentage:.1f}%",
-                        help=f"{matches} of {total} fields match"
-                    )
-            else:
-                st.error("Document file not found")
-        except Exception as e:
-            st.error(f"Error analyzing document: {str(e)}")
-            import traceback
-            st.error(traceback.format_exc())
-
-        # Add verification controls
-        if not processed:
-            if st.button("Verify Document as Correct", key=f"verify_{doc_hash[:8]}"):
-                # Update the document as processed
-                db.query("""
-                    UPDATE document 
-                    SET processed = TRUE 
-                    WHERE document_hash = ? AND audit_case_id = ?
-                """, (doc_hash, case_id))
-
-                # Move the case to the next stage
-                db.query("""
-                    UPDATE audit_case 
-                    SET stage = 3
-                    WHERE id = ?
-                """, (case_id,))
-
-                st.success("Document verified and case moved to certification stage!")
-                st.rerun()
-        else:
-            st.info("This document has already been verified.")
-
-
 # Stage 1: Waiting for documents
 def stage_1(case_id: int, current_stage: int, database: Database = None):
     """
@@ -283,8 +155,13 @@ def stage_2(case_id: int, current_stage: int, database: Database = None):
     # TODO: Move this logic into a function
 
     with st.expander("Data verification", expanded=(current_stage == 2), icon=_icon((current_stage > 2))):
-        if current_stage <= 2:
+        if current_stage < 2:
+            st.write("Waiting for stage one to be completed!")
+            log.debug(f"Waiting for stage one to be completed for case: {case_id}")
+
+        elif current_stage >= 2:
             st.write("Client data needs to be verified against our records.")
+            log.debug(f"Client data needs to be verified against our records for case: {case_id}")
 
             # Get documents for this audit case
             documents = db.query("""
@@ -299,81 +176,67 @@ def stage_2(case_id: int, current_stage: int, database: Database = None):
                 ORDER BY processing_date DESC
             """, (case_id,))
 
+            # Put the display logic into a function to avoid duplication
+            def _display_comparison_table_helper_function(doc, counter: int = 0):
+                # Load document from JSON (use the third index to get the path)
+                document_pdf = PDF.from_json(doc[counter][2])
+
+                # Get comparison table
+                comparison_df = document_pdf.get_value_comparison_table()
+
+                # Display in UI
+                st.dataframe(comparison_df, use_container_width=True, hide_index=True)
+
+                # Calculate match percentage
+                if not comparison_df.empty:
+                    matches = comparison_df['Match status'].value_counts().get('✅', 0)
+                    total = len(comparison_df)
+                    match_percentage = (matches / total) * 100 if total > 0 else 0
+                    st.metric("Match Percentage", f"{match_percentage:.1f}%",
+                              help=f"{matches} of {total} fields match")
+
             if documents:
                 # Create tabs for each document
                 if len(documents) > 1:
                     st.write(f"Found {len(documents)} documents for this case:")
                     doc_tabs = st.tabs([f"Document {i+1}: {doc[1]}" for i, doc in enumerate(documents)])
 
-                    for i, (doc_hash, filename, path, processed, proc_date) in enumerate(documents):
+                    # Display each document in its own tab
+                    for i, document in enumerate(documents):
                         with doc_tabs[i]:
-                            _display_document_verification(case_id, doc_hash, filename, path, processed, proc_date, db)
+                            _display_comparison_table_helper_function(document, i)
                 else:
-                    # Only one document, no need for tabs
-                    doc_hash, filename, path, processed, proc_date = documents[0]
-                    _display_document_verification(case_id, doc_hash, filename, path, processed, proc_date, db)
+                    # Display the one document
+                    _display_comparison_table_helper_function(documents)
             else:
-
                 # TODO: This case shouldn't exist since the case can't entr stage 2 without a document!
                 #  Thouhgh a fallback option might be implemented here (something like set back to stage 1)
                 #   Or the error should be logged since a doc might went missing.
                 #    The code can still be used if put in expander stage_1()!
                 st.warning("No documents found for this case. Please upload or process a document first.")
-
-                # Option to manually upload a document
-                #uploaded_file = st.file_uploader("Upload document", type=["pdf"])
-                uploaded_file = None
-                if uploaded_file and st.button("Process Document"):
-                    # Create a Document instance and process it
-                    from cls.document import PDF
-
-                    try:
-                        # Get the client_id for this case
-                        client_id = db.query("SELECT client_id FROM audit_case WHERE id = ?", (case_id,))[0][0]
-
-                        # Create a PDF instance
-                        pdf_document = PDF(
-                            content=uploaded_file.read(),
-                            audit_case_id=case_id,
-                            client_id=client_id,
-                            attributes={"filename": uploaded_file.name}
-                        )
-
-                        # Extract text from the document
-                        from processing.ocr import create_ocr_reader
-                        ocr_reader = create_ocr_reader(language='de')
-                        pdf_document.extract_table_data(ocr_reader=ocr_reader)
-
-                        # Store the document
-                        if pdf_document.store_document(case_id):
-                            st.success(f"Document {uploaded_file.name} processed and stored successfully!")
-                            st.rerun()
-                        else:
-                            st.error("Failed to process and store the document.")
-                    except Exception as e:
-                        st.error(f"Error processing document: {str(e)}")
-
-        elif current_stage > 2:
-            st.write("Client data has been verified against our records.")
+                log.error(f"No documents found for case: {case_id}, who is in stage 2.")
+        #elif current_stage > 2:
+            #st.write("Client data has been verified against our records.")
+            #log.debug(f"Client data has been verified against our records for case: {case_id}")
 
             # Option to view verification history
-            if st.checkbox("Show verification history"):
-                documents = db.query("""
-                    SELECT 
-                        document_hash, 
-                        document_filename, 
-                        processed, 
-                        processing_date
-                    FROM document 
-                    WHERE audit_case_id = ? AND processed = TRUE
-                    ORDER BY processing_date DESC
-                """, (case_id,))
+            #if st.checkbox("Show verification history"):
+            #    documents = db.query("""
+            #        SELECT
+            #            document_hash,
+            #            document_filename,
+            #            processed,
+            #            processing_date
+            #        FROM document
+            #        WHERE audit_case_id = ? AND processed = TRUE
+            #        ORDER BY processing_date DESC
+            #    """, (case_id,))
 
-                if documents:
-                    for doc_hash, filename, processed, proc_date in documents:
-                        st.write(f"✅ {filename} - Verified on {proc_date}")
-                else:
-                    st.info("No verified documents found in history.")
+            #    if documents:
+            #        for doc_hash, filename, processed, proc_date in documents:
+            #            st.write(f"✅ {filename} - Verified on {proc_date}")
+            #    else:
+            #        st.info("No verified documents found in history.")
 
 
 # Stage 3: Certification

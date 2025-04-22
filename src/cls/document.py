@@ -8,6 +8,7 @@ import numpy as np
 import re
 import logging
 import hashlib
+import pandas as pd
 
 # Custom imports
 import processing.detect as dtc
@@ -345,39 +346,6 @@ class PDF(Document):
             data['_audit_values'] = self._audit_values
 
         return data
-
-    @classmethod
-    def _create_from_json_data(cls, data, load_content):
-        """
-        Create a PDF instance from parsed JSON data.
-
-        :param data: Dictionary with document data
-        :param load_content: Whether to load the content file
-        :return: A PDF instance
-        """
-        # Get the content path from the JSON
-        content_path = data.get('content_path')
-        attributes = data.get('attributes', {})
-
-        # Load content if requested and the content file exists
-        content = None
-        if load_content and content_path and os.path.exists(content_path):
-            with open(content_path, 'rb') as file:
-                content = file.read()
-            log.debug(f"Content loaded from file: {content_path}")
-
-        # Create the PDF instance with its specific attributes
-        pdf = cls(
-            content=content,
-            email_id=data.get('email_id'),
-            client_id=data.get('client_id'),
-            bafin_id=data.get('bafin_id'),
-            attributes=attributes
-        )
-        pdf._content_path = content_path
-
-        log.info(f"PDF document loaded from JSON data")
-        return pdf
 
     def extract_table_data(self, ocr_reader = None):
         """
@@ -872,3 +840,147 @@ class PDF(Document):
                     break  # Stop checking patterns once a match was found
 
         return self._audit_values
+
+    def get_value_comparison_table(self) -> pd.DataFrame:
+        """
+        Generate a comparison table between document values and database values.
+
+        :return: Pandas DataFrame with columns for key figure, database value, document value, and match status
+        """
+        if not hasattr(self, '_audit_values') or not self._audit_values:
+            log.debug("No audit values found, extracting them now")
+            self.extract_audit_values()
+
+        # Get BaFin ID if not already set
+        if not self.bafin_id and self.client_id:
+            bafin_id_result = self._db.query("SELECT bafin_id FROM client WHERE id = ?", (self.client_id,))
+            if bafin_id_result:
+                self.bafin_id = bafin_id_result[0][0]
+                log.debug(f"Retrieved BaFin ID {self.bafin_id} for client {self.client_id}")
+
+        # Check if we have a BaFin ID to proceed
+        if not self.bafin_id:
+            log.warning("No BaFin ID found for document, cannot generate comparison table")
+            return pd.DataFrame(columns=["Key figure", "Database value", "Document value", "Match status"])
+
+        # Fetch client data from database
+        client_data = self._db.query(f"""
+        SELECT 
+            id,
+            p033, p034, p035, p036,
+            ab2s1n01, ab2s1n02, ab2s1n03, ab2s1n04, 
+            ab2s1n05, ab2s1n06, ab2s1n07, ab2s1n08, 
+            ab2s1n09, ab2s1n10, ab2s1n11
+        FROM client 
+        WHERE bafin_id = ?
+        """, (self.bafin_id,))
+
+        # Check if client exists in database
+        if not client_data:
+            log.warning(f"Client with BaFin ID {self.bafin_id} not found in database")
+            return pd.DataFrame(columns=["Key figure", "Database value", "Document value", "Match status"])
+
+        client_data = client_data[0]  # Get first row of results
+        log.debug(f"Retrieved client data for BaFin ID {self.bafin_id}")
+
+        # Define field mappings and readable names
+        field_mappings = {
+            # Position fields
+            1: {"code": "p033", "name": "Position 033 (Provisionsergebnis)"},
+            2: {"code": "p034", "name": "Position 034 (Nettoergebnis Wertpapieren)"},
+            3: {"code": "p035", "name": "Position 035 (Nettoergebnis Devisen)"},
+            4: {"code": "p036", "name": "Position 036 (Nettoergebnis Derivaten)"},
+
+            # Section fields (§ 16j Abs. 2 Satz 1 Nr. X FinDAG)
+            5: {"code": "ab2s1n01", "name": "Nr. 1 (Zahlungsverkehr)"},
+            6: {"code": "ab2s1n02", "name": "Nr. 2 (Außenhandelsgeschäft)"},
+            7: {"code": "ab2s1n03", "name": "Nr. 3 (Reisezahlungsmittelgeschäft)"},
+            8: {"code": "ab2s1n04", "name": "Nr. 4 (Treuhandkredite)"},
+            9: {"code": "ab2s1n05", "name": "Nr. 5 (Vermittlung von Kredit)"},
+            10: {"code": "ab2s1n06", "name": "Nr. 6 (Kreditbearbeitung)"},
+            11: {"code": "ab2s1n07", "name": "Nr. 7 (ausländischen Tochterunternehmen)"},
+            12: {"code": "ab2s1n08", "name": "Nr. 8 (Nachlassbearbeitungen)"},
+            13: {"code": "ab2s1n09", "name": "Nr. 9 (Electronic Banking)"},
+            14: {"code": "ab2s1n10", "name": "Nr. 10 (Gutachtertätigkeiten)"},
+            15: {"code": "ab2s1n11", "name": "Nr. 11 (sonstigen Bearbeitungsentgelten)"}
+        }
+
+        # Prepare data for the DataFrame
+        comparison_data = []
+
+        for db_index, field_info in field_mappings.items():
+            field_code = field_info["code"]
+            key_figure = field_info["name"]
+            db_value = client_data[db_index]
+            doc_value = "Not found"
+            matches = False
+
+            # Check if this field was extracted from the document
+            if hasattr(self, '_audit_values') and self._audit_values:
+                if f"raw_{field_code}" in self._audit_values:
+                    doc_value = self._audit_values[f"raw_{field_code}"]
+
+                    # If there's a normalized value, use it for comparison
+                    if field_code in self._audit_values:
+                        normalized_value = self._audit_values[field_code]
+                        matches = (normalized_value == db_value)
+                        log.debug(f"Comparing {field_code}: Document value '{normalized_value}' vs DB value '{db_value}' - Match: {matches}")
+
+            # Use icons for match status
+            match_status = "✅" if matches else "❌"
+
+            # Add to comparison data
+            comparison_data.append({
+                "Key figure": key_figure,
+                "Database value": db_value,
+                "Document value": doc_value,
+                "Match status": match_status
+            })
+
+        # Create DataFrame
+        df = pd.DataFrame(comparison_data)
+        log.info(f"Generated comparison table with {len(df)} rows")
+        return df
+
+    @classmethod
+    def _create_from_json_data(cls, data, load_content):
+        """
+        Create a PDF instance from parsed JSON data.
+
+        :param data: Dictionary with document data
+        :param load_content: Whether to load the content file
+        :return: A PDF instance
+        """
+        content_path = data.get('content_path')
+        attributes = data.get('attributes', {})
+
+        # Get audit values directly from the JSON data
+        audit_values = data.get('_audit_values')
+
+        # Extract client-related IDs from attributes if they exist there
+        email_id = attributes.get('email_id')
+        client_id = attributes.get('client_id')
+        bafin_id = attributes.get('BaFin-ID')  # The JSON uses BaFin-ID as the key
+        audit_case_id = attributes.get('audit_case_id')
+
+        # Load content if requested and the content file exists
+        content = None
+        if load_content and content_path and os.path.exists(content_path):
+            with open(content_path, 'rb') as file:
+                content = file.read()
+            log.debug(f"Content loaded from file: {content_path}")
+
+        # Create the PDF instance with its specific attributes
+        pdf = cls(
+            content=content,
+            email_id=email_id,
+            client_id=client_id,
+            bafin_id=bafin_id,
+            attributes=attributes,
+            content_path=content_path,
+            audit_case_id=audit_case_id,
+            audit_values=audit_values
+        )
+
+        log.info(f"PDF document loaded from JSON data with {len(audit_values) if audit_values else 0} audit values")
+        return pdf
