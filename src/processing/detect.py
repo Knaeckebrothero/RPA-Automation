@@ -268,7 +268,7 @@ def rows(table_image: np.array) -> List[Tuple[int, int]]:
         potential_rows.append((line_positions[-1], gray.shape[0]))
 
     # Filter rows by minimum height (to remove small gaps/borders)
-    min_row_height = max(10, gray.shape[0] * 0.05)  # At least 5% of table height or 10px
+    min_row_height = max(10, gray.shape[0] * 0.03)  # At least 3% of table height or 10px
 
     filtered_rows = []
     for row_start, row_end in potential_rows:

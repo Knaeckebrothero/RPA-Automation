@@ -777,6 +777,7 @@ class PDF(Document):
         Extract audit-relevant values from document attributes and populate self._audit_values.
         This function processes document attributes to identify fields relevant for audit
         verification, applying normalization to make comparison with database values more reliable.
+        Uses a scoring system to prioritize the best matching attributes.
 
         :param patterns_file_path: Path to the JSON file containing regex patterns. If None, uses default path.
         :return: Dictionary containing extracted and normalized audit values
@@ -804,7 +805,10 @@ class PDF(Document):
             log.error(f"Error loading regex patterns file: {e}")
             return {}
 
-        # Process document attributes to find and normalize audit values
+        # Dictionary to store potential matches with scores
+        potential_matches = {}
+
+        # Process document attributes to find all potential matches
         for key, value in document_attributes.items():
             # Skip non-value attributes
             if key in ['filename', 'content_type', 'email_id', 'sender', 'date', 'client_id', 'BaFin-ID', 'document_hash']:
@@ -816,34 +820,84 @@ class PDF(Document):
 
             # Try to match the attribute key with field patterns
             for field_code, patterns in field_mappings.items():
-                if any(re.search(pattern, key, re.IGNORECASE) for pattern in patterns):
-                    # Store the raw extracted value and key
-                    self._audit_values[f"raw_{field_code}"] = value
-                    self._audit_values[f"key_{field_code}"] = key
+                for pattern_idx, pattern in enumerate(patterns):
+                    match = re.search(pattern, key, re.IGNORECASE)
+                    if match:
+                        # Calculate match score (pattern index provides base priority)
+                        score = 100 - pattern_idx * 10  # Earlier patterns get higher base scores
 
-                    # Try to convert document value to integer for comparison
-                    try:
-                        # Remove dots (thousand separators) and convert commas to periods for decimal values
-                        processed_value = value.replace('.', '')
+                        # Specific scoring rules for different field types
+                        if field_code.startswith('p0'):  # Position fields
+                            # Boost score for Position fields that contain both "Position" and the number
+                            if re.search(r'(?i)position.*0*' + field_code[1:], key):
+                                score += 50
+                            # Boost for "Anlage SONO1" references
+                            if "anlage" in key.lower() and "sono1" in key.lower():
+                                score += 30
+                            # Boost for exact position number
+                            if re.search(r'(?i)(?:position|pos\.?|punkt)?\s*0*' + field_code[1:] + r'\b', key):
+                                score += 40
 
-                        # Handle decimal values (with comma as decimal separator)
-                        if ',' in processed_value:
-                            # For decimal values, keep the decimal part
-                            processed_value = processed_value.replace(',', '.')
-                            # If it's a legitimate decimal, convert to float first
-                            normalized_value = int(float(processed_value))
-                        else:
-                            # For integers
-                            normalized_value = int(processed_value)
+                        elif field_code.startswith('ab2s1n'):  # FinDAG fields
+                            # Extract number from field code (e.g., "01" from "ab2s1n01")
+                            number = field_code[-2:]
+                            # Boost score for fields with explicit "Nr. X" and "FinDAG" references
+                            if re.search(r'(?i)nr\.?\s*' + number.lstrip('0') + r'\b.*findag', key):
+                                score += 50
+                            # Boost for paragraph references
+                            if re.search(r'(?i)(?:§|para(?:graph)?)\s*16j\s*abs', key):
+                                score += 40
 
-                        # Store the normalized numeric value
-                        self._audit_values[field_code] = normalized_value
+                        # Add precision boost for longer, more specific keys
+                        score += min(len(key) / 10, 20)  # Cap at 20 additional points
 
-                    except (ValueError, TypeError) as e:
-                        # Store error information
-                        self._audit_values[f"error_{field_code}"] = str(e)
+                        # Store this match with its score
+                        if field_code not in potential_matches:
+                            potential_matches[field_code] = []
+                        potential_matches[field_code].append({
+                            'key': key,
+                            'value': value,
+                            'score': score
+                        })
 
-                    break  # Stop checking patterns once a match was found
+                        log.debug(f"Potential match for {field_code}: '{key}' with score {score}")
+
+        # Select the best match for each field code based on score
+        for field_code, matches in potential_matches.items():
+            if not matches:
+                continue
+
+            # Sort matches by score in descending order
+            matches.sort(key=lambda x: x['score'], reverse=True)
+            best_match = matches[0]
+
+            log.info(f"Best match for {field_code}: '{best_match['key']}' (score: {best_match['score']:.1f})")
+
+            # Store the raw extracted value and key
+            self._audit_values[f"raw_{field_code}"] = best_match['value']
+            self._audit_values[f"key_{field_code}"] = best_match['key']
+
+            # Try to convert document value to integer for comparison
+            try:
+                # Remove dots (thousand separators) and convert commas to periods for decimal values
+                processed_value = best_match['value'].replace('.', '')
+
+                # Handle decimal values (with comma as decimal separator)
+                if ',' in processed_value:
+                    # For decimal values, keep the decimal part
+                    processed_value = processed_value.replace(',', '.')
+                    # If it's a legitimate decimal, convert to float first
+                    normalized_value = int(float(processed_value))
+                else:
+                    # For integers
+                    normalized_value = int(processed_value)
+
+                # Store the normalized numeric value
+                self._audit_values[field_code] = normalized_value
+
+            except (ValueError, TypeError) as e:
+                # Store error information
+                self._audit_values[f"error_{field_code}"] = str(e)
 
         return self._audit_values
 
