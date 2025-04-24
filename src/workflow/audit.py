@@ -652,23 +652,24 @@ def update_audit_case(audit_case_id: int, certificate_path: str, database: Datab
             WHERE id = ?
         """, (audit_case_id,))
 
+        # TODO: Fix the display logic first before uncommenting this
         # Insert record in document table for the certificate
-        database.insert("""
-            INSERT INTO document (
-                document_hash,
-                audit_case_id,
-                document_filename,
-                document_path,
-                processed,
-                processing_date
-            ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        """, (
-            certificate_hash,
-            audit_case_id,
-            os.path.basename(certificate_path),
-            certificate_path,
-            True
-        ))
+        #database.insert("""
+        #    INSERT INTO document (
+        #        document_hash,
+        #        audit_case_id,
+        #        document_filename,
+        #        document_path,
+        #        processed,
+        #        processing_date
+        #    ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        #""", (
+        #    certificate_hash,
+        #    audit_case_id,
+        #    os.path.basename(certificate_path),
+        #    certificate_path,
+        #    True
+        #))
 
         log.info(f"Database updated for audit case {audit_case_id}")
         return True

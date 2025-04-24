@@ -214,7 +214,6 @@ def stage_2(case_id: int, current_stage: int, db: Database = Database.get_instan
                 st.warning("No documents found for this case. Please upload or process a document first.")
                 log.error(f"No documents found for case: {case_id}, who is in stage 2.")
 
-
 # Stage 3: Certification
 def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instance()):
     """
@@ -230,14 +229,91 @@ def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instan
             "Certificate issued",
             expanded=(current_stage == 3),
             icon=_icon((current_stage > 3))):
-        st.write("Certificate logic goes here!")
 
-        if current_stage == 3 and st.button("Complete Process"):
-            db.query("UPDATE audit_case SET stage = 4 WHERE id = ?", (case_id,))
-            st.success("Process Completed!")
-            # Clear cache and refresh
-            st.cache_data.clear()
-            st.rerun()
+        if current_stage == 3:
+            st.write("Certificate generation and issuance.")
+
+            # Check if certificate already exists
+            cert_path = os.path.join(
+                os.getenv('FILESYSTEM_PATH', './.filesystem'),
+                "documents",
+                str(case_id),
+                f"certificate_complete_{case_id}.pdf"
+            )
+
+            if os.path.exists(cert_path):
+                # Certificate exists, offer download
+                st.success("Certificate has been generated!")
+
+                try:
+                    with open(cert_path, "rb") as file:
+                        st.download_button(
+                            label="Download Certificate",
+                            data=file,
+                            file_name=f"certificate_{case_id}.pdf",
+                            mime="application/pdf",
+                            key=f"download-cert-{case_id}"
+                        )
+                        log.info(f"Certificate for case {case_id} has been downloaded.")
+                except Exception as e:
+                    st.error(f"Error accessing certificate: {str(e)}")
+                    log.error(f"Error accessing certificate: {str(e)}")
+            else:
+                # Certificate doesn't exist, show generate button
+                if st.button("Generate Certificate"):
+                    # Import here to avoid circular imports
+                    from workflow.audit import generate_certificate
+
+                    # Generate certificate
+                    with st.spinner("Generating certificate..."):
+                        success = generate_certificate(case_id, db)
+
+                    if success:
+                        st.success("Certificate generated successfully!")
+                        # Clear cache and refresh
+                        st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error("Failed to generate certificate. Please try again.")
+
+            # Button to complete the process
+            if st.button("Complete Process"):
+                db.query("UPDATE audit_case SET stage = 4 WHERE id = ?", (case_id,))
+                st.success("Process Completed!")
+                # Clear cache and refresh
+                st.cache_data.clear()
+                st.rerun()
+
+        elif current_stage > 3:
+            st.write("Certificate has been issued and process is completed.")
+
+            # Check if certificate exists and provide download button
+            cert_path = os.path.join(
+                os.getenv('FILESYSTEM_PATH', './.filesystem'),
+                "documents",
+                str(case_id),
+                f"certificate_complete_{case_id}.pdf"
+            )
+
+            if os.path.exists(cert_path):
+                try:
+                    with open(cert_path, "rb") as file:
+                        st.download_button(
+                            label="Download Certificate",
+                            data=file,
+                            file_name=f"certificate_{case_id}.pdf",
+                            mime="application/pdf",
+                            key=f"download-cert-{case_id}"
+                        )
+                        log.info(f"Certificate for case {case_id} has been downloaded.")
+                except Exception as e:
+                    st.error(f"Error accessing certificate: {str(e)}")
+                    log.error(f"Error accessing certificate: {str(e)}")
+            else:
+                st.warning("Certificate file not found.")
+                log.warning(f"Certificate file not found for case {case_id}")
+        else:
+            st.write("Waiting for data verification to complete.")
 
 
 # Stage 4: Process completion
@@ -255,11 +331,69 @@ def stage_4(case_id: int, current_stage: int, db: Database = Database.get_instan
             "Process completed",
             expanded=(current_stage == 4),
             icon=_icon((current_stage > 4))):
-        st.write("Archiving logic goes here!")
 
-        if current_stage == 4 and st.button("Archive Case"):
-            db.query("UPDATE audit_case SET stage = 5 WHERE id = ?", (case_id,))
-            st.success("Case Archived!")
-            # Clear cache and refresh
-            st.cache_data.clear()
-            st.rerun()
+        if current_stage < 4:
+            st.write("Waiting for certification to complete.")
+        else:
+            st.write("Audit process has been completed. All documents can be downloaded as a ZIP archive.")
+
+            # Get case folder path
+            case_folder = os.path.join(
+                os.getenv('FILESYSTEM_PATH', './.filesystem'),
+                "documents",
+                str(case_id)
+            )
+
+            # Create ZIP file with all case documents
+            if os.path.exists(case_folder):
+                import zipfile
+                import io
+
+                # Create in-memory ZIP file
+                zip_buffer = io.BytesIO()
+
+                try:
+                    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                        # Add all files in the case folder to the ZIP
+                        file_count = 0
+                        for root, _, files in os.walk(case_folder):
+                            for file in files:
+                                file_path = os.path.join(root, file)
+                                try:
+                                    # Add to zip with relative path
+                                    arcname = os.path.relpath(file_path, case_folder)
+                                    zip_file.write(file_path, arcname=arcname)
+                                    file_count += 1
+                                except Exception as e:
+                                    log.warning(f"Error adding file {file_path} to ZIP: {str(e)}")
+
+                        if file_count == 0:
+                            st.warning("No files found in case folder.")
+                            log.warning(f"No files found in case folder for case {case_id}")
+
+                    # Reset buffer position
+                    zip_buffer.seek(0)
+
+                    # Create download button for ZIP
+                    st.download_button(
+                        label="Download All Documents (ZIP)",
+                        data=zip_buffer,
+                        file_name=f"audit_case_{case_id}_documents.zip",
+                        mime="application/zip",
+                        key=f"download-zip-{case_id}"
+                    )
+                    log.info(f"Documents for case {case_id} have been downloaded as ZIP.")
+                except Exception as e:
+                    st.error(f"Error creating ZIP archive: {str(e)}")
+                    log.error(f"Error creating ZIP archive for case {case_id}: {str(e)}")
+            else:
+                st.warning(f"No documents folder found for case {case_id}.")
+                log.warning(f"No documents folder found for case {case_id}")
+
+            # Button to archive the case
+            if st.button("Archive Case"):
+                db.query("UPDATE audit_case SET stage = 5 WHERE id = ?", (case_id,))
+                st.success("Case Archived!")
+                # Clear cache and refresh
+                st.cache_data.clear()
+                st.rerun()
