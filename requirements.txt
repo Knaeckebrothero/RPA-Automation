@@ -8,6 +8,11 @@ opencv-python
 pdf2image
 PyMuPDF
 
+# For generating the certificate
+python-docx
+docx2pdf
+reportlab
+
 pillow  # Required by tesseract (allthough easyocr depends on it as well)
 beautifulsoup4
 pytesseract

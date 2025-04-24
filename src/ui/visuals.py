@@ -1,15 +1,12 @@
 """
 This module contains functions for generating visuals.
 """
-import pandas as pd
-import re
 import matplotlib.pyplot as plt
 import streamlit as st
 import logging
 
 # Custom imports
 from cls.database import Database
-from cls.document import PDF
 
 
 # Set up logging
@@ -140,122 +137,3 @@ def client_info_box(client_data):
 
     # Add a divider
     st.divider()
-
-
-# TODO: Remove this function since it's not used anymore!
-def client_db_value_comparison(client_document: PDF, include_all_fields=True, database: Database = None) -> pd.DataFrame:
-    """
-    Generate a DataFrame comparing values from the database with values extracted from the document.
-
-    :param include_all_fields: If True, includes all fields in the comparison; otherwise only includes fields that
-     are required for validation.
-    :param client_document: The document to compare values from.
-    :param database: Optional database instance; if not provided, uses the default instance.
-    :return: Pandas DataFrame with columns for key figure, database value, document value, and match status
-    """
-    if database:
-        db = database
-    else:
-        db = Database.get_instance()
-
-    # print(client_document.__str__())
-    log.debug(f"Audit values available: {hasattr(client_document, '_audit_values')}")
-    if hasattr(client_document, '_audit_values'):
-        log.debug(f"Audit values keys: {client_document._audit_values.keys() if client_document._audit_values else 'None'}")
-
-    if not client_document.bafin_id:
-        log.warning("No BaFin ID found for document, cannot compare values")
-        return pd.DataFrame(columns=["Key figure", "Database value", "Document value", "Match status"])
-
-    # Fetch client data from database
-    client_data = db.query(f"""
-    SELECT 
-        id,
-        p033, p034, p035, p036,
-        ab2s1n01, ab2s1n02, ab2s1n03, ab2s1n04, 
-        ab2s1n05, ab2s1n06, ab2s1n07, ab2s1n08, 
-        ab2s1n09, ab2s1n10, ab2s1n11
-    FROM client 
-    WHERE bafin_id = ?
-    """, (client_document.bafin_id,))
-
-    # Check if client exists in database
-    if not client_data:
-        log.warning(f"Client with BaFin ID {client_document.bafin_id} not found in database")
-        return pd.DataFrame(columns=["Key figure", "Database value", "Document value", "Match status"])
-
-    client_data = client_data[0]  # Get first row of results
-
-    # Get document attributes
-    document_attributes = client_document.get_attributes()
-    if not document_attributes:
-        log.warning("No attributes found in document")
-        return pd.DataFrame(columns=["Key figure", "Database value", "Document value", "Match status"])
-
-    # Extract audit values if they're not already present
-    if not hasattr(client_document, '_audit_values') or not client_document._audit_values:
-        log.info("Extracting audit values from document attributes")
-        client_document.extract_audit_values()
-
-    # Required fields as defined in compare_values method
-    required_fields = [1, 5, 6, 7, 8, 9, 10]  # p033 and ab2s1n01-ab2s1n06 are mandatory
-
-    # Define field mappings and readable names
-    field_mappings = {
-        # Position fields
-        1: {"code": "p033", "name": "Position 033 (Provisionsergebnis)"},
-        2: {"code": "p034", "name": "Position 034 (Nettoergebnis Wertpapieren)"},
-        3: {"code": "p035", "name": "Position 035 (Nettoergebnis Devisen)"},
-        4: {"code": "p036", "name": "Position 036 (Nettoergebnis Derivaten)"},
-
-        # Section fields (§ 16j Abs. 2 Satz 1 Nr. X FinDAG)
-        5: {"code": "ab2s1n01", "name": "Nr. 1 (Zahlungsverkehr)"},
-        6: {"code": "ab2s1n02", "name": "Nr. 2 (Außenhandelsgeschäft)"},
-        7: {"code": "ab2s1n03", "name": "Nr. 3 (Reisezahlungsmittelgeschäft)"},
-        8: {"code": "ab2s1n04", "name": "Nr. 4 (Treuhandkredite)"},
-        9: {"code": "ab2s1n05", "name": "Nr. 5 (Vermittlung von Kredit)"},
-        10: {"code": "ab2s1n06", "name": "Nr. 6 (Kreditbearbeitung)"},
-        11: {"code": "ab2s1n07", "name": "Nr. 7 (ausländischen Tochterunternehmen)"},
-        12: {"code": "ab2s1n08", "name": "Nr. 8 (Nachlassbearbeitungen)"},
-        13: {"code": "ab2s1n09", "name": "Nr. 9 (Electronic Banking)"},
-        14: {"code": "ab2s1n10", "name": "Nr. 10 (Gutachtertätigkeiten)"},
-        15: {"code": "ab2s1n11", "name": "Nr. 11 (sonstigen Bearbeitungsentgelten)"}
-    }
-
-    # Prepare data for the DataFrame
-    comparison_data = []
-
-    for db_index, field_info in field_mappings.items():
-        # Skip non-required fields if include_all_fields is False
-        if not include_all_fields and db_index not in required_fields:
-            continue
-
-        field_code = field_info["code"]
-        key_figure = field_info["name"]
-        db_value = client_data[db_index]
-        doc_value = "Not found"
-        matches = False
-
-        # Check if this field was extracted from the document
-        if hasattr(client_document, '_audit_values') and client_document._audit_values:
-            if f"raw_{field_code}" in client_document._audit_values:
-                doc_value = client_document._audit_values[f"raw_{field_code}"]
-
-                # If there's a normalized value, use it for comparison
-                if field_code in client_document._audit_values:
-                    normalized_value = client_document._audit_values[field_code]
-                    matches = (normalized_value == db_value)
-
-        # Use icons for match status
-        match_status = "✅" if matches else "❌"
-
-        # Add to comparison data
-        comparison_data.append({
-            "Key figure": key_figure,
-            "Database value": db_value,
-            "Document value": doc_value,
-            "Match status": match_status
-        })
-
-    # Create DataFrame
-    return pd.DataFrame(comparison_data)

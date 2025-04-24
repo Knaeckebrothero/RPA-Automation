@@ -5,7 +5,6 @@ import os
 import sqlite3
 import logging
 import pandas as pd
-import streamlit as st
 
 # Custom imports
 from cls.singleton import Singleton
@@ -13,6 +12,7 @@ from cls.singleton import Singleton
 
 # Set up logging
 log  = logging.getLogger(__name__)
+
 
 class Database(Singleton):
     """

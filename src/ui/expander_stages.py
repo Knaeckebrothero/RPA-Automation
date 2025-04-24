@@ -30,7 +30,7 @@ def _icon(icon: bool = False) -> str:
 
 
 # Stage 1: Waiting for documents
-def stage_1(case_id: int, current_stage: int, database: Database = None):
+def stage_1(case_id: int, current_stage: int, db: Database = Database.get_instance()):
     """
     This is the first/default stage an audit case can be in.
     Cases in this stage are part of this year's audit and are waiting for the documents to be received.
@@ -39,14 +39,12 @@ def stage_1(case_id: int, current_stage: int, database: Database = None):
 
     :param case_id: The ID of the case.
     :param current_stage: The current stage of the case.
-    :param database: The database instance to use. If None, the default instance will be used.
+    :param db: The database instance to use. Optional and will be fetched from the class if not provided.
     """
-    if not database:
-        db = Database.get_instance()
-    else:
-        db = database
-
-    with st.expander("Documents Received", expanded=(current_stage == 1), icon=_icon((current_stage > 1))):
+    with st.expander(
+            "Documents Received",
+            expanded=(current_stage == 1),
+            icon=_icon((current_stage > 1))):
         if current_stage == 1:
             st.write("Waiting to receive documents.")
 
@@ -65,23 +63,22 @@ def stage_1(case_id: int, current_stage: int, database: Database = None):
                     email_id, 
                     document_filename, 
                     document_path, 
-                    processed, 
                     processing_date
                 FROM document 
                 WHERE audit_case_id = ?
                 """, (case_id,)
-            ) # TODO: Add a date when the documents were received
+            )  # TODO: Add a date when the documents were received
 
             # Display information about the received documents
             if document_info:
                 # Define column names for better display
-                columns = ["Email ID", "Filename", "Path", "Processed", "Processing Date"]
+                columns = ["Email ID", "Filename", "Path", "Processing Date"]
 
                 # Convert to dataframe
                 df = pd.DataFrame(document_info, columns=columns)
 
                 # Format the 'Processed' column to show Yes/No instead of True/False
-                df["Processed"] = df["Processed"].apply(lambda x: "Yes" if x else "No")
+                #df["Processed"] = df["Processed"].apply(lambda x: "Yes" if x else "No")
 
                 # If there's only one document, just show it
                 if len(df) == 1:
@@ -94,16 +91,17 @@ def stage_1(case_id: int, current_stage: int, database: Database = None):
                 # TODO: How can processed be no but processing_date be set?
 
                 # Create download buttons for each document
-                for i, (email_id, filename, path, processed, proc_date) in enumerate(document_info):
+                for i, (email_id, filename, path, proc_date) in enumerate(document_info):
                     try:
                         if os.path.exists(path):
-                            with open(path, "rb") as file:
+                            with open(path[:-4] + "pdf",
+                                      "rb") as file:  # TODO: This is a workaround and should be fixed
                                 st.download_button(
                                     # Add the filename to the button in case multiple documents have been received
                                     label="Download Document" if len(df) == 1 else f"Download {filename}",
                                     data=file,
-                                    file_name=filename,
-                                    mime="application/pdf",
+                                    file_name=filename + ".pdf",
+                                    #mime="application/pdf",
                                     key=f"download-pdf-{i}"
                                 )
                                 log.info(f"Document {filename} has been downloaded.")
@@ -136,7 +134,7 @@ def stage_1(case_id: int, current_stage: int, database: Database = None):
 
 
 # Stage 2: Data verification
-def stage_2(case_id: int, current_stage: int, database: Database = None):
+def stage_2(case_id: int, current_stage: int, db: Database = Database.get_instance()):
     """
     The second stage of the audit process.
     Cases in this stage have had their documents received and are now waiting for the data to be verified.
@@ -145,23 +143,24 @@ def stage_2(case_id: int, current_stage: int, database: Database = None):
 
     :param case_id: The ID of the case.
     :param current_stage: The current stage of the case.
-    :param database: The database instance to use.
+    :param db: The database instance to use. Optional and will be fetched from the class if not provided.
     """
-    if not database:
-        db = Database.get_instance()
-    else:
-        db = database
-    # TODO: Move this logic into a function
-
-    with st.expander("Data verification", expanded=(current_stage == 2), icon=_icon((current_stage > 2))):
+    with st.expander(
+            "Data verification",
+            expanded=(current_stage == 2),
+            icon=_icon((current_stage > 2))):
         if current_stage < 2:
-            st.write("Waiting for stage one to be completed!")
-            log.debug(f"Waiting for stage one to be completed for case: {case_id}")
+            st.write("Waiting for stage one to complete.")
+            #log.debug(f"Waiting for stage one to be completed for case: {case_id}")
+        else:
+            if current_stage > 2:
+                st.write("Client data has been verified against our records.")
+                #log.debug(f"Client data has been verified against our records for case: {case_id}")
+            elif current_stage == 2:
+                st.write("Client data needs to be verified against our records.")
+                #log.debug(f"Client data needs to be verified against our records for case: {case_id}")
 
-        elif current_stage >= 2:
-            st.write("Client data needs to be verified against our records.")
-            log.debug(f"Client data needs to be verified against our records for case: {case_id}")
-
+            # TODO: Why am I getting two documents here????
             # Get documents for this audit case
             documents = db.query("""
                 SELECT 
@@ -198,7 +197,7 @@ def stage_2(case_id: int, current_stage: int, database: Database = None):
                 # Create tabs for each document
                 if len(documents) > 1:
                     st.write(f"Found {len(documents)} documents for this case:")
-                    doc_tabs = st.tabs([f"Document {i+1}: {doc[1]}" for i, doc in enumerate(documents)])
+                    doc_tabs = st.tabs([f"Document {i + 1}: {doc[1]}" for i, doc in enumerate(documents)])
 
                     # Display each document in its own tab
                     for i, document in enumerate(documents):
@@ -214,47 +213,53 @@ def stage_2(case_id: int, current_stage: int, database: Database = None):
                 #    The code can still be used if put in expander stage_1()!
                 st.warning("No documents found for this case. Please upload or process a document first.")
                 log.error(f"No documents found for case: {case_id}, who is in stage 2.")
-        #elif current_stage > 2:
-            #st.write("Client data has been verified against our records.")
-            #log.debug(f"Client data has been verified against our records for case: {case_id}")
-
-            # Option to view verification history
-            #if st.checkbox("Show verification history"):
-            #    documents = db.query("""
-            #        SELECT
-            #            document_hash,
-            #            document_filename,
-            #            processed,
-            #            processing_date
-            #        FROM document
-            #        WHERE audit_case_id = ? AND processed = TRUE
-            #        ORDER BY processing_date DESC
-            #    """, (case_id,))
-
-            #    if documents:
-            #        for doc_hash, filename, processed, proc_date in documents:
-            #            st.write(f"✅ {filename} - Verified on {proc_date}")
-            #    else:
-            #        st.info("No verified documents found in history.")
 
 
 # Stage 3: Certification
-def stage_3():
+def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instance()):
     """
     The third stage of the audit process.
     Cases in this stage have had their data verified and are now waiting for the certificate to be issued.
     Once the certificate has been signed and submitted to the BaFin, the case will move to the next stage.
+
+    :param case_id: The ID of the case.
+    :param current_stage: The current stage of the case.
+    :param db: The database instance to use. Optional and will be fetched from the class if not provided.
     """
-    with st.expander("Certificate issued", icon=_icon()):
-        st.write("Inside the expander.")
+    with st.expander(
+            "Certificate issued",
+            expanded=(current_stage == 3),
+            icon=_icon((current_stage > 3))):
+        st.write("Certificate logic goes here!")
+
+        if current_stage == 3 and st.button("Complete Process"):
+            db.query("UPDATE audit_case SET stage = 4 WHERE id = ?", (case_id,))
+            st.success("Process Completed!")
+            # Clear cache and refresh
+            st.cache_data.clear()
+            st.rerun()
 
 
 # Stage 4: Process completion
-def stage_4():
+def stage_4(case_id: int, current_stage: int, db: Database = Database.get_instance()):
     """
     The fourth and final stage of the audit process.
     Cases in this stage have successfully completed the audit process and are now waiting to be archived.
     Once the case has been archived, it will no longer be part of the current year's audit.
+
+    :param case_id: The ID of the case.
+    :param current_stage: The current stage of the case.
+    :param db: The database instance to use. Optional and will be fetched from the class if not provided.
     """
-    with st.expander("Process completed", icon=_icon()):
-        st.write("Inside the expander.")
+    with st.expander(
+            "Process completed",
+            expanded=(current_stage == 4),
+            icon=_icon((current_stage > 4))):
+        st.write("Archiving logic goes here!")
+
+        if current_stage == 4 and st.button("Archive Case"):
+            db.query("UPDATE audit_case SET stage = 5 WHERE id = ?", (case_id,))
+            st.success("Case Archived!")
+            # Clear cache and refresh
+            st.cache_data.clear()
+            st.rerun()

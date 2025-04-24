@@ -187,8 +187,7 @@ def active_cases(database: Database = None):
                 # Comments section with editing capability
                 st.subheader("Comments")
                 current_comments = selected_case['comments'] if pd.notna(selected_case['comments']) else ""
-
-                new_comments = st.text_area("Edit Comments", value=current_comments, height=100)
+                new_comments = st.text_area("Edit Comments", value=current_comments, height=143)
 
                 if new_comments != current_comments:
                     if st.button("Save Comments"):
@@ -226,29 +225,9 @@ def active_cases(database: Database = None):
 
             # Display expandable sections for each step of the process
             expander_stages.stage_1(case_id, current_stage, db)
-            expander_stages.stage_2(case_id, current_stage)
-            #expander_stages.stage_3(case_id, current_stage)
-            #expander_stages.stage_4(case_id, current_stage)
-
-            # TODO: Continue to implement the rest of the stages!
-
-            with st.expander("Step 3: Certificate Issued", expanded=(current_stage == 3)):
-                st.write("Certificate has been issued to BaFin.")
-                if current_stage == 3 and st.button("Complete Process"):
-                    db.query("UPDATE audit_case SET stage = 4 WHERE id = ?", (case_id,))
-                    st.success("Process Completed!")
-                    # Clear cache and refresh
-                    st.cache_data.clear()
-                    st.rerun()
-
-            with st.expander("Step 4: Process Completed", expanded=(current_stage == 4)):
-                st.write("The audit process has been completed.")
-                if current_stage == 4 and st.button("Archive Case"):
-                    db.query("UPDATE audit_case SET stage = 5 WHERE id = ?", (case_id,))
-                    st.success("Case Archived!")
-                    # Clear cache and refresh
-                    st.cache_data.clear()
-                    st.rerun()
+            expander_stages.stage_2(case_id, current_stage, db)
+            expander_stages.stage_3(case_id, current_stage, db)
+            expander_stages.stage_4(case_id, current_stage, db)
 
 
 # TODO: Check if this works as expected!
