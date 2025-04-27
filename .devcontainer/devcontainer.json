@@ -5,7 +5,7 @@
         "ghcr.io/devcontainers/features/python:1": {},
         "ghcr.io/devcontainers/features/common-utils:2": {},
         "ghcr.io/devcontainers-contrib/features/apt-packages:1": {
-            "packages": "tesseract-ocr libtesseract-dev poppler-utils libgl1-mesa-glx"
+            "packages": ["tesseract-ocr", "libtesseract-dev", "poppler-utils"]
         }
     },
     "customizations": {
@@ -18,7 +18,7 @@
             ]
         }
     },
-    "postCreateCommand": "sudo apt-get update && pip install -r requirements.txt",
+    "postCreateCommand": "pip install -r requirements.txt",
     "remoteUser": "vscode",
     "mounts": [
         "source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached"
