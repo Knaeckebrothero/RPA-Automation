@@ -3,9 +3,14 @@ This module contains functions for generating visuals.
 """
 import matplotlib.pyplot as plt
 import streamlit as st
+import logging
 
 # Custom imports
 from cls.database import Database
+
+
+# Set up logging
+log = logging.getLogger(__name__)
 
 
 # TODO: Fix issue with labels overlapping

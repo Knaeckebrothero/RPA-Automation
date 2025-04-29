@@ -5,7 +5,6 @@ import os
 import sqlite3
 import logging
 import pandas as pd
-import streamlit as st
 
 # Custom imports
 from cls.singleton import Singleton
@@ -13,6 +12,7 @@ from cls.singleton import Singleton
 
 # Set up logging
 log  = logging.getLogger(__name__)
+
 
 class Database(Singleton):
     """
@@ -102,14 +102,16 @@ class Database(Singleton):
             log.error(f"Error verifying tables: {e}")
             raise
 
-    def query(self, query: str, params=None) -> list[tuple]:
+    def query(self, query: str, params=None) -> list[tuple] | list | None:
         """
         Execute a query on the database.
         This method doesn't commit changes to the database.
 
         :param query: The SQL query to execute.
         :param params: Parameters to use with the query (optional).
-        :return: The result of the query as a list of tuples. Returns an empty list if no records are found.
+        :return: The result of the query as a list of tuples. Each tuple represents a record, with each element
+         representing a column value. If only one column was queried, the tuples will collapse into a single value
+          and the method will return a list of values. If the query returns no records, an empty list is returned.
         :raises sqlite3.Error: If the query execution fails.
         """
         try:

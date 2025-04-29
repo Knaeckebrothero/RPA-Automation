@@ -165,8 +165,15 @@ def insert_default_users(conn, logger):
                 VALUES (?, ?, ?, ?)
             """, ("auditor@example.com", auditor_pass, auditor_salt, "auditor"))
 
+            # Create inspector user
+            auditor_pass, auditor_salt = hash_password("inspector123")
+            cursor.execute("""
+                INSERT INTO user (username_email, password_hash, password_salt, role)
+                VALUES (?, ?, ?, ?)
+            """, ("inspector@example.com", auditor_pass, auditor_salt, "inspector"))
+
             conn.commit()
-            logger.info("Default users created: admin and auditor")
+            logger.info("Default users created: admin, auditor and inspector")
             return True
         else:
             logger.info(f"Users already exist ({count} users found), skipping default user creation")

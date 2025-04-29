@@ -8,9 +8,10 @@ import numpy as np
 import re
 import logging
 import hashlib
+import pandas as pd
 
 # Custom imports
-import processing.detect as dtc
+import processing.detect as dtct
 from processing.ocr import ocr_cell, create_ocr_reader
 from processing.files import get_images_from_pdf
 from cls.database import Database
@@ -38,18 +39,21 @@ class Document:
         """
         self._content: bytes = content
         self._attributes: dict = attributes if attributes else {}
-        self._content_path: str = content_path
+        self._content_path: str = content_path  # TODO: Check if this is still needed!
         self.document_hash: str = document_hash if document_hash else self._generate_document_hash()
         log.debug(f"Document created: {len(self._content) if self._content else 0}, {len(self._attributes.keys())}")
 
     def __str__(self):
         return f"""
-        Document: of size {len(self._content)} bytes, with: {len(self._attributes.keys())} number of attributes.
+        ----------------- 
+        Document: of size {len(self._content)} bytes, with: {len(self._attributes.keys())} number of attributes. 
         Attributes: {self._attributes}
-        Content path: {self._content_path} 
+        -----------------
+        Content path: {self._content_path}
+        Document Hash: {self.document_hash}
         """
 
-    # TODO: Perhaps we should move to using getters and setters for all attributes (e.g. be consistant with the attributes)
+    # TODO: Perhaps we should move to using getters and setters for all attributes (e.g. be consistent with the attributes)
     def get_content(self) -> bytes:
         return self._content
 
@@ -287,8 +291,10 @@ class PDF(Document):
     The PDF class represents a PDF document.
     It extends the Document class with PDF-specific functionality like OCR and table extraction.
     """
-    def __init__(self, content: bytes, email_id: int = None, client_id: int = None, bafin_id: int = None,
-                 attributes: dict = None, content_path: str = None, audit_case_id: int = None, document_hash: str = None):
+    def __init__(
+            self, content: bytes, email_id: int = None, client_id: int = None, bafin_id: int = None,
+            attributes: dict = None, content_path: str = None, audit_case_id: int = None,
+            document_hash: str = None, audit_values: dict = None):
         """
         The constructor for the PDF class.
 
@@ -306,70 +312,46 @@ class PDF(Document):
         self.client_id = client_id
         self.bafin_id = bafin_id
         self.audit_case_id = audit_case_id
+        self._audit_values = audit_values
         log.debug("PDF document created")
 
     def __str__(self):
         base_str = super().__str__()
         return f"""
+        {base_str.rstrip()} 
         Email ID: {self.email_id}
         Client ID: {self.client_id}
         BaFin ID: {self.bafin_id}
-        {base_str.rstrip()} 
+        Audit Case ID: {self.audit_case_id}
+        -----------------  
+        Audit Values: {self._audit_values}
+        ----------------- 
         """
 
     def _get_serializable_data(self):
         """
-        Override to add PDF-specific attributes to the serializable data.
+        Get a serializable representation of the document.
+        This method should be overridden by subclasses to include their specific attributes.
 
-        :return: Dictionary with serializable document data including PDF attributes
+        :return: Dictionary with serializable document data
         """
-        data = super()._get_serializable_data()
+        data = {
+            "document_type": self.__class__.__name__,
+            "attributes": self._attributes,
+            "content_path": self._content_path
+        }
 
-        # Add PDF-specific attributes
-        data.update({
-            "email_id": self.email_id,
-            "client_id": self.client_id,
-            "bafin_id": self.bafin_id
-        })
+        # Include audit_values if they exist
+        if hasattr(self, '_audit_values') and self._audit_values:
+            data['_audit_values'] = self._audit_values
 
         return data
-
-    @classmethod
-    def _create_from_json_data(cls, data, load_content):
-        """
-        Create a PDF instance from parsed JSON data.
-
-        :param data: Dictionary with document data
-        :param load_content: Whether to load the content file
-        :return: A PDF instance
-        """
-        # Get the content path from the JSON
-        content_path = data.get('content_path')
-        attributes = data.get('attributes', {})
-
-        # Load content if requested and the content file exists
-        content = None
-        if load_content and content_path and os.path.exists(content_path):
-            with open(content_path, 'rb') as file:
-                content = file.read()
-            log.debug(f"Content loaded from file: {content_path}")
-
-        # Create the PDF instance with its specific attributes
-        pdf = cls(
-            content=content,
-            email_id=data.get('email_id'),
-            client_id=data.get('client_id'),
-            bafin_id=data.get('bafin_id'),
-            attributes=attributes
-        )
-        pdf._content_path = content_path
-
-        log.info(f"PDF document loaded from JSON data")
-        return pdf
 
     def extract_table_data(self, ocr_reader = None):
         """
         Extract the text from the document.
+
+        :param ocr_reader: The OCR reader to use for text extraction. If None, a default reader is created.
         """
         if self._content:
             if not ocr_reader:
@@ -388,8 +370,12 @@ class PDF(Document):
                 # Convert to BGR format since it is required for OpenCV (BGR is basically RGB but in reverse)
                 bgr_image_array = cv2.cvtColor(np_image_array, cv2.COLOR_RGB2BGR)
 
+                # Normalize the image resolution
+                bgr_image_array = dtct.normalize_image_resolution(bgr_image_array)
+                # TODO: Check if this works as expected!
+
                 # Detect tables
-                table_contours = dtc.tables(bgr_image_array)
+                table_contours = dtct.tables(bgr_image_array)
                 log.debug(f"Number of pages in the document: {len(images)}")
 
                 # Process each detected table
@@ -401,7 +387,7 @@ class PDF(Document):
                     table_roi = bgr_image_array[y:y + h, x:x + w]
 
                     # Detect rows in the table
-                    rows = dtc.rows(table_roi)
+                    rows = dtct.rows(table_roi)
 
                     # Process each detected row
                     for k, (y1, y2) in enumerate(rows):
@@ -412,7 +398,7 @@ class PDF(Document):
                         row_image = table_roi[y1:y2, :]
 
                         # Detect cells in the row
-                        cells = dtc.cells(row_image)
+                        cells = dtct.cells(row_image)
 
                         # Process each detected cell
                         for m, (x1, x2) in enumerate(cells):
@@ -463,7 +449,7 @@ class PDF(Document):
                 log.debug("Document does not have a BaFin ID yet, proceeding to check the cell for one.")
 
                 # Check the cell for a BaFin ID
-                bafin_id = dtc.bafin_id(row_data[0])
+                bafin_id = dtct.bafin_id(row_data[0])
 
                 if bafin_id:
                     # TODO: Check if this part works as expected!
@@ -524,18 +510,20 @@ class PDF(Document):
 
     def compare_values(self) -> bool:
         """
-        Function to compare extracted values from a document with the values stored in the database.
+        Compare extracted values from document with the values stored in the database.
         Returns True if all required values match, False otherwise.
 
-        The function handles various patterns in the document text and normalizes values
-        before comparison to ensure accurate matching despite formatting differences.
+        This function first calls extract_audit_values() to prepare the comparison data,
+        then retrieves corresponding values from the database and performs the comparison.
 
-        :return: True if all values match, False if any discrepancy is found
+        :return: True if all required values match, False if any discrepancy is found
         """
         if not self.bafin_id:
             log.warning("No BaFin ID found for document, cannot compare values")
             return False
 
+        # Extract audit values from document attributes
+        self.extract_audit_values()
         log.debug(f"Starting value comparison for document with BaFin ID: {self.bafin_id}")
 
         # Fetch client data from database
@@ -551,114 +539,79 @@ class PDF(Document):
         """, (self.bafin_id,))
 
         # Check if client exists in database
-        if not client_data:
+        if client_data:
+            client_data = client_data[0]
+            log.debug(f"Retrieved client data: {client_data}")
+        else:
             log.warning(f"Client with BaFin ID {self.bafin_id} not found in database")
             return False
 
-        client_data = client_data[0]  # Get first row of results
-        log.debug(f"Retrieved client data: {client_data}")
-
-        # Get document attributes
-        document_attributes = self.get_attributes()
-        if not document_attributes:
-            log.warning("No attributes found in document")
-            return False
-
-        # Define field mappings between document text patterns and database columns
-        # Format: (column_index, [possible text patterns to match])
-        field_mappings = {
-            # Position fields
-            1: [r"Position 033", r"Position033", r"Pos\.? 033", r"Provisionsergebnis"],
-            2: [r"Position 034", r"Position034", r"Pos\.? 034", r"Nettoergebnis.*Wertpapieren"],
-            3: [r"Position 035", r"Position035", r"Pos\.? 035", r"Nettoergebnis.*Devisen"],
-            4: [r"Position 036", r"Position036", r"Pos\.? 036", r"Nettoergebnis.*Derivaten"],
-
-            # Section fields (§ 16j Abs. 2 Satz 1 Nr. X FinDAG)
-            5: [r"Nr\.? 1 FinDAG", r"Nr\.? 1", r"Zahlungsverkehr"],
-            6: [r"Nr\.? 2 FinDAG", r"Nr\.? 2", r"Außenhandelsgeschäft"],
-            7: [r"Nr\.? 3 FinDAG", r"Nr\.? 3", r"Reisezahlungsmittelgeschäft"],
-            8: [r"Nr\.? 4 FinDAG", r"Nr\.? 4", r"Treuhandkredite"],
-            9: [r"Nr\.? 5 FinDAG", r"Nr\.? 5", r"Vermittlung von Kredit"],
-            10: [r"Nr\.? 6 FinDAG", r"Nr\.? 6", r"Kreditbearbeitung"],
-            11: [r"Nr\.? 7 FinDAG", r"Nr\.? 7", r"ausländischen Tochterunternehmen"],
-            12: [r"Nr\.? 8 FinDAG", r"Nr\.? 8", r"Nachlassbearbeitungen"],
-            13: [r"Nr\.? 9 FinDAG", r"Nr\.? 9", r"Electronic Banking"],
-            14: [r"Nr\.? 10 FinDAG", r"Nr\.? 10", r"Gutachtertätigkeiten"],
-            15: [r"Nr\.? 11 FinDAG", r"Nr\.? 11", r"sonstigen Bearbeitungsentgelten"]
+        # Define field codes and their corresponding positions in client_data
+        field_codes = {
+            "p033": 1, "p034": 2, "p035": 3, "p036": 4,
+            "ab2s1n01": 5, "ab2s1n02": 6, "ab2s1n03": 7, "ab2s1n04": 8,
+            "ab2s1n05": 9, "ab2s1n06": 10, "ab2s1n07": 11, "ab2s1n08": 12,
+            "ab2s1n09": 13, "ab2s1n10": 14, "ab2s1n11": 15
         }
+
+        # Define required fields that must match for verification to pass
+        required_fields = [
+            "p033", "p034", "p035", "p036",
+            "ab2s1n01", "ab2s1n02", "ab2s1n03", "ab2s1n04",
+            "ab2s1n05", "ab2s1n06", "ab2s1n07", "ab2s1n08",
+            "ab2s1n09", "ab2s1n10", "ab2s1n11"]
+        # TODO: Remove this hardcoded list since using only the summed up values is not a good idea (make the
+        #  function compare all attributes returned by the db query)
 
         # Track matches and mismatches
         matches = {}
         mismatches = {}
 
-        for key, value in document_attributes.items():
-            matched = False
+        # Compare values for each field
+        for field_code, db_index in field_codes.items():
+            db_value = client_data[db_index]
 
-            # Skip non-value attributes
-            if key in ['filename', 'content_type', 'email_id', 'sender', 'date', 'client_id', 'BaFin-ID']:
-                continue
+            # Check if this field was extracted from the document
+            if field_code in self._audit_values:
+                doc_value = self._audit_values[field_code]
+                raw_value = self._audit_values.get(f"raw_{field_code}", "N/A")
 
-            # Skip empty values or non-string values
-            if not value or not isinstance(value, str):
-                continue
+                # Compare values
+                if doc_value == db_value:
+                    matches[field_code] = (raw_value, db_value)
+                    self._audit_values[f"match_{field_code}"] = True
+                    log.debug(f"Match for {field_code}: Document value '{raw_value}' matches database value '{db_value}'")
+                else:
+                    mismatches[field_code] = (raw_value, doc_value, db_value)
+                    self._audit_values[f"match_{field_code}"] = False
+                    log.warning(f"Mismatch for {field_code}: Document value '{raw_value}' ({doc_value}) does not match database value '{db_value}'")
+            else:
+                # Field not found in document
+                if field_code in required_fields:
+                    mismatches[field_code] = ("Not found", "N/A", db_value)
+                    self._audit_values[f"missing_{field_code}"] = True
+                    log.warning(f"Required field {field_code} not found in document")
 
-            # Try to match the attribute key with our field patterns
-            for db_index, patterns in field_mappings.items():
-                for pattern in patterns:
-                    if re.search(pattern, key, re.IGNORECASE):
-                        matched = True
-                        # Try to convert document value to integer for comparison
-                        try:
-                            # Remove dots (thousand separators) and convert commas to periods for decimal values
-                            processed_value = value.replace('.', '')
+        # Calculate match statistics for required fields
+        total_required = len(required_fields)
+        matched_required = sum(1 for field in required_fields if field in matches)
+        match_percentage = (matched_required / total_required) * 100 if total_required > 0 else 0
 
-                            # Handle decimal values (with comma as decimal separator)
-                            if ',' in processed_value:
-                                # For decimal values, keep the decimal part
-                                processed_value = processed_value.replace(',', '.')
-                                # If it's a legitimate decimal, convert to float first
-                                doc_value = int(float(processed_value))
-                            else:
-                                # For integers
-                                doc_value = int(processed_value)
+        # Store overall match information
+        self._audit_values["match_percentage"] = match_percentage
+        self._audit_values["total_required_fields"] = total_required
+        self._audit_values["matched_required_fields"] = matched_required
+        self._audit_values["missing_fields"] = sum(1 for field in required_fields if f"missing_{field}" in self._audit_values)
+        self._audit_values["mismatched_fields"] = sum(1 for field in required_fields if field in mismatches and field in required_fields)
 
-                            db_value = client_data[db_index]
+        # Log overall result
+        log.info(f"Value comparison complete - {matched_required}/{total_required} required fields match ({match_percentage:.1f}%)")
 
-                            # Compare values
-                            if doc_value == db_value:
-                                matches[db_index] = (key, value, db_value)
-                                log.debug(f"Match for {key}: Document value '{value}' matches database value '{db_value}'")
-                            else:
-                                mismatches[db_index] = (key, value, db_value)
-                                log.warning(f"Mismatch for {key}: Document value '{value}' ({doc_value}) does not match database value '{db_value}'")
+        # Only check required fields for pass/fail decision
+        required_mismatches = {k: v for k, v in mismatches.items() if k in required_fields}
 
-                        except (ValueError, TypeError) as e:
-                            log.warning(f"Could not convert '{value}' to number for comparison: {e}")
-                            mismatches[db_index] = (key, value, "Conversion error")
-
-                        break  # Stop checking patterns for this field
-
-                if matched:
-                    break  # Stop checking db fields for this attribute
-
-        # Check for required fields that weren't found in the document
-        required_fields = [1, 5, 6, 7, 8, 9, 10]  # p033 and ab2s1n01-ab2s1n06 are mandatory
-        missing_fields = [idx for idx in required_fields if idx not in matches and idx not in mismatches]
-
-        for idx in missing_fields:
-            log.warning(f"Required field {idx} not found in document")
-            mismatches[idx] = ("Not found", "N/A", client_data[idx])
-
-        # Calculate match percentage
-        total_fields = len(required_fields)
-        matched_fields = sum(1 for idx in required_fields if idx in matches)
-        match_percentage = (matched_fields / total_fields) * 100 if total_fields > 0 else 0
-
-        log.info(f"Value comparison complete - {matched_fields}/{total_fields} required fields match ({match_percentage:.1f}%)")
-
-        # Document passes if all required fields match
-        if mismatches:
-            log.warning(f"Document values do not match database - found {len(mismatches)} mismatches")
+        if required_mismatches:
+            log.warning(f"Document values do not match database - found {len(required_mismatches)} mismatches in required fields")
             return False
         else:
             log.info(f"All required document values match database values")
@@ -730,15 +683,17 @@ class PDF(Document):
 
         :return: The audit case id if it exists, otherwise None.
         """
-        client_id = self.client_id if not self.client_id else client_id = self.verify_bafin_id()
+        if not self.client_id:
+            log.debug(f"No client id on document: {self.email_id}")
+            self.verify_bafin_id()
 
         # Check if the client id is not None
-        if client_id:
-            log.debug(f"Getting audit case id for client id: {client_id}")
-            audit_case_id = self._db.query("SELECT id FROM audit_case WHERE client_id = ?", (client_id,))
+        if self.client_id:
+            log.debug(f"Getting audit case id for client id: {self.client_id}")
+            audit_case_id = self._db.query("SELECT id FROM audit_case WHERE client_id = ?", (self.client_id,))
 
             if audit_case_id:
-                log.debug(f"Audit case id: {audit_case_id[0][0]} found for client id: {client_id}")
+                log.debug(f"Audit case id: {audit_case_id[0][0]} found for client id: {self.client_id}")
 
                 if add_audit_case_id:
                     log.debug(f"Adding audit case id: {audit_case_id[0][0]} to document: {self.email_id}")
@@ -747,13 +702,12 @@ class PDF(Document):
 
                 return audit_case_id[0][0]
             else:
-                log.debug(f"No audit case found for client id: {client_id}")
+                log.debug(f"No audit case found for client id: {self.client_id}")
                 return None
         else:
             log.debug(f"No client id found for document: {self.email_id}")
             return None
 
-    # TODO: CONTINUE HERE, CHECK IF THIS METHOD IS WHAT YOU WANT!!!
     def store_document(self, audit_case_id: int) -> bool:
         """
         Store the document on disk and create an entry in the document table.
@@ -771,12 +725,11 @@ class PDF(Document):
                     return False
             
             # Check if this document already exists for this audit case
-            existing_doc = self._db.query(
+            existing_doc_path = self._db.query(
                 "SELECT document_path FROM document WHERE document_hash = ? AND audit_case_id = ?",
                 (self.document_hash, audit_case_id)
             )
-            
-            if existing_doc:
+            if existing_doc_path:
                 log.info(f"Document with hash {self.document_hash[:8]} already exists for audit case {audit_case_id}")
                 return True
             
@@ -784,19 +737,22 @@ class PDF(Document):
             filename = self.get_attributes("filename") or f"document_{self.document_hash[:8]}.pdf"
             if self.email_id:
                 filename = f"{self.email_id}_{filename}"
-            
-            base_path = os.path.join(
+
+            # Create the path
+            document_path = os.path.join(
                 os.getenv('FILESYSTEM_PATH', './.filesystem'),
-                "downloads",
-                str(audit_case_id)
+                "documents",
+                str(audit_case_id),
+                filename
             )
-            full_path = os.path.join(base_path, filename)
-            
+
             # Save file to disk using the existing method
-            saved_path = self.save_to_file(full_path)
+            self._content_path = document_path
+            saved_path = self.save_to_file(document_path, save_as_json=True)
             
             if not saved_path:
-                log.error(f"Failed to save document to {full_path}")
+                log.error(f"Failed to save document to {document_path}")
+                self._content_path = None
                 return False
             
             # If file saved successfully, create database entry
@@ -815,3 +771,276 @@ class PDF(Document):
         except Exception as e:
             log.error(f"Error storing document: {e}")
             return False
+
+    def extract_audit_values(self, patterns_file_path: str = None) -> dict:
+        """
+        Extract audit-relevant values from document attributes and populate self._audit_values.
+        This function processes document attributes to identify fields relevant for audit
+        verification, applying normalization to make comparison with database values more reliable.
+        Uses a scoring system to prioritize the best matching attributes.
+
+        :param patterns_file_path: Path to the JSON file containing regex patterns. If None, uses default path.
+        :return: Dictionary containing extracted and normalized audit values
+        """
+        if not hasattr(self, '_audit_values') or self._audit_values is None:
+            self._audit_values = {}
+
+        # Get document attributes
+        document_attributes = self.get_attributes()
+        if not document_attributes:
+            log.warning("No attributes found in document")
+            return self._audit_values
+
+        # Load regex patterns from file
+        if not patterns_file_path:
+            # Default path is in the same directory as schema.sql
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            patterns_file_path = os.path.join(base_dir, 'regex_patterns.json')
+
+        try:
+            with open(patterns_file_path, 'r', encoding='utf-8') as f:
+                field_mappings = json.load(f)
+            log.debug(f"Loaded regex patterns from {patterns_file_path}")
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            log.error(f"Error loading regex patterns file: {e}")
+            return {}
+
+        # Dictionary to store potential matches with scores
+        potential_matches = {}
+
+        # Process document attributes to find all potential matches
+        for key, value in document_attributes.items():
+            # Skip non-value attributes
+            if key in ['filename', 'content_type', 'email_id', 'sender', 'date', 'client_id', 'BaFin-ID', 'document_hash']:
+                continue
+
+            # Skip empty values or non-string values
+            if not value or not isinstance(value, str):
+                continue
+
+            # Try to match the attribute key with field patterns
+            for field_code, patterns in field_mappings.items():
+                for pattern_idx, pattern in enumerate(patterns):
+                    match = re.search(pattern, key, re.IGNORECASE)
+                    if match:
+                        # Calculate match score (pattern index provides base priority)
+                        score = 100 - pattern_idx * 10  # Earlier patterns get higher base scores
+
+                        # Specific scoring rules for different field types
+                        if field_code.startswith('p0'):  # Position fields
+                            # Boost score for Position fields that contain both "Position" and the number
+                            if re.search(r'(?i)position.*0*' + field_code[1:], key):
+                                score += 50
+                            # Boost for "Anlage SONO1" references
+                            if "anlage" in key.lower() and "sono1" in key.lower():
+                                score += 30
+                            # Boost for exact position number
+                            if re.search(r'(?i)(?:position|pos\.?|punkt)?\s*0*' + field_code[1:] + r'\b', key):
+                                score += 40
+
+                        elif field_code.startswith('ab2s1n'):  # FinDAG fields
+                            # Extract number from field code (e.g., "01" from "ab2s1n01")
+                            number = field_code[-2:]
+                            # Boost score for fields with explicit "Nr. X" and "FinDAG" references
+                            if re.search(r'(?i)nr\.?\s*' + number.lstrip('0') + r'\b.*findag', key):
+                                score += 50
+                            # Boost for paragraph references
+                            if re.search(r'(?i)(?:§|para(?:graph)?)\s*16j\s*abs', key):
+                                score += 40
+
+                        # Add precision boost for longer, more specific keys
+                        score += min(len(key) / 10, 20)  # Cap at 20 additional points
+
+                        # Store this match with its score
+                        if field_code not in potential_matches:
+                            potential_matches[field_code] = []
+                        potential_matches[field_code].append({
+                            'key': key,
+                            'value': value,
+                            'score': score
+                        })
+
+                        log.debug(f"Potential match for {field_code}: '{key}' with score {score}")
+
+        # Select the best match for each field code based on score
+        for field_code, matches in potential_matches.items():
+            if not matches:
+                continue
+
+            # Sort matches by score in descending order
+            matches.sort(key=lambda x: x['score'], reverse=True)
+            best_match = matches[0]
+
+            log.info(f"Best match for {field_code}: '{best_match['key']}' (score: {best_match['score']:.1f})")
+
+            # Store the raw extracted value and key
+            self._audit_values[f"raw_{field_code}"] = best_match['value']
+            self._audit_values[f"key_{field_code}"] = best_match['key']
+
+            # Try to convert document value to integer for comparison
+            try:
+                # Remove dots (thousand separators) and convert commas to periods for decimal values
+                processed_value = best_match['value'].replace('.', '')
+
+                # Handle decimal values (with comma as decimal separator)
+                if ',' in processed_value:
+                    # For decimal values, keep the decimal part
+                    processed_value = processed_value.replace(',', '.')
+                    # If it's a legitimate decimal, convert to float first
+                    normalized_value = int(float(processed_value))
+                else:
+                    # For integers
+                    normalized_value = int(processed_value)
+
+                # Store the normalized numeric value
+                self._audit_values[field_code] = normalized_value
+
+            except (ValueError, TypeError) as e:
+                # Store error information
+                self._audit_values[f"error_{field_code}"] = str(e)
+
+        return self._audit_values
+
+    def get_value_comparison_table(self) -> pd.DataFrame:
+        """
+        Generate a comparison table between document values and database values.
+
+        :return: Pandas DataFrame with columns for key figure, database value, document value, and match status
+        """
+        if not hasattr(self, '_audit_values') or not self._audit_values:
+            log.debug("No audit values found, extracting them now")
+            self.extract_audit_values()
+
+        # Get BaFin ID if not already set
+        if not self.bafin_id and self.client_id:
+            bafin_id_result = self._db.query("SELECT bafin_id FROM client WHERE id = ?", (self.client_id,))
+            if bafin_id_result:
+                self.bafin_id = bafin_id_result[0][0]
+                log.debug(f"Retrieved BaFin ID {self.bafin_id} for client {self.client_id}")
+
+        # Check if we have a BaFin ID to proceed
+        if not self.bafin_id:
+            log.warning("No BaFin ID found for document, cannot generate comparison table")
+            return pd.DataFrame(columns=["Key figure", "Database value", "Document value", "Match status"])
+
+        # Fetch client data from database
+        client_data = self._db.query(f"""
+        SELECT 
+            id,
+            p033, p034, p035, p036,
+            ab2s1n01, ab2s1n02, ab2s1n03, ab2s1n04, 
+            ab2s1n05, ab2s1n06, ab2s1n07, ab2s1n08, 
+            ab2s1n09, ab2s1n10, ab2s1n11
+        FROM client 
+        WHERE bafin_id = ?
+        """, (self.bafin_id,))
+
+        # Check if client exists in database
+        if not client_data:
+            log.warning(f"Client with BaFin ID {self.bafin_id} not found in database")
+            return pd.DataFrame(columns=["Key figure", "Database value", "Document value", "Match status"])
+
+        client_data = client_data[0]  # Get first row of results
+        log.debug(f"Retrieved client data for BaFin ID {self.bafin_id}")
+
+        # Define field mappings and readable names
+        field_mappings = {
+            # Position fields
+            1: {"code": "p033", "name": "Position 033 (Provisionsergebnis)"},
+            2: {"code": "p034", "name": "Position 034 (Nettoergebnis Wertpapieren)"},
+            3: {"code": "p035", "name": "Position 035 (Nettoergebnis Devisen)"},
+            4: {"code": "p036", "name": "Position 036 (Nettoergebnis Derivaten)"},
+
+            # Section fields (§ 16j Abs. 2 Satz 1 Nr. X FinDAG)
+            5: {"code": "ab2s1n01", "name": "Nr. 1 (Zahlungsverkehr)"},
+            6: {"code": "ab2s1n02", "name": "Nr. 2 (Außenhandelsgeschäft)"},
+            7: {"code": "ab2s1n03", "name": "Nr. 3 (Reisezahlungsmittelgeschäft)"},
+            8: {"code": "ab2s1n04", "name": "Nr. 4 (Treuhandkredite)"},
+            9: {"code": "ab2s1n05", "name": "Nr. 5 (Vermittlung von Kredit)"},
+            10: {"code": "ab2s1n06", "name": "Nr. 6 (Kreditbearbeitung)"},
+            11: {"code": "ab2s1n07", "name": "Nr. 7 (ausländischen Tochterunternehmen)"},
+            12: {"code": "ab2s1n08", "name": "Nr. 8 (Nachlassbearbeitungen)"},
+            13: {"code": "ab2s1n09", "name": "Nr. 9 (Electronic Banking)"},
+            14: {"code": "ab2s1n10", "name": "Nr. 10 (Gutachtertätigkeiten)"},
+            15: {"code": "ab2s1n11", "name": "Nr. 11 (sonstigen Bearbeitungsentgelten)"}
+        }
+
+        # Prepare data for the DataFrame
+        comparison_data = []
+
+        for db_index, field_info in field_mappings.items():
+            field_code = field_info["code"]
+            key_figure = field_info["name"]
+            db_value = client_data[db_index]
+            doc_value = "Not found"
+            matches = False
+
+            # Check if this field was extracted from the document
+            if hasattr(self, '_audit_values') and self._audit_values:
+                if f"raw_{field_code}" in self._audit_values:
+                    doc_value = self._audit_values[f"raw_{field_code}"]
+
+                    # If there's a normalized value, use it for comparison
+                    if field_code in self._audit_values:
+                        normalized_value = self._audit_values[field_code]
+                        matches = (normalized_value == db_value)
+                        log.debug(f"Comparing {field_code}: Document value '{normalized_value}' vs DB value '{db_value}' - Match: {matches}")
+
+            # Use icons for match status
+            match_status = "✅" if matches else "❌"
+
+            # Add to comparison data
+            comparison_data.append({
+                "Key figure": key_figure,
+                "Database value": db_value,
+                "Document value": doc_value,
+                "Match status": match_status
+            })
+
+        # Create DataFrame
+        df = pd.DataFrame(comparison_data)
+        log.info(f"Generated comparison table with {len(df)} rows")
+        return df
+
+    @classmethod
+    def _create_from_json_data(cls, data, load_content):
+        """
+        Create a PDF instance from parsed JSON data.
+
+        :param data: Dictionary with document data
+        :param load_content: Whether to load the content file
+        :return: A PDF instance
+        """
+        content_path = data.get('content_path')
+        attributes = data.get('attributes', {})
+
+        # Get audit values directly from the JSON data
+        audit_values = data.get('_audit_values')
+
+        # Extract client-related IDs from attributes if they exist there
+        email_id = attributes.get('email_id')
+        client_id = attributes.get('client_id')
+        bafin_id = attributes.get('BaFin-ID')  # The JSON uses BaFin-ID as the key
+        audit_case_id = attributes.get('audit_case_id')
+
+        # Load content if requested and the content file exists
+        content = None
+        if load_content and content_path and os.path.exists(content_path):
+            with open(content_path, 'rb') as file:
+                content = file.read()
+            log.debug(f"Content loaded from file: {content_path}")
+
+        # Create the PDF instance with its specific attributes
+        pdf = cls(
+            content=content,
+            email_id=email_id,
+            client_id=client_id,
+            bafin_id=bafin_id,
+            attributes=attributes,
+            content_path=content_path,
+            audit_case_id=audit_case_id,
+            audit_values=audit_values
+        )
+
+        log.info(f"PDF document loaded from JSON data with {len(audit_values) if audit_values else 0} audit values")
+        return pdf

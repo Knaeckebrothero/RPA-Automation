@@ -31,14 +31,14 @@ def home(mailclient: Mailclient = None, database: Database = None):
     st.write('Welcome to the Document Fetcher application!')
     
     # Fetch the emails (exclude those who have already been downloaded)
-    emails = auditflow.fetch_new_emails(mailclient, database)
+    emails = auditflow.fetch_new_emails(database)
     # TODO: Check if this interferes with the visuals (since we don't just load all emails present)
 
     # Configure visuals layout
     column_left, column_right = st.columns(2)
 
     # Display the mails
-    st.dataframe(emails)
+    st.dataframe(emails, hide_index=True)
     # TODO: Check if the new selector ids work (e.g. the list number matches the number used by the selector)
 
     # Display a plot on the right
@@ -49,6 +49,10 @@ def home(mailclient: Mailclient = None, database: Database = None):
 
     # Display a table on the left
     with column_right:
+        if emails.empty:
+            st.warning("No new emails to process.")
+            return
+
         # Display a multiselect box to select documents to process
         docs_to_process = st.multiselect('Select documents to process', emails['ID'])
 
@@ -183,8 +187,7 @@ def active_cases(database: Database = None):
                 # Comments section with editing capability
                 st.subheader("Comments")
                 current_comments = selected_case['comments'] if pd.notna(selected_case['comments']) else ""
-
-                new_comments = st.text_area("Edit Comments", value=current_comments, height=100)
+                new_comments = st.text_area("Edit Comments", value=current_comments, height=143)
 
                 if new_comments != current_comments:
                     if st.button("Save Comments"):
@@ -222,29 +225,9 @@ def active_cases(database: Database = None):
 
             # Display expandable sections for each step of the process
             expander_stages.stage_1(case_id, current_stage, db)
-            expander_stages.stage_2(case_id, current_stage)
-            #expander_stages.stage_3(case_id, current_stage)
-            #expander_stages.stage_4(case_id, current_stage)
-
-            # TODO: Continue to implement the rest of the stages!
-
-            with st.expander("Step 3: Certificate Issued", expanded=(current_stage == 3)):
-                st.write("Certificate has been issued to BaFin.")
-                if current_stage == 3 and st.button("Complete Process"):
-                    db.query("UPDATE audit_case SET stage = 4 WHERE id = ?", (case_id,))
-                    st.success("Process Completed!")
-                    # Clear cache and refresh
-                    st.cache_data.clear()
-                    st.rerun()
-
-            with st.expander("Step 4: Process Completed", expanded=(current_stage == 4)):
-                st.write("The audit process has been completed.")
-                if current_stage == 4 and st.button("Archive Case"):
-                    db.query("UPDATE audit_case SET stage = 5 WHERE id = ?", (case_id,))
-                    st.success("Case Archived!")
-                    # Clear cache and refresh
-                    st.cache_data.clear()
-                    st.rerun()
+            expander_stages.stage_2(case_id, current_stage, db)
+            expander_stages.stage_3(case_id, current_stage, db)
+            expander_stages.stage_4(case_id, current_stage, db)
 
 
 # TODO: Check if this works as expected!

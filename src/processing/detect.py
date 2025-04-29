@@ -12,12 +12,74 @@ import logging as log
 # Set up logging
 log = log.getLogger(__name__)
 
+
+def normalize_image_resolution(image, target_dpi=400):
+    """
+    Normalize image to a standard resolution based on target DPI.
+
+    :param image: Input image (numpy array)
+    :param target_dpi: Target DPI to normalize to (default 400)
+    :return: Resized image normalized to target DPI
+    """
+    # Get current image dimensions
+    h, w = image.shape[:2]
+
+    # If the image has metadata with actual DPI, use that
+    # For this example, we'll estimate based on common document sizes
+    # A typical A4 document is 8.27 × 11.69 inches
+    # At 600 DPI, that would be approximately 4960 × 7016 pixels
+
+    estimated_dpi = estimate_dpi(h, w)
+
+    # Calculate scaling factor
+    scale_factor = target_dpi / estimated_dpi
+
+    # Resize the image
+    if scale_factor != 1.0:
+        new_w = int(w * scale_factor)
+        new_h = int(h * scale_factor)
+        resized = cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_AREA)
+        return resized
+
+    return image
+
+
+def estimate_dpi(height, width):
+    """
+    Estimate the DPI of an image based on its dimensions.
+    This is a rough estimation assuming standard document sizes.
+
+    :param height: Image height in pixels
+    :param width: Image width in pixels
+    :return: Estimated DPI
+    """
+    # Assuming the document is A4 (8.27 × 11.69 inches)
+    # Longest dimension is usually height for portrait orientation
+    longest_dimension = max(height, width)
+    longest_inch = 11.69  # inches
+
+    estimated_dpi = longest_dimension / longest_inch
+
+    # Set reasonable bounds
+    if estimated_dpi <= 75:
+        return 75
+    elif estimated_dpi >= 1200:
+        return 1200
+
+    return estimated_dpi
+
+
 def tables(bgr_image_array: np.array) -> List[np.array]:
     """
     This function detects the contours of tables in an image.
 
     It does so by detecting horizontal and vertical lines in the image and combining them to form a mask.
     The contours of the mask are then extracted and filtered based on area to identify the tables.
+    It also filters out contours that are contained within other contours to avoid detecting
+    cells as tables.
+
+    The function uses a point-based containment check to ensure accuracy, where a contour
+    is considered "inside" another if most of its points fall within the area of the larger contour.
 
     :param bgr_image_array: A NumPy array representing the input image in BGR format.
     :return: A list of points representing the contours of the detected tables.
@@ -40,7 +102,7 @@ def tables(bgr_image_array: np.array) -> List[np.array]:
         15,  # Size of the neighborhood considered for thresholding (should be an odd number)
         10   # A constant subtracted from the mean (adjusts sensitivity)
     )
-    log.debug(f"Threshold image shape: {thresh.shape}" )
+    log.debug(f"Threshold image shape: {thresh.shape}")
 
     # Detect horizontal lines
     horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (25, 1))
@@ -50,23 +112,95 @@ def tables(bgr_image_array: np.array) -> List[np.array]:
     # Detect vertical lines
     vertical_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 40))
     detect_vertical = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, vertical_kernel, iterations=2)
-    log.debug(f"Vertical lines shape: {detect_vertical.shape}" )
+    log.debug(f"Vertical lines shape: {detect_vertical.shape}")
 
     # Combine horizontal and vertical lines to form a mask
     table_mask = cv2.addWeighted(detect_horizontal, 0.5, detect_vertical, 0.5, 0.0)
     log.debug(f"Table mask shape: {table_mask.shape}")
 
-    # Find the contours of the mask and filter based on area size
+    # Find the contours of the mask
     contours, _ = cv2.findContours(table_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    # Filter based on area size (10,000 pixels seems like a reasonable threshold for a table)
-    table_contours = [cnt for cnt in contours if cv2.contourArea(cnt) > 10000]
+
+    # First filter based on area size
+    min_area = 10000  # Minimum area in pixels
+    potential_tables = [cnt for cnt in contours if cv2.contourArea(cnt) > min_area]
+
+    # Sort by area (largest first) to prioritize larger tables in containment check
+    potential_tables.sort(key=cv2.contourArea, reverse=True)
+
+    # Filter out contours that are contained within other contours
+    final_tables = []
+    for i, cnt1 in enumerate(potential_tables):
+        area1 = cv2.contourArea(cnt1)
+        is_contained = False
+
+        for j, cnt2 in enumerate(potential_tables):
+            if i == j:  # Skip self-comparison
+                continue
+
+            area2 = cv2.contourArea(cnt2)
+
+            # Only check if the current contour might be inside a larger one
+            if area1 < area2:
+                # Create a mask for the potentially larger contour
+                mask = np.zeros(bgr_image_array.shape[:2], dtype=np.uint8)
+                cv2.drawContours(mask, [cnt2], 0, 255, -1)  # Fill the contour
+
+                # Check what percentage of cnt1 points are inside cnt2
+                inside_points = 0
+                total_points = len(cnt1)
+
+                for point in cnt1:
+                    x, y = point[0]
+                    if 0 <= y < mask.shape[0] and 0 <= x < mask.shape[1] and mask[y, x] > 0:
+                        inside_points += 1
+
+                # If most points (>50%) of cnt1 are inside cnt2, consider it contained
+                if inside_points / total_points > 0.5:
+                    is_contained = True
+                    log.debug(f"Contour {i} is contained within contour {j} ({inside_points}/{total_points} points inside)")
+                    break
+
+        # Only add contours that aren't contained within others
+        if not is_contained:
+            final_tables.append(cnt1)
 
     # Log the contours if log level is set to debug
     if log.getEffectiveLevel() < 20:
-        for cnt in table_contours:
+        log.debug(f"Number of potential tables detected: {len(potential_tables)}")
+        log.debug(f"Number of final tables after containment check: {len(final_tables)}")
+        for cnt in final_tables:
             log.debug(f"Table contour area: {cv2.contourArea(cnt)}")
 
-    return table_contours
+    return final_tables
+
+
+def _is_contour_inside(cnt1, cnt2, img_shape, threshold=0.9):
+    """
+    Helper function to check if contour cnt1 is inside contour cnt2.
+    Uses a pixel-based approach to check what percentage of cnt1's points lie inside cnt2.
+
+    :param cnt1: First contour (potentially inside)
+    :param cnt2: Second contour (potentially containing)
+    :param img_shape: Shape of the image (height, width)
+    :param threshold: Percentage threshold for containment (default: 0.9)
+    :return: True if cnt1 is inside cnt2, False otherwise
+    """
+    # Create a mask for the potentially larger contour
+    mask = np.zeros(img_shape, dtype=np.uint8)
+    cv2.drawContours(mask, [cnt2], 0, 255, -1)  # Fill the contour
+
+    # Check what percentage of cnt1 points are inside cnt2
+    inside_points = 0
+    total_points = len(cnt1)
+
+    for point in cnt1:
+        x, y = point[0]
+        if 0 <= y < mask.shape[0] and 0 <= x < mask.shape[1] and mask[y, x] > 0:
+            inside_points += 1
+
+    # If most points of cnt1 are inside cnt2, consider it contained
+    return inside_points / total_points > threshold
 
 
 def rows(table_image: np.array) -> List[Tuple[int, int]]:
@@ -84,10 +218,18 @@ def rows(table_image: np.array) -> List[Tuple[int, int]]:
         gray = table_image
 
     # Create a binary image focusing on dark lines
-    _, binary = cv2.threshold(gray, 180, 255, cv2.THRESH_BINARY_INV)
+    #_, binary = cv2.threshold(gray, 180, 255, cv2.THRESH_BINARY_INV)
+    binary = cv2.adaptiveThreshold(
+        gray,
+        255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY_INV,
+        15,  # Size of the neighborhood considered for thresholding (should be an odd number)
+        10   # A constant subtracted from the mean (adjusts sensitivity)
+    )
 
     # Detect horizontal lines
-    horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (40, 1))
+    horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (50, 1))
     horizontal_lines = cv2.morphologyEx(binary, cv2.MORPH_OPEN, horizontal_kernel, iterations=2)
 
     # Find contours of the horizontal lines
@@ -126,7 +268,7 @@ def rows(table_image: np.array) -> List[Tuple[int, int]]:
         potential_rows.append((line_positions[-1], gray.shape[0]))
 
     # Filter rows by minimum height (to remove small gaps/borders)
-    min_row_height = max(10, gray.shape[0] * 0.03)  # At least 5% of table height or 20px
+    min_row_height = max(10, gray.shape[0] * 0.03)  # At least 3% of table height or 10px
 
     filtered_rows = []
     for row_start, row_end in potential_rows:

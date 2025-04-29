@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS document (
     email_id INTEGER,
     document_filename TEXT,
     document_path TEXT,
-    processed BOOLEAN DEFAULT FALSE,
+    processed BOOLEAN DEFAULT FALSE,  -- This is unnecessary, we can just check if processing_date is not null
     processing_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (document_hash, audit_case_id),
     FOREIGN KEY (audit_case_id) REFERENCES audit_case(id) ON DELETE CASCADE
@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS user (
     username_email TEXT NOT NULL UNIQUE, -- Should be email
     password_hash TEXT NOT NULL,
     password_salt TEXT NOT NULL,
-    role TEXT NOT NULL UNIQUE,  -- 'admin' or 'auditor'
+    role TEXT NOT NULL UNIQUE,  -- 'admin', 'auditor' or 'inspector'
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
