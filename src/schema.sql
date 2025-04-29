@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS user (
     username_email TEXT NOT NULL UNIQUE, -- Should be email
     password_hash TEXT NOT NULL,
     password_salt TEXT NOT NULL,
-    role TEXT NOT NULL UNIQUE,  -- 'admin' or 'auditor'
+    role TEXT NOT NULL UNIQUE,  -- 'admin', 'auditor' or 'inspector'
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

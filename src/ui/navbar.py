@@ -19,13 +19,18 @@ def navbar(database = None) -> int:
 
     :return: The selected page number.
     """
+    access_role = streamlit.session_state['user_role']
+
+    # Initialize the page number if it does not exist
     if not 'page' in streamlit.session_state:
-        # Initialize the page number if it does not exist
-        page = 0
+        if access_role == 'auditor':
+            # If the user is an auditor, set the page to 1
+            page = 1
+        else:
+            # If the user is not an auditor, set the page to 0
+            page = 0
     else:
         page = streamlit.session_state['page']
-
-    access_role = streamlit.session_state['user_role']
 
     # Set the sidebar to st for easier access and to make sure everything happens
     # inside the sidebar unless explicitly stated
@@ -36,9 +41,10 @@ def navbar(database = None) -> int:
     st.write('Please select an option from the list below.')
 
     # Buttons
-    if st.button('Home'):
-        log.debug('Fetch Documents button clicked')
-        page = 0
+    if access_role == 'admin':
+        if st.button('Home'):
+            log.debug('Fetch Documents button clicked')
+            page = 0
 
     if st.button('Active Cases'):
         log.debug('Active cases button clicked')
@@ -49,9 +55,10 @@ def navbar(database = None) -> int:
             log.debug('Settings button clicked')
             page = 2
 
-    if st.button('About'):
-        log.debug('About button clicked')
-        page = 3
+    if access_role in ['admin', 'inspector']:
+        if st.button('About'):
+            log.debug('About button clicked')
+            page = 3
 
     # Add a separator before the logout button
     st.markdown("---")
