@@ -226,8 +226,11 @@ def active_cases(database: Database = None):
             # Display expandable sections for each step of the process
             expander_stages.stage_1(case_id, current_stage, db)
             expander_stages.stage_2(case_id, current_stage, db)
-            expander_stages.stage_3(case_id, current_stage, db)
-            expander_stages.stage_4(case_id, current_stage, db)
+            if st.session_state['user_role'] == 'inspector':
+                expander_stages.stage_3(case_id, current_stage, db)
+            elif st.session_state['user_role'] == 'admin':
+                expander_stages.stage_3(case_id, current_stage, db)
+                expander_stages.stage_4(case_id, current_stage, db)
 
 
 # TODO: Check if this works as expected!
@@ -524,6 +527,10 @@ def login(database: Database = None) -> bool:
         **Admin User**  
         Username: admin@example.com  
         Password: admin123
+        
+        **Inspector User**
+        Username: inspector@example.com
+        Password: inspector123
         
         **Auditor User**  
         Username: auditor@example.com  

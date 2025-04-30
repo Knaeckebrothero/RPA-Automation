@@ -13,7 +13,7 @@ import logging
 log = logging.getLogger(__name__)
 
 
-def navbar(database = None) -> int:
+def navbar(database=None) -> int:
     """
     This is the sidebar ui page for the application.
 
@@ -23,12 +23,7 @@ def navbar(database = None) -> int:
 
     # Initialize the page number if it does not exist
     if not 'page' in streamlit.session_state:
-        if access_role == 'auditor':
-            # If the user is an auditor, set the page to 1
-            page = 1
-        else:
-            # If the user is not an auditor, set the page to 0
-            page = 0
+        page = 0
     else:
         page = streamlit.session_state['page']
 
@@ -41,10 +36,10 @@ def navbar(database = None) -> int:
     st.write('Please select an option from the list below.')
 
     # Buttons
-    if access_role == 'admin':
-        if st.button('Home'):
-            log.debug('Fetch Documents button clicked')
-            page = 0
+    #if access_role == 'admin':  # TODO: Move the logic to process mails to another place or restrict it to the admin
+    if st.button('Home'):
+        log.debug('Fetch Documents button clicked')
+        page = 0
 
     if st.button('Active Cases'):
         log.debug('Active cases button clicked')
@@ -55,10 +50,11 @@ def navbar(database = None) -> int:
             log.debug('Settings button clicked')
             page = 2
 
-    if access_role in ['admin', 'inspector']:
-        if st.button('About'):
-            log.debug('About button clicked')
-            page = 3
+    # TODO: Move log display to another page or restrict it to only be visible to the admin
+    # if access_role in ['admin', 'inspector']:
+    if st.button('About'):
+        log.debug('About button clicked')
+        page = 3
 
     # Add a separator before the logout button
     st.markdown("---")
