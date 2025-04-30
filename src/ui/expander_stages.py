@@ -230,6 +230,48 @@ def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instan
             expanded=(current_stage == 3),
             icon=_icon((current_stage > 3))):
 
+        # Display audit history
+        st.subheader("Audit History")
+
+        # Get path to the audit log file
+        case_log_path = os.path.join(
+            os.getenv('FILESYSTEM_PATH', './.filesystem'),
+            "documents",
+            str(case_id),
+            "audit_log.log"
+        )
+
+        if os.path.exists(case_log_path):
+            try:
+                # Read the log file
+                with open(case_log_path, 'r') as file:
+                    log_lines = file.readlines()
+
+                # Parse log entries into a more readable format
+                history_data = []
+                for line in log_lines:
+                    # Parse timestamp and message from log line
+                    parts = line.split(' - ', 2)
+                    if len(parts) >= 3:
+                        timestamp = parts[0]
+                        # Get the message part (last element)
+                        message = parts[-1].strip()
+                        history_data.append((message, timestamp))
+
+                # Display as a table
+                if history_data:
+                    history_df = pd.DataFrame(history_data, columns=["Action", "Date"])
+                    st.dataframe(history_df, use_container_width=True, hide_index=True)
+                else:
+                    st.info("No audit history entries found for this case.")
+            except Exception as e:
+                st.error(f"Error reading audit history: {str(e)}")
+        else:
+            st.info("No audit history available for this case.")
+
+        st.divider()
+
+        # Original functionality continues...
         if current_stage == 3:
             st.write("Certificate generation and issuance.")
 
@@ -254,10 +296,12 @@ def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instan
                             mime="application/pdf",
                             key=f"download-cert-{case_id}"
                         )
-                        log.info(f"Certificate for case {case_id} has been downloaded.")
+                        log.info(f"Certificate for case {case_id} has been downloaded.",
+                                 audit_log=True, case_id=case_id)
                 except Exception as e:
                     st.error(f"Error accessing certificate: {str(e)}")
-                    log.error(f"Error accessing certificate: {str(e)}")
+                    log.error(f"Error accessing certificate: {str(e)}",
+                              audit_log=True, case_id=case_id)
             else:
                 # Certificate doesn't exist, show generate button
                 if st.button("Generate Certificate"):
@@ -270,15 +314,21 @@ def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instan
 
                     if success:
                         st.success("Certificate generated successfully!")
+                        log.info(f"Certificate for case {case_id} generated successfully.",
+                                 audit_log=True, case_id=case_id)
                         # Clear cache and refresh
                         st.cache_data.clear()
                         st.rerun()
                     else:
                         st.error("Failed to generate certificate. Please try again.")
+                        log.error(f"Failed to generate certificate for case {case_id}.",
+                                  audit_log=True, case_id=case_id)
 
             # Button to complete the process
             if st.button("Complete Process"):
                 db.query("UPDATE audit_case SET stage = 4 WHERE id = ?", (case_id,))
+                log.info(f"Audit process completed for case {case_id}.",
+                         audit_log=True, case_id=case_id)
                 st.success("Process Completed!")
                 # Clear cache and refresh
                 st.cache_data.clear()
@@ -305,13 +355,16 @@ def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instan
                             mime="application/pdf",
                             key=f"download-cert-{case_id}"
                         )
-                        log.info(f"Certificate for case {case_id} has been downloaded.")
+                        log.info(f"Certificate for case {case_id} has been downloaded.",
+                                 audit_log=True, case_id=case_id)
                 except Exception as e:
                     st.error(f"Error accessing certificate: {str(e)}")
-                    log.error(f"Error accessing certificate: {str(e)}")
+                    log.error(f"Error accessing certificate: {str(e)}",
+                              audit_log=True, case_id=case_id)
             else:
                 st.warning("Certificate file not found.")
-                log.warning(f"Certificate file not found for case {case_id}")
+                log.warning(f"Certificate file not found for case {case_id}",
+                            audit_log=True, case_id=case_id)
         else:
             st.write("Waiting for data verification to complete.")
 
