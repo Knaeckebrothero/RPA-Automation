@@ -491,7 +491,6 @@ class PDF(Document):
         :param stage: The stage to initialize the audit case with.
         :return: The audit case id if the initialization was successful, otherwise None.
         """
-
         log.debug(f'Initializing audit case for document: {self.email_id}')
         client_id = self._db.query("SELECT id FROM client WHERE bafin_id = ? ", (self.bafin_id,))
 
@@ -502,7 +501,8 @@ class PDF(Document):
                 INSERT INTO audit_case (client_id, email_id, stage)
                 VALUES (?, ?, ?)
                 """, (client_id[0][0], self.email_id, stage))
-            log.info(f"Company with BaFin ID {self.bafin_id} has been initialized successfully audit case id: {inserted_id}")
+            log.info(
+                f"Company with BaFin ID {self.bafin_id} has been initialized successfully audit case id: {inserted_id}")
             return inserted_id
         else:
             log.warning(f"Couldn't detect BaFin-ID for document with mail id: {self.email_id}")

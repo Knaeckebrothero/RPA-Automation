@@ -135,6 +135,7 @@ def process_audit_case(document: PDF):
     :param document: The document to initialize the audit case for.
     """
     db = Database().get_instance()
+    case_id = document.get_audit_case_id()
 
     if document.compare_values():
         # If the values match, set the stage of the audit case to 3
@@ -144,15 +145,27 @@ def process_audit_case(document: PDF):
             SET stage = 3
             WHERE client_id = ? AND email_id = ?
             """, (document.client_id, document.email_id))
-        log.info(f"Client with BaFin ID {document.bafin_id} submitted a VALID document with email_id:"
-                 f" {document.email_id}")
+
+        # Log to application log and audit log
+        log.info(
+            f"Client with BaFin ID {document.bafin_id} submitted a VALID document with email_id: {document.email_id}",
+            audit_log=True, case_id=case_id)
 
         # Save the document to the filesystem
-        document.store_document(document.get_audit_case_id())
+        document.store_document(case_id)
+
+        # Get match percentage for audit log
+        comparison_df = document.get_value_comparison_table()
+        if not comparison_df.empty:
+            matches = comparison_df['Match status'].value_counts().get('✅', 0)
+            total = len(comparison_df)
+            match_percentage = (matches / total) * 100 if total > 0 else 0
+            log.info(f"Document verification completed with {match_percentage:.1f}% match ({matches}/{total} fields)",
+                     audit_log=True, case_id=case_id)
 
         # TODO: Do we want to do the following parts fully automatic?
         # Proceed to generate the certificate
-        if generate_certificate(document.get_audit_case_id(), db):
+        if generate_certificate(case_id, db):
             # Update the audit case stage if the certificate was generated successfully
             db.insert(
                 f"""
@@ -160,10 +173,15 @@ def process_audit_case(document: PDF):
                 SET stage = 4
                 WHERE client_id = ? AND email_id = ?
                 """, (document.client_id, document.email_id))
-            log.info(f"Certificate generated for client with BaFin ID {document.bafin_id} and email_id:"
-                     f" {document.email_id}")
+
+            # Log to application log and audit log
+            log.info(
+                f"Certificate generated for client with BaFin ID {document.bafin_id} and email_id: {document.email_id}",
+                audit_log=True, case_id=case_id)
         else:
-            log.error(f"Failed to generate certificate for client with BaFin ID {document.bafin_id}")
+            # Log to application log and audit log
+            log.error(f"Failed to generate certificate for client with BaFin ID {document.bafin_id}",
+                      audit_log=True, case_id=case_id)
     else:
         # If the values do not match, set the stage of the audit case to 2
         db.insert(
@@ -172,11 +190,27 @@ def process_audit_case(document: PDF):
             SET stage = 2
             WHERE client_id = ?
             """, (document.client_id,))
-        log.info(f"Client with BaFin ID {document.bafin_id} submitted a INVALID document with email_id:"
-                 f" {document.email_id}")
+
+        # Log to application log and audit log
+        log.info(
+            f"Client with BaFin ID {document.bafin_id} submitted an INVALID document with email_id: {document.email_id}",
+            audit_log=True, case_id=case_id)
 
         # Save the document to the filesystem
-        document.store_document(document.get_audit_case_id())
+        document.store_document(case_id)
+
+        # Get match percentage for audit log
+        comparison_df = document.get_value_comparison_table()
+        if not comparison_df.empty:
+            matches = comparison_df['Match status'].value_counts().get('✅', 0)
+            total = len(comparison_df)
+            match_percentage = (matches / total) * 100 if total > 0 else 0
+            log.info(f"Document verification failed with only {match_percentage:.1f}% match ({matches}/{total} fields)",
+                     audit_log=True, case_id=case_id)
+    
+    # Process any pending log initializations
+    from custom_logger import process_pending_log_initializations
+    process_pending_log_initializations(db)
 
 
 def fetch_new_emails(database: Database = Database.get_instance()) -> pd.DataFrame:

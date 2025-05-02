@@ -238,7 +238,7 @@ def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instan
             os.getenv('FILESYSTEM_PATH', './.filesystem'),
             "documents",
             str(case_id),
-            "audit_log.log"
+            "audit_log.txt"  # Changed from "audit_log.log" to match what we're creating
         )
 
         if os.path.exists(case_log_path):
