@@ -488,37 +488,50 @@ def convert_docx_to_pdf(docx_path: str) -> str | None:
         # Define the PDF output path
         pdf_path = docx_path.replace(".docx", ".pdf")
 
-        # Try using docx2pdf if available
-        try:
-            from docx2pdf import convert
-            convert(docx_path, pdf_path)
+        # Skip docx2pdf on Linux as it explicitly throws an error
+        # Only try docx2pdf on Windows
+        if os.name == 'nt':  # Windows systems
+            try:
+                from docx2pdf import convert
+                convert(docx_path, pdf_path)
 
-            # Check if the conversion was successful
-            if os.path.exists(pdf_path):
-                log.info(f"DOCX converted to PDF at {pdf_path} using docx2pdf")
-                return pdf_path
-        except ImportError:
-            log.warning("docx2pdf not available, trying alternative method")
+                # Check if the conversion was successful
+                if os.path.exists(pdf_path):
+                    log.info(f"DOCX converted to PDF at {pdf_path} using docx2pdf")
+                    return pdf_path
+            except ImportError:
+                log.warning("docx2pdf not available, trying alternative method")
+        else:
+            log.info("Skipping docx2pdf on non-Windows system")
 
         # Try using LibreOffice if available
         try:
             import subprocess
-            subprocess.run([
+            # Get the directory of the docx file
+            output_dir = os.path.dirname(docx_path)
+            # Get just the filename without path
+            filename = os.path.basename(docx_path)
+
+            # Run LibreOffice conversion
+            libreoffice_process = subprocess.run([
                 "libreoffice",
                 "--headless",
                 "--convert-to", "pdf",
-                "--outdir", os.path.dirname(docx_path),
+                "--outdir", output_dir,
                 docx_path
-            ], check=True)
+            ], check=False, capture_output=True)
 
             # Check if the conversion was successful
-            if os.path.exists(pdf_path):
+            if os.path.exists(pdf_path) and libreoffice_process.returncode == 0:
                 log.info(f"DOCX converted to PDF at {pdf_path} using LibreOffice")
                 return pdf_path
-        except (ImportError, FileNotFoundError, subprocess.SubprocessError):
-            log.warning("LibreOffice conversion not available, trying alternative method")
+            else:
+                log.warning(f"LibreOffice conversion failed: {libreoffice_process.stderr.decode()}")
+        except (ImportError, FileNotFoundError, subprocess.SubprocessError) as e:
+            log.warning(f"LibreOffice conversion not available: {str(e)}, trying alternative method")
 
         # If all else fails, generate a simple PDF from scratch
+        log.info("Falling back to ReportLab for PDF generation")
         from reportlab.lib.pagesizes import letter
         from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
         from reportlab.lib.styles import getSampleStyleSheet
