@@ -9,8 +9,9 @@ This is a tool to fetch and process documents from emails, particularly balance 
 - [Installation](#installation)
   - [Prerequisites](#prerequisites)
   - [Virtual Environment Setup](#virtual-environment-setup)
-  - [Database Setup](#database-setup)
   - [Environment Configuration](#environment-configuration)
+  - [Capture Emails](#capture-emails)
+  - [Database Setup](#database-setup)
 - [Usage](#usage)
   - [Starting the Application](#starting-the-application)
   - [Using the Web Interface](#using-the-web-interface)
@@ -42,8 +43,8 @@ Document Fetcher automates the yearly auditing process that requires auditors to
 
 Before installation, ensure you have the following installed:
 - Python 3.11 or higher
-- [Tesseract OCR](https://github.com/tesseract-ocr/tesseract) (for OCR text extraction)
-- [Poppler](https://poppler.freedesktop.org/) (for PDF processing)
+- [Tesseract OCR](https://github.com/tesseract-ocr/tesseract) (optional, for OCR text extraction)
+- [Poppler](https://poppler.freedesktop.org/) (optional, for PDF processing)
 
 #### Installing Prerequisites on Different Operating Systems:
 
@@ -82,7 +83,7 @@ It's recommended to install the application in a virtual environment:
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/rpa-document-fetcher.git
+git clone https://github.com/Knaeckebrothero/RPA-Automation.git
 cd rpa-document-fetcher
 ```
 
@@ -116,9 +117,6 @@ pip install -r requirements.txt
 
 Create a `.env` file in the root directory with the following variables:
 ```
-# Development mode flag
-DEV_MODE=true
-
 # Logging configuration
 LOG_LEVEL_CONSOLE=20
 LOG_LEVEL_FILE=10
@@ -127,6 +125,9 @@ LOG_PATH=./.filesystem/logs/
 # Filesystem path
 FILESYSTEM_PATH=./.filesystem/
 
+# Development mode flag
+DEV_MODE=true
+  
 # OCR configuration
 OCR_USE_GPU=false
 
@@ -141,6 +142,69 @@ INBOX=your_inbox_name
 EXAMPLE_MAIL_PATH=./example_mails/
 ```
 **Tip:** You can use the [environment example](./.env.example) for this.
+
+### Capture Emails
+
+This project requires access to an email inbox to fetch documents. For development purposes, you can capture sample emails to work offline using the provided email downloader script.
+
+#### Using the Email Downloader
+
+1. Ensure your `.env` file is properly configured with your email credentials:
+   ```
+   IMAP_HOST=your.mail.server.com
+   IMAP_PORT=993
+   IMAP_USER=your_username
+   IMAP_PASSWORD=your_password
+   INBOX=your_inbox_name
+   FILESYSTEM_PATH=./.filesystem/
+   ```
+
+2. Run the email downloader script:
+   ```bash
+   # Ensure your virtual environment is activated
+   source venv/bin/activate  # or venv\Scripts\activate on Windows
+   
+   # Run the email downloader script
+   python examples/email_downloader.py
+   ```
+
+3. By default, the script will:
+   - Connect to your configured email server
+   - Download the 10 most recent emails
+   - Save them to `./example_mails/`
+
+4. The script supports several command-line options:
+   ```bash
+   # Download 20 emails instead of the default 10
+   python examples/email_downloader.py --num-emails 20
+   
+   # Save emails to a custom directory
+   python examples/email_downloader.py --output-dir ./example_mails
+   
+   # List available mailboxes and exit
+   python examples/email_downloader.py --list-mailboxes
+   
+   # Use a specific search query
+   python examples/email_downloader.py --search "SUBJECT pdf"
+   
+   # Show help information
+   python examples/email_downloader.py --help
+   ```
+
+5. For offline development, after downloading the emails, configure these environment variables:
+   ```
+   DEV_MODE=true
+   EXAMPLE_MAIL_PATH=./example_mails/
+   ```
+
+The downloaded emails will be used automatically when the application runs in development mode, allowing you to test document processing without connecting to the mail server.
+
+#### Troubleshooting Email Capture
+
+- If you encounter connection issues, verify your email server credentials
+- For Gmail accounts, you may need to create an [App Password](https://support.google.com/accounts/answer/185833)
+- Ensure your email provider allows IMAP access
+- Check that the output directory exists and is writable
 
 ### Database Setup
 

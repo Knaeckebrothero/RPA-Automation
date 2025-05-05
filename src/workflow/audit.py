@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import logging
-
 import os
 import hashlib
 import datetime
@@ -136,6 +135,7 @@ def process_audit_case(document: PDF):
     :param document: The document to initialize the audit case for.
     """
     db = Database().get_instance()
+    case_id = document.get_audit_case_id()
 
     if document.compare_values():
         # If the values match, set the stage of the audit case to 3
@@ -145,15 +145,27 @@ def process_audit_case(document: PDF):
             SET stage = 3
             WHERE client_id = ? AND email_id = ?
             """, (document.client_id, document.email_id))
-        log.info(f"Client with BaFin ID {document.bafin_id} submitted a VALID document with email_id:"
-                 f" {document.email_id}")
+
+        # Log to application log and audit log
+        log.info(
+            f"Client with BaFin ID {document.bafin_id} submitted a VALID document with email_id: {document.email_id}",
+            audit_log=True, case_id=case_id)
 
         # Save the document to the filesystem
-        document.store_document(document.get_audit_case_id())
+        document.store_document(case_id)
+
+        # Get match percentage for audit log
+        comparison_df = document.get_value_comparison_table()
+        if not comparison_df.empty:
+            matches = comparison_df['Match status'].value_counts().get('✅', 0)
+            total = len(comparison_df)
+            match_percentage = (matches / total) * 100 if total > 0 else 0
+            log.info(f"Document verification completed with {match_percentage:.1f}% match ({matches}/{total} fields)",
+                     audit_log=True, case_id=case_id)
 
         # TODO: Do we want to do the following parts fully automatic?
         # Proceed to generate the certificate
-        if generate_certificate(document.get_audit_case_id(), db):
+        if generate_certificate(case_id, db):
             # Update the audit case stage if the certificate was generated successfully
             db.insert(
                 f"""
@@ -161,10 +173,15 @@ def process_audit_case(document: PDF):
                 SET stage = 4
                 WHERE client_id = ? AND email_id = ?
                 """, (document.client_id, document.email_id))
-            log.info(f"Certificate generated for client with BaFin ID {document.bafin_id} and email_id:"
-                     f" {document.email_id}")
+
+            # Log to application log and audit log
+            log.info(
+                f"Certificate generated for client with BaFin ID {document.bafin_id} and email_id: {document.email_id}",
+                audit_log=True, case_id=case_id)
         else:
-            log.error(f"Failed to generate certificate for client with BaFin ID {document.bafin_id}")
+            # Log to application log and audit log
+            log.error(f"Failed to generate certificate for client with BaFin ID {document.bafin_id}",
+                      audit_log=True, case_id=case_id)
     else:
         # If the values do not match, set the stage of the audit case to 2
         db.insert(
@@ -173,11 +190,27 @@ def process_audit_case(document: PDF):
             SET stage = 2
             WHERE client_id = ?
             """, (document.client_id,))
-        log.info(f"Client with BaFin ID {document.bafin_id} submitted a INVALID document with email_id:"
-                 f" {document.email_id}")
+
+        # Log to application log and audit log
+        log.info(
+            f"Client with BaFin ID {document.bafin_id} submitted an INVALID document with email_id: {document.email_id}",
+            audit_log=True, case_id=case_id)
 
         # Save the document to the filesystem
-        document.store_document(document.get_audit_case_id())
+        document.store_document(case_id)
+
+        # Get match percentage for audit log
+        comparison_df = document.get_value_comparison_table()
+        if not comparison_df.empty:
+            matches = comparison_df['Match status'].value_counts().get('✅', 0)
+            total = len(comparison_df)
+            match_percentage = (matches / total) * 100 if total > 0 else 0
+            log.info(f"Document verification failed with only {match_percentage:.1f}% match ({matches}/{total} fields)",
+                     audit_log=True, case_id=case_id)
+    
+    # Process any pending log initializations
+    from custom_logger import process_pending_log_initializations
+    process_pending_log_initializations(db)
 
 
 def fetch_new_emails(database: Database = Database.get_instance()) -> pd.DataFrame:
@@ -455,37 +488,50 @@ def convert_docx_to_pdf(docx_path: str) -> str | None:
         # Define the PDF output path
         pdf_path = docx_path.replace(".docx", ".pdf")
 
-        # Try using docx2pdf if available
-        try:
-            from docx2pdf import convert
-            convert(docx_path, pdf_path)
+        # Skip docx2pdf on Linux as it explicitly throws an error
+        # Only try docx2pdf on Windows
+        if os.name == 'nt':  # Windows systems
+            try:
+                from docx2pdf import convert
+                convert(docx_path, pdf_path)
 
-            # Check if the conversion was successful
-            if os.path.exists(pdf_path):
-                log.info(f"DOCX converted to PDF at {pdf_path} using docx2pdf")
-                return pdf_path
-        except ImportError:
-            log.warning("docx2pdf not available, trying alternative method")
+                # Check if the conversion was successful
+                if os.path.exists(pdf_path):
+                    log.info(f"DOCX converted to PDF at {pdf_path} using docx2pdf")
+                    return pdf_path
+            except ImportError:
+                log.warning("docx2pdf not available, trying alternative method")
+        else:
+            log.info("Skipping docx2pdf on non-Windows system")
 
         # Try using LibreOffice if available
         try:
             import subprocess
-            subprocess.run([
+            # Get the directory of the docx file
+            output_dir = os.path.dirname(docx_path)
+            # Get just the filename without path
+            filename = os.path.basename(docx_path)
+
+            # Run LibreOffice conversion
+            libreoffice_process = subprocess.run([
                 "libreoffice",
                 "--headless",
                 "--convert-to", "pdf",
-                "--outdir", os.path.dirname(docx_path),
+                "--outdir", output_dir,
                 docx_path
-            ], check=True)
+            ], check=False, capture_output=True)
 
             # Check if the conversion was successful
-            if os.path.exists(pdf_path):
+            if os.path.exists(pdf_path) and libreoffice_process.returncode == 0:
                 log.info(f"DOCX converted to PDF at {pdf_path} using LibreOffice")
                 return pdf_path
-        except (ImportError, FileNotFoundError, subprocess.SubprocessError):
-            log.warning("LibreOffice conversion not available, trying alternative method")
+            else:
+                log.warning(f"LibreOffice conversion failed: {libreoffice_process.stderr.decode()}")
+        except (ImportError, FileNotFoundError, subprocess.SubprocessError) as e:
+            log.warning(f"LibreOffice conversion not available: {str(e)}, trying alternative method")
 
         # If all else fails, generate a simple PDF from scratch
+        log.info("Falling back to ReportLab for PDF generation")
         from reportlab.lib.pagesizes import letter
         from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
         from reportlab.lib.styles import getSampleStyleSheet
