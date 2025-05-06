@@ -1,19 +1,22 @@
 """
 This is a custom logger configuration snippet that can be used to configure a custom logger for your application.
-https://docs.python.org/3/library/logging.html?highlight=logger#module-logging
+
+It includes a decorator to add an audit log parameter to the logging methods. 
+It also includes a function to configure the global logger and 
+a function to get or create a logger dedicated to a specific audit case, and a function to initialize an audit log. 
 """
 import os
 import datetime
 import logging
-import inspect
 import streamlit as st
 from functools import wraps
 
 
 def add_audit_log_parameter(func) -> callable:
     """
-    Decorator to add an audit_log parameter to logging methods.
-    This decorator modifies the logging methods of the Logger class to accept an additional audit_log parameter.
+    Decorator to add case_id parameter to logging methods and include username from session state.
+    This decorator modifies the logging methods to include the current user
+    and handle audit logging when a case_id is provided.
 
     :param func: The function to decorate.
     :return: The decorated function.
@@ -21,8 +24,9 @@ def add_audit_log_parameter(func) -> callable:
     @wraps(func)
     def wrapper(self, msg, *args, **kwargs) -> callable:
         """
-        Wrapper function to add audit_log parameter to logging methods.
-        This function checks if the audit_log parameter is set to True and if a case_id is provided.
+        Wrapper function to handle audit logging based on case_id.
+        This function checks if a case_id is provided to determine if audit logging is needed.
+        It also adds the current username to the log message when available.
 
         :param self: The instance of the logger class.
         :param msg: The message to log.
@@ -30,43 +34,45 @@ def add_audit_log_parameter(func) -> callable:
         :param kwargs: Additional keyword arguments to pass to the logging method.
         :return: The result of the logging method.
         """
-        audit_log = kwargs.pop('audit_log', False)
+        # Remove the redundant audit_log parameter (maintain backward compatibility)
+        audit_log = kwargs.pop('audit_log', True)  # Default to True but ignore it
         case_id = kwargs.pop('case_id', None)
 
-        # Call the original logging function
+        # Try to get the username and role from Streamlit session state
+        username = None
+        user_role = None
+        try:
+            import streamlit as st
+            if 'user_id' in st.session_state and st.session_state['user_id'] is not None:
+                username = st.session_state['user_id']
+                if 'user_role' in st.session_state:
+                    user_role = st.session_state['user_role']
+        except (ImportError, Exception):
+            pass
+
+        # Prepend username and role to message if available
+        original_msg = msg
+        if username:
+            prefix = f"User: {username}"
+            if user_role:
+                prefix += f", Role: {user_role}"
+            prefix += " - "
+            msg = f"{prefix}{msg}"
+
+        # Call the original logging function with the possibly modified message
         result = func(self, msg, *args, **kwargs)
 
-        # If audit_log is True and case_id is provided, log to the audit case log
-        if audit_log and case_id is not None:
-            # Get audit case logger and log the message
+        # If case_id is provided, log to the audit case log (regardless of audit_log parameter)
+        if case_id is not None:
+            # Get audit case logger
             audit_logger = get_audit_case_logger(case_id)
 
             # Use the same level as the original call
             level_name = func.__name__.upper()
             level = getattr(logging, level_name)
 
-            # Log the message
+            # Log the message ensuring it has the username
             audit_logger.log(level, msg, *args)
-        elif audit_log and case_id is None:
-            # Try to determine case_id from the calling context or warn about missing case_id
-            frame = inspect.currentframe().f_back
-
-            while frame:
-                # Check if case_id is in the current frame's local variables
-                if 'case_id' in frame.f_locals:
-                    case_id = frame.f_locals['case_id']
-                    audit_logger = get_audit_case_logger(case_id)
-                    level_name = func.__name__.upper()
-                    level = getattr(logging, level_name)
-                    audit_logger.log(level, msg, *args)
-                    break
-
-                # Move to the next frame
-                frame = frame.f_back
-            else:
-                # If case_id couldn't be determined, log a warning
-                logging.getLogger().warning(
-                    "Audit logging requested but case_id not provided and couldn't be determined from context")
 
         return result
 
@@ -142,14 +148,14 @@ def get_audit_case_logger(case_id):
     Get or create a logger dedicated to a specific audit case.
     If the logger is being created for the first time, it will be initialized
     with historical events.
-    
+
     :param case_id: The ID of the audit case.
     :param db: Optional database connection.
     :return: A Logger instance for the audit case.
     """
     logger_name = f"audit_case_{case_id}"
     logger = logging.getLogger(logger_name)
-    
+
     # Check if this logger already has handlers
     if not logger.handlers:
         # Create case log directory if it doesn't exist
@@ -159,40 +165,40 @@ def get_audit_case_logger(case_id):
             str(case_id),
             "audit_log.txt"
         )
-        
+
         # Check if the log file already exists
         log_file_exists = os.path.exists(case_log_path)
-        
+
         # Ensure directory exists
         os.makedirs(os.path.dirname(case_log_path), exist_ok=True)
-        
+
         # Set up case-specific file handler
         formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
         file_handler = logging.FileHandler(case_log_path)
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
-        
+
         # Set level to INFO for audit logs
         logger.setLevel(logging.INFO)
-        
+
         # Prevent propagation to avoid duplicate logs in the main log file
         logger.propagate = False
-        
-        # If this is a new log file, initialize it with historical events - 
+
+        # If this is a new log file, initialize it with historical events -
         # BUT DO NOT do it from here to avoid circular imports
         if not log_file_exists or os.path.getsize(case_log_path) == 0:
             # Create a simple initial entry
             logger.info(f"Audit log created for case {case_id}")
-            
+
             # Schedule initialization to happen outside the logger creation
             # Using a delayed initialization approach
             global _pending_log_initializations
             if '_pending_log_initializations' not in globals():
                 _pending_log_initializations = []
-            
+
             # Add this case to the list of logs that need initialization
             _pending_log_initializations.append(case_id)
-    
+
     return logger
 
 
@@ -221,7 +227,7 @@ def initialize_audit_log(case_id, db=None):
     """
     Initialize an audit log for a case with historical information.
     This should be called when we first create the audit log file.
-    
+
     :param case_id: The ID of the audit case.
     :param db: Optional database connection.
     """
@@ -281,7 +287,7 @@ def initialize_audit_log(case_id, db=None):
         """, (case_id, email_id))
 
         if doc_info:
-            # Log each document 
+            # Log each document
             for doc_filename, proc_date in doc_info:
                 # Use processing date if available, otherwise use a timestamp slightly after case creation
                 doc_timestamp = proc_date if proc_date else created_timestamp + datetime.timedelta(minutes=5)
@@ -354,22 +360,22 @@ def process_pending_log_initializations(db=None):
     """
     Process any pending log initializations that were deferred to avoid circular imports.
     This should be called from a safe context (e.g., at the end of an audit workflow).
-    
+
     :param db: Optional database connection.
     """
     global _pending_log_initializations
-    
+
     if '_pending_log_initializations' not in globals():
         return
-    
+
     if not _pending_log_initializations:
         return
-    
+
     # Get a database connection if needed
     if db is None:
         from cls.database import Database
         db = Database.get_instance()
-    
+
     # Process each pending initialization
     for case_id in _pending_log_initializations:
         try:
@@ -377,6 +383,6 @@ def process_pending_log_initializations(db=None):
         except Exception as e:
             # Log the error but continue with other initializations
             logging.getLogger().error(f"Error initializing audit log for case {case_id}: {str(e)}")
-    
+
     # Clear the list
     _pending_log_initializations = []

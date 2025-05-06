@@ -3,9 +3,6 @@ import pandas as pd
 import logging
 import os
 import hashlib
-import datetime
-import fitz  # PyMuPDF
-from docx import Document
 
 # Custom imports
 from cls.document import PDF
