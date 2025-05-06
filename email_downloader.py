@@ -71,7 +71,7 @@ def main():
 
     # Set up storage directory
     storage_path = args.output_dir or os.path.join(
-        os.getenv("FILESYSTEM_PATH", "../.filesystem/"),
+        os.getenv("FILESYSTEM_PATH", ".filesystem/"),
         "test_emails"
     )
     storage_dir = Path(storage_path)

@@ -528,13 +528,13 @@ def login(database: Database = None) -> bool:
         Username: admin@example.com  
         Password: admin123
         
-        **Inspector User**
-        Username: inspector@example.com
-        Password: inspector123
+        **Inspector User**  
+        Username: inspector@example.com  
+        Password: inspector123 
         
         **Auditor User**  
         Username: auditor@example.com  
-        Password: auditor123
+        Password: auditor123 
         """)
 
     return False

@@ -10,6 +10,7 @@ This is a tool to fetch and process documents from emails, particularly balance 
   - [Prerequisites](#prerequisites)
   - [Virtual Environment Setup](#virtual-environment-setup)
   - [Environment Configuration](#environment-configuration)
+  - [App Initialization](#app-initialization)
   - [Capture Emails](#capture-emails)
   - [Database Setup](#database-setup)
 - [Usage](#usage)
@@ -142,6 +143,50 @@ INBOX=your_inbox_name
 EXAMPLE_MAIL_PATH=./example_mails/
 ```
 **Tip:** You can use the [environment example](./.env.example) for this.
+
+### App Initialization
+
+The easiest way to set up the application is to use the provided initialization script:
+```bash
+python app_init.py
+```
+
+This script performs the following tasks:
+- Creates the necessary directory structure
+- Sets up a default environment file
+- Initializes the database with example data
+- Verifies that all components are ready
+
+#### Initialization Options
+
+The script supports several command-line options:
+
+```bash
+#Initialize with default settings
+python app_init.py
+```
+```bash
+# Force reset everything (warning: deletes existing data)
+python app_init.py --force-reset
+```
+```bash
+# Download test emails during initialization
+python app_init.py --download-emails --num-emails 20
+```
+```bash
+# Only set up the filesystem structure without initializing components
+python app_init.py --setup-only
+```
+```bash
+# Skip database initialization
+python app_init.py --skip-db-init
+```
+```bash
+# Show all available options
+python app_init.py --help
+```
+
+After successful initialization, you'll receive login credentials and instructions to start the application.
 
 ### Capture Emails
 
