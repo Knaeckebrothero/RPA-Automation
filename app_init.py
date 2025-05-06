@@ -155,6 +155,23 @@ def setup_filesystem(logger, force_reset=False):
             else:
                 logger.warning(".env.example not found, skipping .env creation")
         
+        # Copy certificate template files from examples to .filesystem
+        try:
+            certificate_files = [
+                ('examples/certificate_template.docx', f'{base_dir}/certificate_template.docx'),
+                ('examples/terms_conditions.pdf', f'{base_dir}/terms_conditions.pdf')
+            ]
+            
+            for source_file, dest_file in certificate_files:
+                if os.path.exists(source_file):
+                    shutil.copy2(source_file, dest_file)
+                    logger.info(f"Copied {source_file} to {dest_file}")
+                else:
+                    logger.warning(f"Certificate template file not found: {source_file}")
+        except Exception as e:
+            logger.error(f"Error copying certificate template files: {e}")
+            # Continue execution even if copying fails
+            
         return True
     
     except Exception as e:
