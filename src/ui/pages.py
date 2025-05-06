@@ -5,6 +5,7 @@ import os
 import pandas as pd
 import streamlit as st
 import logging
+import base64
 
 # Custom imports
 import ui.visuals as visuals
@@ -13,13 +14,14 @@ from cls.mailclient import Mailclient
 from cls.database import Database
 import ui.expander_stages as expander_stages
 import workflow.security as sec
+from cls.document import PDF
 
 
 # Set up logging
 log = logging.getLogger(__name__)
 
 
-def home(mailclient: Mailclient = None, database: Database = None):
+def home(mailclient: Mailclient = None, database: Database = Database.get_instance()):
     """
     This is the main ui page for the application.
     It serves as a landing page and provides the user with options to navigate the application.
@@ -71,14 +73,8 @@ def home(mailclient: Mailclient = None, database: Database = None):
             if not mailclient:
                 mailclient = Mailclient.get_instance()
 
-            # Check if the database instance is provided, otherwise fetch the instance
-            if database:
-                db = database
-            else:
-                db = Database().get_instance()
-
             # Get all mails that are already part of an active audit case
-            already_processed_mails = [x[0] for x in db.query(
+            already_processed_mails = [x[0] for x in database.query(
                 """
                 SELECT email_id 
                 FROM audit_case
@@ -97,21 +93,48 @@ def home(mailclient: Mailclient = None, database: Database = None):
             # Rerun the app to update the display
             st.rerun()
 
+    # Fetch the active cases and clients
+    active_cases_df = database.get_active_client_cases()
+    if active_cases_df.empty:
+        st.info("No active audit cases found. All cases have been completed and archived.")
+        return
 
-def active_cases(database: Database = None):
+    # Display a table of all active cases
+    st.subheader("Active Cases")
+
+    # Create a more user-friendly display table
+    display_df = active_cases_df[['case_id', 'bafin_id', 'institute', 'stage', 'created_at', 'last_updated_at']].copy()
+    display_df.columns = ['Case ID', 'BaFin ID', 'Institute', 'Stage', 'Created', 'Last Updated']
+
+    # Format dates
+    display_df['Created'] = display_df['Created'].dt.strftime('%d.%m.%Y')
+    display_df['Last Updated'] = display_df['Last Updated'].dt.strftime('%d.%m.%Y %H:%M')
+
+    # Add stage badges
+    display_df['Stage'] = active_cases_df['stage'].apply(
+        lambda x: visuals.stage_badge(x, pure_string=True)
+    )
+
+    # Display the table with HTML rendering enabled
+    st.write(display_df.to_html(escape=False, index=False), unsafe_allow_html=True)
+
+    # Add a button to refresh the data
+    if st.button("Refresh Cases"):
+        st.cache_data.clear()  # TODO: Check if this deletes the database and stuff as well
+        st.rerun()
+
+
+def active_cases(database: Database = Database.get_instance()):
     """
     UI page for viewing and managing active audit cases.
+
+    :param database: Database instance to use. Defaults to the global database instance.
     """
     log.debug('Rendering active cases page')
 
-    # Check if the database instance is provided, otherwise fetch the instance
-    if database:
-        db = database
-    else:
-        db = Database().get_instance()
-
     # Fetch the active cases and clients
-    active_cases_df = db.get_active_client_cases()
+    active_cases_df = database.get_active_client_cases()
+    # TODO: Move the active_cases df to the session state!
 
     # Page title and description
     st.header('Active Cases')
@@ -120,49 +143,24 @@ def active_cases(database: Database = None):
         st.info("No active audit cases found. All cases have been completed and archived.")
         return
 
+    # Setup session state for selected case if not already initialized
+    if 'selected_case_id' not in st.session_state:
+        st.session_state['selected_case_id'] = None
+
+    # Create options for the selectbox with client names and case IDs
+    case_options = [f"{row['institute']} (Case #{row['case_id']})" for _, row in active_cases_df.iterrows()]
+
+    # Display a selectbox to select a case
+    selected_option = st.selectbox(
+        'Select a case to view details',
+        case_options,
+        key='case_selector'
+    )
+
     # Create tabs for different views
-    tab1, tab2 = st.tabs(["Case List", "Case Details"])
+    tab1, tab2 = st.tabs(["Case Details", "Document Values"])
 
     with tab1:
-        # Display a table of all active cases
-        st.subheader("All Active Cases")
-
-        # Create a more user-friendly display table
-        display_df = active_cases_df[['case_id', 'bafin_id', 'institute', 'stage', 'created_at', 'last_updated_at']].copy()
-        display_df.columns = ['Case ID', 'BaFin ID', 'Institute', 'Stage', 'Created', 'Last Updated']
-
-        # Format dates
-        display_df['Created'] = display_df['Created'].dt.strftime('%d.%m.%Y')
-        display_df['Last Updated'] = display_df['Last Updated'].dt.strftime('%d.%m.%Y %H:%M')
-
-        # Add stage badges
-        display_df['Stage'] = active_cases_df['stage'].apply(
-            lambda x: visuals.stage_badge(x, pure_string=True)
-        )
-
-        # Display the table with HTML rendering enabled
-        st.write(display_df.to_html(escape=False, index=False), unsafe_allow_html=True)
-
-        # Add a button to refresh the data
-        if st.button("Refresh Cases"):
-            st.cache_data.clear()  # TODO: Check if this deletes the database and stuff as well
-            st.rerun()
-
-    with tab2:
-        # Setup session state for selected case if not already initialized
-        if 'selected_case_id' not in st.session_state:
-            st.session_state['selected_case_id'] = None
-
-        # Create options for the selectbox with client names and case IDs
-        case_options = [f"{row['institute']} (Case #{row['case_id']})" for _, row in active_cases_df.iterrows()]
-
-        # Display a selectbox to select a case
-        selected_option = st.selectbox(
-            'Select a case to view details',
-            case_options,
-            key='case_selector'
-        )
-
         if selected_option:
             # Extract case ID from the selection
             case_id = int(selected_option.split("Case #")[1].strip(")"))
@@ -192,7 +190,7 @@ def active_cases(database: Database = None):
                 if new_comments != current_comments:
                     if st.button("Save Comments"):
                         # Update comments in database
-                        db.query(f"""
+                        database.query(f"""
                             UPDATE audit_case 
                             SET comments = ? 
                             WHERE id = ?
@@ -224,13 +222,150 @@ def active_cases(database: Database = None):
             current_stage = selected_case['stage']
 
             # Display expandable sections for each step of the process
-            expander_stages.stage_1(case_id, current_stage, db)
-            expander_stages.stage_2(case_id, current_stage, db)
+            expander_stages.stage_1(case_id, current_stage, database)
+            expander_stages.stage_2(case_id, current_stage, database)
             if st.session_state['user_role'] == 'inspector':
-                expander_stages.stage_3(case_id, current_stage, db)
+                expander_stages.stage_3(case_id, current_stage, database)
             elif st.session_state['user_role'] == 'admin':
-                expander_stages.stage_3(case_id, current_stage, db)
-                expander_stages.stage_4(case_id, current_stage, db)
+                expander_stages.stage_3(case_id, current_stage, database)
+                expander_stages.stage_4(case_id, current_stage, database)
+
+    # TODO: Continue to fix tab2!!!
+    with tab2:
+        if selected_option and st.session_state['selected_case_id']:
+            case_id = st.session_state['selected_case_id']
+            
+            # Get document details for the selected case
+            document_data = database.query("""
+                SELECT document_path, document_hash 
+                FROM document 
+                WHERE audit_case_id = ? 
+                ORDER BY processing_date DESC 
+                LIMIT 1
+            """, (case_id,))  # TODO: Do we still need the document_hash?
+            
+            if not document_data:
+                st.warning("No document found for this audit case.")
+                return
+                
+            # Create two columns - one for PDF display, one for editing values
+            col1, col2 = st.columns([6, 3])
+
+            # Load the document with audit values
+            document_path = document_data[0][0]
+            doc = PDF.from_json(document_path)
+            
+            with col1:
+                st.subheader("Document Preview")
+                # Display PDF using iframe
+                if document_path and os.path.exists(document_path):
+                    # Create a base64 representation of the PDF
+                    base64_pdf = base64.b64encode(doc.get_content()).decode('utf-8')
+
+                    # Embed the PDF
+                    pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="1600px" type="application/pdf"></iframe>'
+                    st.markdown(pdf_display, unsafe_allow_html=True)
+                else:
+                    st.error("PDF file not found.")
+            
+            with col2:
+                st.subheader("Edit Extracted Values")
+                
+                if not hasattr(doc, '_audit_values') or not doc._audit_values:
+                    st.warning("No audit values found for this document.")
+                    return
+                
+                st.markdown("### Extracted Values")
+                st.markdown("Edit the values extracted from the document:")
+                
+                # Create a form for editing the values
+                with st.form("edit_audit_values"):
+                    edited_values = {}
+                    
+                    # Group values by type
+                    positions = {}
+                    findag_entries = {}
+                    
+                    # Organize values into categories for better display
+                    for key, value in doc._audit_values.items():
+                        # Skip metadata keys
+                        if key.startswith('raw_') or key.startswith('key_') or key.startswith('error_'):
+                            continue
+                            
+                        # Display position values
+                        if key.startswith('p0'):
+                            positions[key] = value
+                        # Display FinDAG values
+                        elif key.startswith('ab2s1n'):
+                            findag_entries[key] = value
+                    
+                    # Position values section
+                    if positions:
+                        st.markdown("#### SONO-1 Positions")
+                        for key, value in positions.items():
+                            position_number = key[1:]  # Extract the position number
+                            original_key = doc._audit_values.get(f"key_{key}", "Unknown")
+                            
+                            # Add tooltip with original extracted text field name
+                            help_text = f"Original field: {original_key}"
+                            
+                            # Edit field with label showing position number
+                            edited_value = st.number_input(
+                                f"Position {position_number}", 
+                                value=value,
+                                help=help_text
+                            )
+                            edited_values[key] = edited_value
+                    
+                    # FinDAG values section
+                    if findag_entries:
+                        st.markdown("#### FinDAG § 16j Abs. 2 Satz 1")
+                        
+                        # Sort keys numerically by extracting the number portion
+                        sorted_keys = sorted(findag_entries.keys(), 
+                                             key=lambda k: int(k[-2:]))  # Sort by the last two digits
+                        
+                        for key in sorted_keys:
+                            value = findag_entries[key]
+                            # Extract the number (e.g., "01" from "ab2s1n01")
+                            number = key[-2:]
+                            original_key = doc._audit_values.get(f"key_{key}", "Unknown")
+                            
+                            # Add tooltip with original extracted text field name
+                            help_text = f"Original field: {original_key}"
+                            
+                            # Edit field with label showing FinDAG reference
+                            edited_value = st.number_input(
+                                f"Nr. {number.lstrip('0')}", 
+                                value=value,
+                                help=help_text
+                            )
+                            edited_values[key] = edited_value
+                    
+                    # Submit button
+                    submitted = st.form_submit_button("Save Changes")
+                    
+                    if submitted:
+                        # Update the audit values in the document
+                        for key, value in edited_values.items():
+                            doc._audit_values[key] = value
+                        
+                        # Save the document back to the database
+                        doc.save_to_json()
+                        st.success("Audit values updated successfully!")
+                        
+                # Display original text extraction for reference
+                with st.expander("Show original extracted field names"):
+                    st.markdown("### Original Field Names")
+                    st.markdown("These are the original fields from which values were extracted:")
+                    
+                    for key in doc._audit_values:
+                        if key.startswith('key_'):
+                            field_key = key[4:]  # Remove the 'key_' prefix
+                            if field_key in doc._audit_values:
+                                st.markdown(f"**{field_key}**: {doc._audit_values[key]}")
+        else:
+            st.info("Please select a case to edit document values.")
 
 
 # TODO: Check if this works as expected!
