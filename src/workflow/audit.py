@@ -164,13 +164,15 @@ def process_audit_case(document: PDF):
         # TODO: Do we want to do the following parts fully automatic?
         # Proceed to generate the certificate
         if generate_certificate(case_id, db):
+
+            # TODO: Add a indication that the certificate was generated successfully
             # Update the audit case stage if the certificate was generated successfully
-            db.insert(
-                f"""
-                UPDATE audit_case
-                SET stage = 4
-                WHERE client_id = ? AND email_id = ?
-                """, (document.client_id, document.email_id))
+            #db.insert(
+            #    f"""
+            #    UPDATE audit_case
+            #    SET stage = 4
+            #    WHERE client_id = ? AND email_id = ?
+            #    """, (document.client_id, document.email_id))
 
             # Log to application log and audit log
             log.info(
@@ -298,10 +300,11 @@ def generate_certificate(audit_case_id: int, database: Database = Database.get_i
             return False
 
         # Step 6: Update the database to record that the certificate was generated
-        success = update_audit_case(audit_case_id, combined_pdf_path, database)
-        if not success:
-            log.error(f"Failed to update audit case record for {audit_case_id}")
-            return False
+        #success = update_audit_case(audit_case_id, combined_pdf_path, database)
+        #if not success:
+        #    log.error(f"Failed to update audit case record for {audit_case_id}")
+        #    return False
+        # TODO: Again add a indicator that the certificate was generated but do not move the case to stage 4 yet
 
         log.info(f"Successfully generated certificate for audit case {audit_case_id}")
         return True

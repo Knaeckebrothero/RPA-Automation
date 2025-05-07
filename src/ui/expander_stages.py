@@ -174,8 +174,13 @@ def stage_2(case_id: int, current_stage: int, db: Database = Database.get_instan
                 ORDER BY processing_date DESC
             """, (case_id,))
 
+            # Variable to track if a document has been verified - will store match percentage
+            verification_result = None
+
             # Put the display logic into a function to avoid duplication
             def _display_comparison_table_helper_function(doc, counter: int = 0):
+                nonlocal verification_result
+                
                 # Load document from JSON (use the third index to get the path)
                 document_pdf = PDF.from_json(doc[counter][2])
 
@@ -192,6 +197,14 @@ def stage_2(case_id: int, current_stage: int, db: Database = Database.get_instan
                     match_percentage = (matches / total) * 100 if total > 0 else 0
                     st.metric("Match Percentage", f"{match_percentage:.1f}%",
                               help=f"{matches} of {total} fields match")
+                    
+                    # Store match percentage for verification button logic
+                    verification_result = {
+                        'match_percentage': match_percentage,
+                        'matches': matches,
+                        'total': total
+                    }
+                return verification_result
 
             if documents:
                 # Create tabs for each document
@@ -205,7 +218,47 @@ def stage_2(case_id: int, current_stage: int, db: Database = Database.get_instan
                             _display_comparison_table_helper_function(document, i)
                 else:
                     # Display the one document
-                    _display_comparison_table_helper_function(documents)
+                    verification_result = _display_comparison_table_helper_function(documents)
+                
+                # Add verification completion button if we're in stage 2
+                if current_stage == 2 and verification_result:
+                    st.divider()
+                    
+                    # If match percentage is 100%, allow direct completion
+                    if verification_result['match_percentage'] == 100.0:
+                        if st.button("Complete Verification"):
+                            db.query("UPDATE audit_case SET stage = 3 WHERE id = ?", (case_id,))
+                            log.info(f"Data verification completed for case {case_id}. All fields matched.",
+                                    audit_log=True, case_id=case_id)
+                            st.success("Verification Completed! Proceeding to next stage.")
+                            # Clear cache and refresh
+                            st.cache_data.clear()
+                            st.rerun()
+                    else:
+                        # Create two columns for the button and checkbox
+                        col1, col2 = st.columns([3, 7])
+                        
+                        # Show the checkbox in the second column
+                        with col2:
+                            confirm_mismatch = st.checkbox(
+                                "I am aware that the values do not match our database and want to proceed regardless",
+                                key=f"mismatch-confirm-{case_id}"
+                            )
+                        
+                        # Show the button in the first column
+                        with col1:
+                            complete_button = st.button("Complete Verification", disabled=not confirm_mismatch)
+                            
+                            if complete_button:
+                                db.query("UPDATE audit_case SET stage = 3 WHERE id = ?", (case_id,))
+                                log.info(f"Data verification completed for case {case_id} with manual override. " + 
+                                        f"Match percentage was {verification_result['match_percentage']:.1f}% " +
+                                        f"({verification_result['matches']} of {verification_result['total']} fields matched).",
+                                        audit_log=True, case_id=case_id)
+                                st.success("Verification Completed with manual override! Proceeding to next stage.")
+                                # Clear cache and refresh
+                                st.cache_data.clear()
+                                st.rerun()
             else:
                 # TODO: This case shouldn't exist since the case can't entr stage 2 without a document!
                 #  Thouhgh a fallback option might be implemented here (something like set back to stage 1)
@@ -213,6 +266,7 @@ def stage_2(case_id: int, current_stage: int, db: Database = Database.get_instan
                 #    The code can still be used if put in expander stage_1()!
                 st.warning("No documents found for this case. Please upload or process a document first.")
                 log.error(f"No documents found for case: {case_id}, who is in stage 2.")
+
 
 # Stage 3: Certification
 def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instance()):
@@ -298,6 +352,37 @@ def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instan
                         )
                         log.info(f"Certificate for case {case_id} has been downloaded.",
                                  audit_log=True, case_id=case_id)
+                        
+                    # Add file uploader for signed certificate
+                    st.write("### Upload Signed Certificate")
+                    st.write("Please upload the signed certificate after review:")
+                    uploaded_certificate = st.file_uploader(
+                        "Upload signed certificate", 
+                        type=["pdf"],
+                        key=f"upload-signed-cert-{case_id}"
+                    )
+                    
+                    # Process uploaded certificate
+                    if uploaded_certificate is not None:
+                        try:
+                            # Save the uploaded certificate, replacing the original
+                            with open(cert_path, "wb") as f:
+                                f.write(uploaded_certificate.getvalue())
+                                
+                            # Update database to move to next stage
+                            db.query("UPDATE audit_case SET stage = 4 WHERE id = ?", (case_id,))
+                            log.info(f"Signed certificate uploaded and audit process completed for case {case_id}.",
+                                     audit_log=True, case_id=case_id)
+                            st.success("Signed certificate uploaded successfully! Process completed.")
+                            
+                            # Clear cache and refresh
+                            st.cache_data.clear()
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error saving signed certificate: {str(e)}")
+                            log.error(f"Error saving signed certificate for case {case_id}: {str(e)}",
+                                      audit_log=True, case_id=case_id)
+                        
                 except Exception as e:
                     st.error(f"Error accessing certificate: {str(e)}")
                     log.error(f"Error accessing certificate: {str(e)}",
@@ -323,16 +408,6 @@ def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instan
                         st.error("Failed to generate certificate. Please try again.")
                         log.error(f"Failed to generate certificate for case {case_id}.",
                                   audit_log=True, case_id=case_id)
-
-            # Button to complete the process
-            if st.button("Complete Process"):
-                db.query("UPDATE audit_case SET stage = 4 WHERE id = ?", (case_id,))
-                log.info(f"Audit process completed for case {case_id}.",
-                         audit_log=True, case_id=case_id)
-                st.success("Process Completed!")
-                # Clear cache and refresh
-                st.cache_data.clear()
-                st.rerun()
 
         elif current_stage > 3:
             st.write("Certificate has been issued and process is completed.")

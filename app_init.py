@@ -118,11 +118,9 @@ def setup_filesystem(logger, force_reset=False):
         filesystem_dirs = [
             base_dir,
             f'{base_dir}/documents',
-            # f'{base_dir}/processed',
             f'./example_mails',
-            #f'{base_dir}/logs',
-            # f'{base_dir}/temp'
-        ] # TODO: Perhaps I should add back more directories
+            f'{base_dir}/logs'
+        ]
         
         # If force reset is enabled and the base directory exists, delete it completely
         if force_reset and os.path.exists(base_dir):
