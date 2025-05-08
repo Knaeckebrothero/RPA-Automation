@@ -170,8 +170,25 @@ def active_cases(database: Database = Database.get_instance()):
             selected_case = active_cases_df[active_cases_df['case_id'] == case_id].iloc[0]
 
             # Display case information
-            st.markdown(f"### Case #{selected_case['case_id']}")
-            st.markdown(f"**Stage:** {visuals.stage_badge(selected_case['stage'])}", unsafe_allow_html=True)
+            st.markdown(
+                f"**Case {selected_case['case_id']} Stage:** {visuals.stage_badge(selected_case['stage'])}",
+                        unsafe_allow_html=True
+            )
+
+            # Define steps based on stage
+            current_stage = selected_case['stage']
+
+            # Display expandable sections for each step of the process
+            expander_stages.stage_1(case_id, current_stage, database)
+            expander_stages.stage_2(case_id, current_stage, database)
+            if st.session_state['user_role'] == 'inspector':
+                expander_stages.stage_3(case_id, current_stage, database)
+            elif st.session_state['user_role'] == 'admin':
+                expander_stages.stage_3(case_id, current_stage, database)
+                expander_stages.stage_4(case_id, current_stage, database)
+
+            # Divider
+            st.divider()
 
             # Create columns for layout
             col1, col2 = st.columns(2)
@@ -212,25 +229,6 @@ def active_cases(database: Database = Database.get_instance()):
                 st.markdown(f"**Fax:** {selected_case['fax']}")
                 st.markdown(f"**Email:** {selected_case['email']}")
 
-            # Divider
-            st.divider()
-
-            # Process steps
-            st.subheader("Process Steps")
-
-            # Define steps based on stage
-            current_stage = selected_case['stage']
-
-            # Display expandable sections for each step of the process
-            expander_stages.stage_1(case_id, current_stage, database)
-            expander_stages.stage_2(case_id, current_stage, database)
-            if st.session_state['user_role'] == 'inspector':
-                expander_stages.stage_3(case_id, current_stage, database)
-            elif st.session_state['user_role'] == 'admin':
-                expander_stages.stage_3(case_id, current_stage, database)
-                expander_stages.stage_4(case_id, current_stage, database)
-
-    # TODO: Continue to fix tab2!!!
     with tab2:
         if selected_option and st.session_state['selected_case_id']:
             case_id = st.session_state['selected_case_id']

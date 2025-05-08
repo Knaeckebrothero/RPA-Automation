@@ -343,14 +343,17 @@ def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instan
 
                 try:
                     with open(cert_path, "rb") as file:
-                        st.download_button(
+                        download_button = st.download_button(
                             label="Download Certificate",
                             data=file,
                             file_name=f"certificate_{case_id}.pdf",
                             mime="application/pdf",
                             key=f"download-cert-{case_id}"
                         )
-                        log.info(f"Certificate for case {case_id} has been downloaded.",
+
+                        # Log the download action
+                        if download_button:
+                            log.info(f"Certificate for case {case_id} has been downloaded.",
                                  audit_log=True, case_id=case_id)
                         
                     # Add file uploader for signed certificate
