@@ -3,6 +3,7 @@
 # Logs & working directories
 .filesystem/
 example_mails/
+src/config.cfg
 
 # Local environment
 .env
