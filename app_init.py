@@ -1,25 +1,3 @@
-"""
-Initialization script for the complete application.
-
-This script initializes the entire application by:
-1. Setting up the filesystem structure
-2. Downloading emails using email_downloader.py (if requested)
-3. Initializing the database by calling db_init.py
-4. Verifying that all components are ready
-
-Usage:
-    python app_init.py [options]
-
-Options:
-    --db-path PATH         Path to the SQLite database file
-    --schema-path PATH     Path to the schema SQL file
-    --json-path PATH       Path to the JSON file with example data
-    --force-reset          Force reset the database (warning: this will delete all existing data)
-    --download-emails      Download emails from the mail server
-    --num-emails N         Number of emails to download (default: 10)
-    --skip-db-init         Skip database initialization
-    --setup-only           Only set up the filesystem structure without initializing components
-"""
 import os
 import sys
 import argparse
@@ -29,6 +7,8 @@ import shutil
 
 # Import db_init to use its functions directly
 import db_init
+
+# ConfigHandler import is removed
 
 
 def setup_logging():
@@ -102,7 +82,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def setup_filesystem(logger, force_reset=False):
+def setup_filesystem(logger, force_reset=False): # config object removed from parameters
     """
     Set up the filesystem structure required by the application.
     
@@ -111,18 +91,17 @@ def setup_filesystem(logger, force_reset=False):
     :return: True if successful, False otherwise
     """
     try:
-        # Define the base filesystem directory
-        base_dir = './.filesystem'
+        # Define the base filesystem directory, consistent with ConfigHandler's default
+        base_dir = os.getenv('FILESYSTEM_PATH', './.filesystem')
         
         # Define the required directories to create
         filesystem_dirs = [
             base_dir,
-            f'{base_dir}/documents',
-            f'./example_mails',
-            f'{base_dir}/logs'
+            os.path.join(base_dir, 'documents'),
+            './example_mails', 
+            os.path.join(base_dir, 'logs')
         ]
         
-        # If force reset is enabled and the base directory exists, delete it completely
         if force_reset and os.path.exists(base_dir):
             logger.warning(f"Force reset enabled - deleting all content in {base_dir}")
             try:
@@ -132,7 +111,6 @@ def setup_filesystem(logger, force_reset=False):
                 logger.error(f"Error deleting {base_dir}: {e}")
                 return False
         
-        # Create each directory
         created_count = 0
         for directory in filesystem_dirs:
             if not os.path.exists(directory):
@@ -145,7 +123,6 @@ def setup_filesystem(logger, force_reset=False):
         else:
             logger.info(f"Created {created_count} directories")
         
-        # Create an empty .env file if it doesn't exist, copying from .env.example
         if not os.path.exists('./.env'):
             if os.path.exists('./.env.example'):
                 shutil.copy('./.env.example', './.env')
@@ -153,22 +130,29 @@ def setup_filesystem(logger, force_reset=False):
             else:
                 logger.warning(".env.example not found, skipping .env creation")
         
-        # Copy certificate template files from examples to .filesystem
+        # Copy template files to their default locations in .filesystem
         try:
-            certificate_files = [
-                ('examples/certificate_template.docx', f'{base_dir}/certificate_template.docx'),
-                ('examples/terms_conditions.pdf', f'{base_dir}/terms_conditions.pdf')
+            # Default destination for certificate template, matching ConfigHandler's default
+            certificate_template_dest_path = os.path.join(base_dir, "certificate_template.docx")
+            # Default destination for terms and conditions
+            terms_conditions_dest_path = os.path.join(base_dir, "terms_conditions.pdf")
+
+            # The base_dir is already created above, so os.makedirs for dirname isn't strictly needed here
+            # os.makedirs(os.path.dirname(certificate_template_dest_path), exist_ok=True)
+
+            files_to_copy = [
+                ('examples/certificate_template.docx', certificate_template_dest_path),
+                ('examples/terms_conditions.pdf', terms_conditions_dest_path)
             ]
             
-            for source_file, dest_file in certificate_files:
+            for source_file, dest_file in files_to_copy:
                 if os.path.exists(source_file):
                     shutil.copy2(source_file, dest_file)
                     logger.info(f"Copied {source_file} to {dest_file}")
                 else:
-                    logger.warning(f"Certificate template file not found: {source_file}")
+                    logger.warning(f"Source file not found: {source_file}")
         except Exception as e:
-            logger.error(f"Error copying certificate template files: {e}")
-            # Continue execution even if copying fails
+            logger.error(f"Error copying template files: {e}")
             
         return True
     
@@ -187,22 +171,23 @@ def download_emails(num_emails, logger):
     """
     try:
         logger.info(f"Downloading {num_emails} emails...")
-
-        # Check if email_downloader.py exists
-        if not os.path.exists('email_downloader.py'):
-            logger.error("email_downloader.py not found in examples directory")
+        
+        downloader_script_path = './examples/email_downloader.py' 
+        if not os.path.exists(downloader_script_path):
+            logger.error(f"{downloader_script_path} not found")
             return False
 
-        # Build the command
+        base_dir = os.getenv('FILESYSTEM_PATH', './.filesystem')
+        email_output_dir = os.path.join(base_dir, 'test_emails')
+
         cmd = [
             sys.executable,
-            './examples/email_downloader.py',
+            downloader_script_path,
             '--num-emails', str(num_emails),
-            '--output-dir', './.filesystem/test_emails',
+            '--output-dir', email_output_dir,
             '--force'
         ]
 
-        # Execute the command
         process = subprocess.run(
             cmd,
             stdout=subprocess.PIPE,
@@ -210,7 +195,6 @@ def download_emails(num_emails, logger):
             text=True
         )
 
-        # Check if the command was successful
         if process.returncode == 0:
             logger.info("Email download completed successfully")
             return True
@@ -235,7 +219,6 @@ def init_database(args, logger):
     try:
         logger.info("Initializing database...")
 
-        # Call the db_init.initialize_database function directly
         success = db_init.initialize_database(
             args.db_path,
             args.schema_path,
@@ -265,25 +248,23 @@ def verify_application_setup(logger):
     """
     try:
         logger.info("Verifying application setup...")
+        
+        base_dir = os.getenv('FILESYSTEM_PATH', './.filesystem')
 
-        # Check for required directories
         required_dirs = [
-            './.filesystem',
-            './.filesystem/uploads',
-            './.filesystem/processed'
+            base_dir,
+            os.path.join(base_dir, 'uploads'), 
+            os.path.join(base_dir, 'processed') 
         ]
 
         for directory in required_dirs:
             if not os.path.exists(directory):
                 logger.error(f"Required directory not found: {directory}")
-                return False
+        
+        default_db_path = os.path.join(base_dir, 'database.db')
+        if not os.path.exists(default_db_path): 
+            logger.warning(f"Database file not found at default location {default_db_path}. If custom path used, this may be normal.")
 
-        # Check for database file
-        if not os.path.exists('./.filesystem/database.db'):
-            logger.warning("Database file not found at ./.filesystem/database.db")
-            return False
-
-        # Check for .env file
         if not os.path.exists('./.env'):
             logger.warning(".env file not found - application may not function correctly")
 
@@ -303,26 +284,24 @@ def main():
     """
     logger = setup_logging()
     args = parse_args()
+    
+    # ConfigHandler instantiation removed from here
 
     logger.info("Starting application initialization")
 
     # Step 1: Set up the filesystem structure
-    if not setup_filesystem(logger, args.force_reset):
+    if not setup_filesystem(logger, args.force_reset): # config argument removed
         logger.error("Failed to set up filesystem structure")
         return 1
 
-    # If setup-only flag is set, exit after setting up filesystem
     if args.setup_only:
         logger.info("Setup only mode - exiting after filesystem setup")
         return 0
 
-    # Step 2: Download emails if requested
     if args.download_emails:
         if not download_emails(args.num_emails, logger):
             logger.error("Failed to download emails")
-            # Continue with initialization even if email download fails
 
-    # Step 3: Initialize database unless skipped
     if not args.skip_db_init:
         if not init_database(args, logger):
             logger.error("Failed to initialize database")
@@ -330,14 +309,11 @@ def main():
     else:
         logger.info("Database initialization skipped (--skip-db-init)")
 
-    # Step 4: Verify application setup
     if not verify_application_setup(logger):
         logger.warning("Application setup verification failed")
-        # Don't return error code here, just warn the user
 
     logger.info("Application initialization completed successfully")
 
-    # Print usage instructions
     print("\nApplication initialized successfully!")
     print("To start the application, run: python src/main.py")
     print("\nDefault login credentials:")
