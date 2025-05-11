@@ -23,9 +23,14 @@ def navbar(database=None) -> int:
 
     # Initialize the page number if it does not exist
     if not 'page' in streamlit.session_state:
-        page = 0
+        if access_role in ['auditor', 'inspector']:
+            # Set the default page for auditor and inspector to the active cases page
+            page = 1
+        else:
+            page = 0
     else:
         page = streamlit.session_state['page']
+        # TODO: Add logic to prevent the users from accessing the pages they are not allowed to
 
     # Set the sidebar to st for easier access and to make sure everything happens
     # inside the sidebar unless explicitly stated
