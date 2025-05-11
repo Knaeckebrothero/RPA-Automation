@@ -44,8 +44,16 @@ def create_certificate_from_template(client_info: dict, audit_case_id: int) -> s
     :return: Path to the created certificate file or None if failed
     """
     try:
-        # Get the template path
-        template_path = os.path.join(os.getenv('FILESYSTEM_PATH', './.filesystem'), "certificate_template.docx")
+        # Import the config handler
+        from cls.config import ConfigHandler
+
+        # Get config instance
+        config = ConfigHandler.get_instance()
+
+        # Get template path from config or use default
+        default_template_path = os.path.join(os.getenv('FILESYSTEM_PATH', './.filesystem'),
+                                             "certificate_template.docx")
+        template_path = config.get("APP_SETTINGS", "certificate_template_path", default_template_path)
 
         # Check if template exists
         if not os.path.exists(template_path):
@@ -73,7 +81,7 @@ def create_certificate_from_template(client_info: dict, audit_case_id: int) -> s
             "[INSTITUTE_NAME]": client_info['institute'],
             "[INSTITUTE_ADDRESS]": client_info['address'],
             "[INSTITUTE_CITY]": client_info['city'],
-            "[FISCAL_YEAR_END]": f"December 31, {current_year-1}",  # Assuming fiscal year is previous calendar year
+            "[FISCAL_YEAR_END]": f"December 31, {current_year - 1}",  # Assuming fiscal year is previous calendar year
             "[VALIDATION_DATE]": validation_date
         }
 
