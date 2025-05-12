@@ -82,26 +82,18 @@ def parse_args():
     return parser.parse_args()
 
 
-def setup_filesystem(logger, force_reset=False): # config object removed from parameters
+def setup_filesystem(logger, base_dir, filesystem_dirs, force_reset=False): # config object removed from parameters
     """
     Set up the filesystem structure required by the application.
     
     :param logger: Logger instance
+    :param base_dir: Base directory for the filesystem, consistent with ConfigHandler's default
     :param force_reset: If True, delete all existing content in .filesystem
+    :param filesystem_dirs: List of directories to create
     :return: True if successful, False otherwise
     """
     try:
-        # Define the base filesystem directory, consistent with ConfigHandler's default
-        base_dir = os.getenv('FILESYSTEM_PATH', './.filesystem')
-        
-        # Define the required directories to create
-        filesystem_dirs = [
-            base_dir,
-            os.path.join(base_dir, 'documents'),
-            './example_mails', 
-            os.path.join(base_dir, 'logs')
-        ]
-        
+        # Ensure the base directorys exists
         if force_reset and os.path.exists(base_dir):
             logger.warning(f"Force reset enabled - deleting all content in {base_dir}")
             try:
@@ -228,7 +220,6 @@ def init_database(args, logger):
         )
 
         if success:
-            logger.info("Database initialization completed successfully")
             return True
         else:
             logger.error("Database initialization failed")
@@ -239,7 +230,7 @@ def init_database(args, logger):
         return False
 
 
-def verify_application_setup(logger):
+def verify_application_setup(logger, required_dirs):
     """
     Verify that all components of the application are properly set up.
 
@@ -250,12 +241,6 @@ def verify_application_setup(logger):
         logger.info("Verifying application setup...")
         
         base_dir = os.getenv('FILESYSTEM_PATH', './.filesystem')
-
-        required_dirs = [
-            base_dir,
-            os.path.join(base_dir, 'uploads'), 
-            os.path.join(base_dir, 'processed') 
-        ]
 
         for directory in required_dirs:
             if not os.path.exists(directory):
@@ -289,8 +274,19 @@ def main():
 
     logger.info("Starting application initialization")
 
+    # Define the base filesystem directory, consistent with ConfigHandler's default
+    base_dir = os.getenv('FILESYSTEM_PATH', './.filesystem')
+
+    # Define the required directories to create
+    filesystem_dirs = [
+        base_dir,
+        os.path.join(base_dir, 'documents'),
+        './example_mails',
+        os.path.join(base_dir, 'logs')
+    ]
+
     # Step 1: Set up the filesystem structure
-    if not setup_filesystem(logger, args.force_reset): # config argument removed
+    if not setup_filesystem(logger, base_dir, filesystem_dirs, args.force_reset): # config argument removed
         logger.error("Failed to set up filesystem structure")
         return 1
 
@@ -309,7 +305,7 @@ def main():
     else:
         logger.info("Database initialization skipped (--skip-db-init)")
 
-    if not verify_application_setup(logger):
+    if not verify_application_setup(logger, filesystem_dirs):
         logger.warning("Application setup verification failed")
 
     logger.info("Application initialization completed successfully")

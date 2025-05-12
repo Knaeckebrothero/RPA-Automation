@@ -105,7 +105,7 @@ def execute_sql_file(conn, filepath, logger):
 
 
 # This function is a duplicate of the one in workflow.security, make sure to keep them in sync!
-def hash_password(password, salt=None):
+def hash_password(password, salt=None) -> tuple[str, str]:
     """
     Hash a password using SHA-256 with a salt.
 

@@ -210,7 +210,7 @@ def active_cases(database: Database = Database.get_instance()):
                 if new_comments != current_comments:
                     if st.button("Save Comments"):
                         # Update comments in database
-                        database.query(f"""
+                        database.insert(f"""
                             UPDATE audit_case 
                             SET comments = ? 
                             WHERE id = ?
@@ -370,259 +370,7 @@ def active_cases(database: Database = Database.get_instance()):
             st.info("Please select a case to edit document values.")
 
 
-def old_settings(database: Database = None):
-    """
-    This is the settings ui page for the application.
-
-    :param database: Optional database instance to use.
-    """
-    log.debug('Rendering settings page')
-
-    # Page title and description
-    st.header('Settings')
-    st.write('Configure the application settings below.')
-
-    # Split the page into tabs
-    application_tab, audit_tab, user_tab = st.tabs(["Application Settings", "Audit Settings", "User Management"])
-
-    with application_tab:
-        st.subheader("Application Settings")
-
-        # Application settings
-        st.write("Application settings will go here!")
-
-        # TODO: Add application settings here (move audit log here?!)
-
-        # TODO: Implement the templates and path selechtion here!
-
-
-    with audit_tab:
-        # New section for audit process initialization
-        st.subheader("Audit Process")
-
-        with st.expander("Initialize Annual Audit Process", expanded=True):
-            st.write("""
-            This will create a new audit case (stage 1) for every client in the database 
-            that doesn't already have an active case. Use this to start the annual audit process.
-            """)
-
-            # Add a confirmation checkbox for safety
-            confirm_init = st.checkbox("I understand this will create new audit cases for all clients")
-
-            # Check if the database instance is provided, otherwise fetch the instance
-            if database:
-                db = database
-            else:
-                db = Database().get_instance()
-
-            if st.button("Initialize Audit Cases", disabled=not confirm_init):
-                with st.spinner("Creating audit cases..."):
-                    # Find clients without active audit cases
-                    clients_without_cases = db.query("""
-                        SELECT id FROM client 
-                        WHERE id NOT IN (
-                            SELECT client_id FROM audit_case 
-                            WHERE stage < 5
-                        )
-                    """)
-
-                    if not clients_without_cases:
-                        st.warning("All clients already have active audit cases.")
-                    else:
-                        # Create a new audit case for each client
-                        created_count = 0
-                        for client_id in clients_without_cases:
-                            db.insert("""
-                                INSERT INTO audit_case (client_id, stage, comments)
-                                VALUES (?, 1, 'Automatically created for annual audit process')
-                            """, (client_id[0],))
-                            created_count += 1
-
-                        # Success message
-                        st.success(f"Successfully created {created_count} new audit cases.")
-
-                        # Log the action
-                        log.info(f"Created {created_count} new audit cases for annual audit process")
-
-        # Archive cases section
-        with st.expander("Archive Completed Cases", expanded=True):
-            st.write(
-                """
-                This will archive all audit cases that are in stage 4 (Process Completion).
-                Archived cases will no longer appear in the active cases view.
-                """
-            )
-
-            # Get case statistics
-            stage_counts = db.query("""
-                SELECT stage, COUNT(*) 
-                FROM audit_case 
-                WHERE stage < 5 
-                GROUP BY stage
-            """)
-
-            # Create a dictionary of stage counts
-            stage_stats = {1: 0, 2: 0, 3: 0, 4: 0}
-            for stage, count in stage_counts:
-                stage_stats[stage] = count
-
-            # Display statistics
-            st.write("Current audit case statistics:")
-            col1, col2, col3, col4 = st.columns(4)
-
-            with col1:
-                st.metric("Stage 1", stage_stats[1], help="Waiting for documents")
-            with col2:
-                st.metric("Stage 2", stage_stats[2], help="Data verification")
-            with col3:
-                st.metric("Stage 3", stage_stats[3], help="Certification")
-            with col4:
-                st.metric("Stage 4", stage_stats[4], help="Process completion")
-
-            # Warning if there are cases not in stage 4
-            not_completed = stage_stats[1] + stage_stats[2] + stage_stats[3]
-            if not_completed > 0:
-                st.warning(f"⚠️ There are still {not_completed} active cases that are not ready for archiving (stages 1-3).")
-
-            # Add a confirmation checkbox for safety
-            confirm_archive = st.checkbox("I understand this will archive all cases in stage 4")
-
-            if st.button("Archive Completed Cases", disabled=not confirm_archive):
-                with st.spinner("Archiving completed cases..."):
-                    # Count cases to be archived
-                    cases_to_archive = db.query("""
-                        SELECT COUNT(*) FROM audit_case 
-                        WHERE stage = 4
-                    """)[0][0]
-
-                    if cases_to_archive == 0:
-                        st.info("No completed cases to archive.")
-                    else:
-                        # TODO: Implement archiving logic - this would include:
-                        # 1. Move documents to archive storage
-                        # 2. Update database records
-                        # 3. Create archive logs
-
-                        # For now, just update the stage to 5 (Archived)
-                        db.query("""
-                            UPDATE audit_case 
-                            SET stage = 5,
-                                comments = CASE 
-                                    WHEN comments IS NULL THEN 'Archived automatically'
-                                    ELSE comments || ' | Archived automatically'
-                                END
-                            WHERE stage = 4
-                        """)
-
-                        # Success message
-                        st.success(f"Successfully archived {cases_to_archive} completed cases.")
-
-                        # Log the action
-                        log.info(f"Archived {cases_to_archive} completed cases")
-
-                        # Refresh the statistics
-                        st.rerun()
-    with user_tab:
-        st.subheader("User Management")
-
-        # Check if the database instance is provided, otherwise fetch the instance
-        if database:
-            db = database
-        else:
-            db = Database().get_instance()
-
-        # Fetch all users from the database
-        users_data = db.query("""
-                              SELECT id, username_email, role, created_at
-                              FROM user
-                              ORDER BY created_at DESC
-                              """)
-
-        if not users_data:
-            st.warning("No users found in the database.")
-        else:
-            # Convert to DataFrame for easier display
-            users_df = pd.DataFrame(users_data, columns=['ID', 'Username', 'Role', 'Created At'])
-            users_df['Created At'] = pd.to_datetime(users_df['Created At']).dt.strftime('%Y-%m-%d %H:%M')
-
-            # 1. Display table of current users
-            st.markdown("### Current Users")
-            st.dataframe(users_df[['Username', 'Role', 'Created At']], hide_index=True)
-
-            # 2. User deletion section
-            st.markdown("### Delete User")
-
-            # Create a dropdown to select user to delete
-            user_options = [(row['ID'], row['Username']) for _, row in users_df.iterrows()]
-            selected_user_id = st.selectbox(
-                "Select a user to delete",
-                options=[user_id for user_id, _ in user_options],
-                format_func=lambda x: next((username for user_id, username in user_options if user_id == x), ""),
-                index=None
-            )
-
-            if st.button("Delete Selected User", disabled=selected_user_id is None):
-                # Check if trying to delete yourself
-                if selected_user_id == st.session_state.get('user_id'):
-                    st.error("You cannot delete your own account.")
-                else:
-                    # Delete the user
-                    try:
-                        db.query("""
-                                 DELETE FROM user
-                                 WHERE id = ?
-                                 """, (selected_user_id,))
-                        db._conn.commit()
-                        st.success("User deleted successfully.")
-                        # Force refresh
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error deleting user: {str(e)}")
-
-        # 3. User creation form
-        st.markdown("### Create New User")
-
-        with st.form("create_user_form"):
-            new_username = st.text_input("Email/Username", placeholder="user@example.com")
-            new_password = st.text_input("Password", type="password")
-            new_role = st.selectbox("Role", options=["admin", "auditor", "inspector"])
-
-            submit_button = st.form_submit_button("Create User")
-
-            if submit_button:
-                if not new_username or not new_password:
-                    st.error("Please enter both username and password.")
-                else:
-                    # Check if user already exists
-                    existing_user = db.query("""
-                                             SELECT id FROM user WHERE username_email = ?
-                                             """, (new_username,))
-
-                    if existing_user:
-                        st.error("A user with that username already exists.")
-                    else:
-                        try:
-                            # Import the security module to create password hash
-                            import workflow.security as sec
-
-                            # Generate password salt and hash
-                            password_salt = sec.generate_session_key(16)  # Using this function to generate a random salt
-                            password_hash = sec.hash_password(new_password, password_salt)
-
-                            # Insert the new user
-                            db.insert("""
-                                      INSERT INTO user (username_email, password_hash, password_salt, role)
-                                      VALUES (?, ?, ?, ?)
-                                      """, (new_username, password_hash, password_salt, new_role))
-
-                            st.success(f"User '{new_username}' with role '{new_role}' created successfully.")
-                            # Force refresh
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Error creating user: {str(e)}")
-
-
-def settings(database: Database = None):
+def settings(database: Database = Database().get_instance()):
     """
     This is the settings ui page for the application.
 
@@ -683,7 +431,7 @@ def settings(database: Database = None):
             - [INSTITUTE_CITY] - Client city
             - [FISCAL_YEAR_END] - End of fiscal year
             - [VALIDATION_DATE] - Validation date
-            """)
+            """)  # TODO: Put this into a external config file!
 
             uploaded_template = st.file_uploader("Upload template file", type="docx")
 
@@ -774,16 +522,10 @@ def settings(database: Database = None):
             # Add a confirmation checkbox for safety
             confirm_init = st.checkbox("I understand this will create new audit cases for all clients")
 
-            # Check if the database instance is provided, otherwise fetch the instance
-            if database:
-                db = database
-            else:
-                db = Database().get_instance()
-
             if st.button("Initialize Audit Cases", disabled=not confirm_init):
                 with st.spinner("Creating audit cases..."):
                     # Find clients without active audit cases
-                    clients_without_cases = db.query("""
+                    clients_without_cases = database.query("""
                                                      SELECT id
                                                      FROM client
                                                      WHERE id NOT IN (SELECT client_id
@@ -797,7 +539,7 @@ def settings(database: Database = None):
                         # Create a new audit case for each client
                         created_count = 0
                         for client_id in clients_without_cases:
-                            db.insert("""
+                            database.insert("""
                                       INSERT INTO audit_case (client_id, stage, comments)
                                       VALUES (?, 1, 'Automatically created for annual audit process')
                                       """, (client_id[0],))
@@ -819,7 +561,7 @@ def settings(database: Database = None):
             )
 
             # Get case statistics
-            stage_counts = db.query("""
+            stage_counts = database.query("""
                                     SELECT stage, COUNT(*)
                                     FROM audit_case
                                     WHERE stage < 5
@@ -856,7 +598,7 @@ def settings(database: Database = None):
             if st.button("Archive Completed Cases", disabled=not confirm_archive):
                 with st.spinner("Archiving completed cases..."):
                     # Count cases to be archived
-                    cases_to_archive = db.query("""
+                    cases_to_archive = database.query("""
                                                 SELECT COUNT(*)
                                                 FROM audit_case
                                                 WHERE stage = 4
@@ -877,7 +619,7 @@ def settings(database: Database = None):
                         # 3. Create archive logs
 
                         # For now, just update the stage to 5 (Archived)
-                        db.query("""
+                        database.insert("""
                             UPDATE audit_case 
                             SET stage = 5,
                                 comments = CASE 
@@ -944,13 +686,14 @@ def settings(database: Database = None):
                 else:
                     # Delete the user
                     try:
-                        db.query("""
+                        # TODO: Rename the method (refactor db to have functions instead of query methods)
+                        db.insert("""
                                  DELETE
                                  FROM user
                                  WHERE id = ?
                                  """, (selected_user_id,))
-                        db._conn.commit()
                         st.success("User deleted successfully.")
+
                         # Force refresh
                         st.rerun()
                     except Exception as e:
@@ -984,10 +727,8 @@ def settings(database: Database = None):
                             # Import the security module to create password hash
                             import workflow.security as sec
 
-                            # Generate password salt and hash
-                            password_salt = sec.generate_session_key(
-                                16)  # Using this function to generate a random salt
-                            password_hash = sec.hash_password(new_password, password_salt)
+                            # Generate password
+                            password_hash, password_salt = sec.hash_password(new_password)
 
                             # Insert the new user
                             db.insert("""
@@ -1000,7 +741,6 @@ def settings(database: Database = None):
                             st.rerun()
                         except Exception as e:
                             st.error(f"Error creating user: {str(e)}")
-
 
 
 def about():
