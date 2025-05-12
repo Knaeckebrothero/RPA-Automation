@@ -256,6 +256,12 @@ def generate_certificate(audit_case_id: int, database: Database = Database.get_i
         bool: True if certificate was generated successfully, False otherwise
     """
     try:
+        # Import the config handler
+        from cls.config import ConfigHandler
+
+        # Get config instance
+        config = ConfigHandler.get_instance()
+
         # Step 1: Get client and audit case information
         client_info = get_client_info(audit_case_id, database)
         if not client_info:
@@ -289,7 +295,10 @@ def generate_certificate(audit_case_id: int, database: Database = Database.get_i
             return False
 
         # Step 5: Combine PDFs
-        terms_conditions_path = os.path.join(os.getenv('FILESYSTEM_PATH', './.filesystem'), "terms_conditions.pdf")
+        # Get terms and conditions path from config or use default
+        default_terms_path = os.path.join(os.getenv('FILESYSTEM_PATH', './.filesystem'), "terms_conditions.pdf")
+        terms_conditions_path = config.get("APP_SETTINGS", "terms_conditions_path", default_terms_path)
+
         if not os.path.exists(terms_conditions_path):
             log.error(f"Terms and conditions file not found at {terms_conditions_path}")
             return False

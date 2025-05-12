@@ -433,7 +433,7 @@ def settings(database: Database = Database().get_instance()):
             - [VALIDATION_DATE] - Validation date
             """)  # TODO: Put this into a external config file!
 
-            uploaded_template = st.file_uploader("Upload template file", type="docx")
+            uploaded_template = st.file_uploader("Upload template file", type="docx", key="template_uploader")
 
             if uploaded_template is not None:
                 # Save the uploaded template
@@ -449,6 +449,56 @@ def settings(database: Database = Database().get_instance()):
                 config.set("APP_SETTINGS", "certificate_template_path", template_path)
 
                 st.success(f"Template updated successfully: {os.path.basename(template_path)}")
+                st.rerun()
+
+
+        # TODO: The app gets stuck in a loop when uploading a new file, needs to be fixed asap!
+        # Terms and Conditions Settings
+        with st.expander("Terms and Conditions Settings", expanded=True):
+            st.write("Configure the Terms and Conditions PDF used for generating certificates.")
+
+            # Get current terms and conditions path from config
+            default_terms_path = os.path.join(os.getenv('FILESYSTEM_PATH', './.filesystem'),
+                                              "terms_conditions.pdf")
+            current_terms_path = config.get("APP_SETTINGS", "terms_conditions_path", default_terms_path)
+
+            # Display current terms and conditions info
+            st.markdown("#### Current Terms and Conditions PDF")
+            if os.path.exists(current_terms_path):
+                st.success(f"Terms and Conditions PDF is configured: {os.path.basename(current_terms_path)}")
+
+                # Option to download current terms and conditions PDF
+                with open(current_terms_path, "rb") as file:
+                    st.download_button(
+                        label="Download Current Terms and Conditions PDF",
+                        data=file,
+                        file_name=os.path.basename(current_terms_path),
+                        mime="application/pdf"
+                    )
+            else:
+                st.warning(f"Terms and Conditions PDF file not found at {current_terms_path}")
+
+            # Upload new terms and conditions PDF
+            st.markdown("#### Upload New Terms and Conditions PDF")
+            st.write("Upload a new PDF document (.pdf) for the terms and conditions.")
+
+            uploaded_terms_pdf = st.file_uploader("Upload Terms and Conditions PDF", type="pdf", key="terms_uploader")
+
+            if uploaded_terms_pdf is not None:
+                # Save the uploaded terms and conditions PDF
+                terms_dir = os.path.join(os.getenv('FILESYSTEM_PATH', './.filesystem'))
+                os.makedirs(terms_dir, exist_ok=True)
+
+                terms_pdf_path = os.path.join(terms_dir, "terms_conditions.pdf")
+
+                with open(terms_pdf_path, "wb") as f:
+                    f.write(uploaded_terms_pdf.getvalue())
+
+                # Update the config
+                config.set("APP_SETTINGS", "terms_conditions_path", terms_pdf_path)
+
+                st.success(f"Terms and Conditions PDF updated successfully: {os.path.basename(terms_pdf_path)}")
+                st.rerun()
 
         # Archive File Name Settings
         with st.expander("Archive Settings", expanded=True):

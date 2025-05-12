@@ -1,4 +1,3 @@
-# In a new file: src/workflow/config_handler.py
 """
 This module handles configuration file reading and writing.
 """
@@ -45,6 +44,8 @@ class ConfigHandler:
         self.config['APP_SETTINGS'] = {
             'certificate_template_path': os.path.join(os.getenv('FILESYSTEM_PATH', './.filesystem'),
                                                       "certificate_template.docx"),
+            'terms_conditions_path': os.path.join(os.getenv('FILESYSTEM_PATH', './.filesystem'),
+                                                  "terms_conditions.pdf"),
             'archive_file_prefix': 'audit_archive'
         }
 

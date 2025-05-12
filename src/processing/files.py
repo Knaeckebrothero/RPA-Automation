@@ -34,6 +34,7 @@ def get_images_from_pdf(pdf_bytes: bytes) -> list[np.array]:
     return extracted_images
 
 
+# TODO: Add the terms and conditions here (it's currently added in the gernerate_certificate function)
 def create_certificate_from_template(client_info: dict, audit_case_id: int) -> str | None:
     """
     Create a certificate by filling in the template with client information.
