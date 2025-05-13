@@ -5,24 +5,18 @@ import os
 import configparser
 import logging
 
+# Custom imports
+from cls.singleton import Singleton
+
 
 # Set up logging
 log = logging.getLogger(__name__)
 
 
-class ConfigHandler:
+class ConfigHandler(Singleton):
     """
     Handles reading and writing to the application configuration file.
     """
-    _instance = None
-
-    @classmethod
-    def get_instance(cls):
-        """Get the singleton instance."""
-        if cls._instance is None:
-            cls._instance = ConfigHandler()
-        return cls._instance
-
     def __init__(self, config_path="src/config.cfg"):
         """
         Initialize the config handler.

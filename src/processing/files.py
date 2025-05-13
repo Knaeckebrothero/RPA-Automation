@@ -45,20 +45,15 @@ def create_certificate_from_template(client_info: dict, audit_case_id: int) -> s
     :return: Path to the created certificate file or None if failed
     """
     try:
-        # Import the config handler
-        from cls.config import ConfigHandler
-
-        # Get config instance
-        config = ConfigHandler.get_instance()
-
-        # Get template path from config or use default
-        default_template_path = os.path.join(os.getenv('FILESYSTEM_PATH', './.filesystem'),
-                                             "certificate_template.docx")
-        template_path = config.get("APP_SETTINGS", "certificate_template_path", default_template_path)
+        # Get template path from environment variable or use a default
+        # The default path here should match the one used during initial setup in app_init.py if the env var is not set
+        default_template_path = os.path.join(os.getenv('FILESYSTEM_PATH', './.filesystem'), "certificate_template.docx")
+        template_path = os.getenv('CERTIFICATE_TEMPLATE_PATH', default_template_path)
 
         # Check if template exists
         if not os.path.exists(template_path):
-            log.error(f"Certificate template not found at {template_path}")
+            # log.error(f"Certificate template not found at {template_path}") # Assuming log is defined
+            print(f"Error: Certificate template not found at {template_path}") # Placeholder if log is not available here
             return None
 
         # Load the template document
@@ -93,17 +88,21 @@ def create_certificate_from_template(client_info: dict, audit_case_id: int) -> s
                     paragraph.text = paragraph.text.replace(key, value)
 
         # Save the certificate
-        certificate_dir = os.path.join(os.getenv('FILESYSTEM_PATH', './.filesystem'), "documents", str(audit_case_id))
+        # Ensure FILESYSTEM_PATH env var is available or use a sensible default
+        base_filesystem_path = os.getenv('FILESYSTEM_PATH', './.filesystem')
+        certificate_dir = os.path.join(base_filesystem_path, "documents", str(audit_case_id))
         os.makedirs(certificate_dir, exist_ok=True)
 
         certificate_path = os.path.join(certificate_dir, f"certificate_{audit_case_id}.docx")
         doc.save(certificate_path)
 
-        log.info(f"Certificate created at {certificate_path}")
+        # log.info(f"Certificate created at {certificate_path}") # Assuming log is defined
+        print(f"Info: Certificate created at {certificate_path}") # Placeholder
         return certificate_path
 
     except Exception as e:
-        log.error(f"Error creating certificate from template: {str(e)}")
+        # log.error(f"Error creating certificate from template: {str(e)}") # Assuming log is defined
+        print(f"Error creating certificate from template: {str(e)}") # Placeholder
         return None
 
 

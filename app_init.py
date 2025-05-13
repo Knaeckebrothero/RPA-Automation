@@ -85,7 +85,7 @@ def parse_args():
 def setup_filesystem(logger, base_dir, filesystem_dirs, force_reset=False): # config object removed from parameters
     """
     Set up the filesystem structure required by the application.
-    
+
     :param logger: Logger instance
     :param base_dir: Base directory for the filesystem, consistent with ConfigHandler's default
     :param force_reset: If True, delete all existing content in .filesystem
@@ -102,41 +102,50 @@ def setup_filesystem(logger, base_dir, filesystem_dirs, force_reset=False): # co
             except Exception as e:
                 logger.error(f"Error deleting {base_dir}: {e}")
                 return False
-        
+
         created_count = 0
         for directory in filesystem_dirs:
             if not os.path.exists(directory):
                 os.makedirs(directory, exist_ok=True)
                 logger.info(f"Created directory: {directory}")
                 created_count += 1
-        
+
         if created_count == 0 and not force_reset:
             logger.info("All required directories already exist")
         else:
             logger.info(f"Created {created_count} directories")
-        
+
         if not os.path.exists('./.env'):
             if os.path.exists('./.env.example'):
                 shutil.copy('./.env.example', './.env')
                 logger.info("Created .env file from .env.example")
             else:
                 logger.warning(".env.example not found, skipping .env creation")
-        
-        # Copy template files to their default locations in .filesystem
-        try:
-            # Default destination for certificate template, matching ConfigHandler's default
-            certificate_template_dest_path = os.path.join(base_dir, "certificate_template.docx")
-            # Default destination for terms and conditions
-            terms_conditions_dest_path = os.path.join(base_dir, "terms_conditions.pdf")
 
-            # The base_dir is already created above, so os.makedirs for dirname isn't strictly needed here
-            # os.makedirs(os.path.dirname(certificate_template_dest_path), exist_ok=True)
+        # Copy template files to their locations specified by environment variables or defaults
+        try:
+            # Get destination paths from environment variables, with fallbacks to defaults
+            certificate_template_dest_path = os.getenv(
+                'CERTIFICATE_TEMPLATE_PATH',
+                os.path.join(base_dir, "certificate_template.docx")
+            )
+            terms_conditions_dest_path = os.getenv(
+                'CERTIFICATE_TOS_PATH',
+                os.path.join(base_dir, "terms_conditions.pdf")
+            )
+
+            # Ensure destination directories exist
+            for dest_path in [certificate_template_dest_path, terms_conditions_dest_path]:
+                dest_dir = os.path.dirname(dest_path)
+                if not os.path.exists(dest_dir):
+                    os.makedirs(dest_dir, exist_ok=True)
+                    logger.info(f"Created directory for template: {dest_dir}")
 
             files_to_copy = [
                 ('examples/certificate_template.docx', certificate_template_dest_path),
                 ('examples/terms_conditions.pdf', terms_conditions_dest_path)
             ]
-            
+
             for source_file, dest_file in files_to_copy:
                 if os.path.exists(source_file):
                     shutil.copy2(source_file, dest_file)
@@ -145,9 +154,9 @@ def setup_filesystem(logger, base_dir, filesystem_dirs, force_reset=False): # co
                     logger.warning(f"Source file not found: {source_file}")
         except Exception as e:
             logger.error(f"Error copying template files: {e}")
-            
+
         return True
-    
+
     except Exception as e:
         logger.error(f"Error setting up filesystem: {e}")
         return False

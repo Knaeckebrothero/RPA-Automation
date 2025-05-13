@@ -16,6 +16,7 @@ from cls.database import Database
 import ui.expander_stages as expander_stages
 import workflow.security as sec
 from cls.document import PDF
+from cls.config import ConfigHandler
 
 
 # Set up logging
@@ -378,12 +379,6 @@ def settings(database: Database = Database().get_instance()):
     """
     log.debug('Rendering settings page')
 
-    # Import the config handler
-    from cls.config import ConfigHandler
-
-    # Get config instance
-    config = ConfigHandler.get_instance()
-
     # Page title and description
     st.header('Settings')
     st.write('Configure the application settings below.')
@@ -398,26 +393,24 @@ def settings(database: Database = Database().get_instance()):
         with st.expander("Certificate Template Settings", expanded=True):
             st.write("Configure the template used for generating certificates.")
 
-            # Get current template path from config
-            default_template_path = os.path.join(os.getenv('FILESYSTEM_PATH', './.filesystem'),
-                                                 "certificate_template.docx")
-            current_template_path = config.get("APP_SETTINGS", "certificate_template_path", default_template_path)
+            # Get current template path
+            template_path = os.getenv('CERTIFICATE_TEMPLATE_PATH', './.filesystem/certificate_template.docx')
 
             # Display current template info
             st.markdown("#### Current Template")
-            if os.path.exists(current_template_path):
-                st.success(f"Template is configured: {os.path.basename(current_template_path)}")
+            if os.path.exists(template_path):
+                st.success(f"Template is configured: {os.path.basename(template_path)}")
 
                 # Option to download current template
-                with open(current_template_path, "rb") as file:
+                with open(template_path, "rb") as file:
                     st.download_button(
                         label="Download Current Template",
                         data=file,
-                        file_name=os.path.basename(current_template_path),
+                        file_name=os.path.basename(template_path),
                         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                     )
             else:
-                st.warning(f"Template file not found at {current_template_path}")
+                st.warning(f"Template file not found at {template_path}")
 
             # Upload new template
             st.markdown("#### Upload New Template")
@@ -431,52 +424,46 @@ def settings(database: Database = Database().get_instance()):
             - [INSTITUTE_CITY] - Client city
             - [FISCAL_YEAR_END] - End of fiscal year
             - [VALIDATION_DATE] - Validation date
-            """)  # TODO: Put this into a external config file!
+            """)
 
             uploaded_template = st.file_uploader("Upload template file", type="docx", key="template_uploader")
 
             if uploaded_template is not None:
                 # Save the uploaded template
-                template_dir = os.path.join(os.getenv('FILESYSTEM_PATH', './.filesystem'))
-                os.makedirs(template_dir, exist_ok=True)
-
-                template_path = os.path.join(template_dir, "certificate_template.docx")
-
                 with open(template_path, "wb") as f:
                     f.write(uploaded_template.getvalue())
 
-                # Update the config
-                config.set("APP_SETTINGS", "certificate_template_path", template_path)
-
                 st.success(f"Template updated successfully: {os.path.basename(template_path)}")
-                st.rerun()
 
+                # TODO: This is causing an error, but if it's not in there it's causing the application to get
+                #  stuck in a infinite loop, find a solution to this!!!
+                # Clear the uploaded file from the session state to avoid a loop
+                st.session_state["template_uploader"] = None
+                st.rerun()
 
         # TODO: The app gets stuck in a loop when uploading a new file, needs to be fixed asap!
         # Terms and Conditions Settings
         with st.expander("Terms and Conditions Settings", expanded=True):
             st.write("Configure the Terms and Conditions PDF used for generating certificates.")
 
-            # Get current terms and conditions path from config
-            default_terms_path = os.path.join(os.getenv('FILESYSTEM_PATH', './.filesystem'),
-                                              "terms_conditions.pdf")
-            current_terms_path = config.get("APP_SETTINGS", "terms_conditions_path", default_terms_path)
+            # Get current terms and conditions path
+            terms_path = os.getenv('CERTIFICATE_TOS_PATH', './.filesystem/terms_conditions.pdf')
 
             # Display current terms and conditions info
             st.markdown("#### Current Terms and Conditions PDF")
-            if os.path.exists(current_terms_path):
-                st.success(f"Terms and Conditions PDF is configured: {os.path.basename(current_terms_path)}")
+            if os.path.exists(terms_path):
+                st.success(f"Terms and Conditions PDF is configured: {os.path.basename(terms_path)}")
 
                 # Option to download current terms and conditions PDF
-                with open(current_terms_path, "rb") as file:
+                with open(terms_path, "rb") as file:
                     st.download_button(
                         label="Download Current Terms and Conditions PDF",
                         data=file,
-                        file_name=os.path.basename(current_terms_path),
+                        file_name=os.path.basename(terms_path),
                         mime="application/pdf"
                     )
             else:
-                st.warning(f"Terms and Conditions PDF file not found at {current_terms_path}")
+                st.warning(f"Terms and Conditions PDF file not found at {terms_path}")
 
             # Upload new terms and conditions PDF
             st.markdown("#### Upload New Terms and Conditions PDF")
@@ -486,23 +473,21 @@ def settings(database: Database = Database().get_instance()):
 
             if uploaded_terms_pdf is not None:
                 # Save the uploaded terms and conditions PDF
-                terms_dir = os.path.join(os.getenv('FILESYSTEM_PATH', './.filesystem'))
-                os.makedirs(terms_dir, exist_ok=True)
-
-                terms_pdf_path = os.path.join(terms_dir, "terms_conditions.pdf")
-
-                with open(terms_pdf_path, "wb") as f:
+                with open(terms_path, "wb") as f:
                     f.write(uploaded_terms_pdf.getvalue())
 
-                # Update the config
-                config.set("APP_SETTINGS", "terms_conditions_path", terms_pdf_path)
+                st.success(f"Terms and Conditions PDF updated successfully: {os.path.basename(terms_path)}")
 
-                st.success(f"Terms and Conditions PDF updated successfully: {os.path.basename(terms_pdf_path)}")
+                # Clear the uploaded file from the session state to avoid a loop
+                st.session_state["terms_uploader"] = None
                 st.rerun()
 
         # Archive File Name Settings
         with st.expander("Archive Settings", expanded=True):
             st.write("Configure the naming convention for archive zip files.")
+
+            # Get the config handler instance
+            config = ConfigHandler.get_instance()
 
             # Get current archive prefix from config
             default_prefix = "audit_archive"
