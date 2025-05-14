@@ -34,6 +34,7 @@ def get_images_from_pdf(pdf_bytes: bytes) -> list[np.array]:
     return extracted_images
 
 
+# TODO: Add the terms and conditions here (it's currently added in the gernerate_certificate function)
 def create_certificate_from_template(client_info: dict, audit_case_id: int) -> str | None:
     """
     Create a certificate by filling in the template with client information.
@@ -44,12 +45,15 @@ def create_certificate_from_template(client_info: dict, audit_case_id: int) -> s
     :return: Path to the created certificate file or None if failed
     """
     try:
-        # Get the template path
-        template_path = os.path.join(os.getenv('FILESYSTEM_PATH', './.filesystem'), "certificate_template.docx")
+        # Get template path from environment variable or use a default
+        # The default path here should match the one used during initial setup in app_init.py if the env var is not set
+        default_template_path = os.path.join(os.getenv('FILESYSTEM_PATH', './.filesystem'), "certificate_template.docx")
+        template_path = os.getenv('CERTIFICATE_TEMPLATE_PATH', default_template_path)
 
         # Check if template exists
         if not os.path.exists(template_path):
-            log.error(f"Certificate template not found at {template_path}")
+            # log.error(f"Certificate template not found at {template_path}") # Assuming log is defined
+            print(f"Error: Certificate template not found at {template_path}") # Placeholder if log is not available here
             return None
 
         # Load the template document
@@ -73,7 +77,7 @@ def create_certificate_from_template(client_info: dict, audit_case_id: int) -> s
             "[INSTITUTE_NAME]": client_info['institute'],
             "[INSTITUTE_ADDRESS]": client_info['address'],
             "[INSTITUTE_CITY]": client_info['city'],
-            "[FISCAL_YEAR_END]": f"December 31, {current_year-1}",  # Assuming fiscal year is previous calendar year
+            "[FISCAL_YEAR_END]": f"December 31, {current_year - 1}",  # Assuming fiscal year is previous calendar year
             "[VALIDATION_DATE]": validation_date
         }
 
@@ -84,17 +88,21 @@ def create_certificate_from_template(client_info: dict, audit_case_id: int) -> s
                     paragraph.text = paragraph.text.replace(key, value)
 
         # Save the certificate
-        certificate_dir = os.path.join(os.getenv('FILESYSTEM_PATH', './.filesystem'), "documents", str(audit_case_id))
+        # Ensure FILESYSTEM_PATH env var is available or use a sensible default
+        base_filesystem_path = os.getenv('FILESYSTEM_PATH', './.filesystem')
+        certificate_dir = os.path.join(base_filesystem_path, "documents", str(audit_case_id))
         os.makedirs(certificate_dir, exist_ok=True)
 
         certificate_path = os.path.join(certificate_dir, f"certificate_{audit_case_id}.docx")
         doc.save(certificate_path)
 
-        log.info(f"Certificate created at {certificate_path}")
+        # log.info(f"Certificate created at {certificate_path}") # Assuming log is defined
+        print(f"Info: Certificate created at {certificate_path}") # Placeholder
         return certificate_path
 
     except Exception as e:
-        log.error(f"Error creating certificate from template: {str(e)}")
+        # log.error(f"Error creating certificate from template: {str(e)}") # Assuming log is defined
+        print(f"Error creating certificate from template: {str(e)}") # Placeholder
         return None
 
 

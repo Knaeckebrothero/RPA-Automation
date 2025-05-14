@@ -174,7 +174,7 @@ def generate_session_key(length=32):
     return secrets.token_hex(length)
 
 
-def hash_password(password, salt=None):
+def hash_password(password, salt=None) -> tuple[str, str]:
     """
     Hash a password using SHA-256 with a salt.
 

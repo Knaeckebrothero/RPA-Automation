@@ -6,6 +6,7 @@ import pandas as pd
 import streamlit as st
 import logging
 import base64
+import datetime
 
 # Custom imports
 import ui.visuals as visuals
@@ -15,6 +16,7 @@ from cls.database import Database
 import ui.expander_stages as expander_stages
 import workflow.security as sec
 from cls.document import PDF
+from cls.config import ConfigHandler
 
 
 # Set up logging
@@ -209,7 +211,7 @@ def active_cases(database: Database = Database.get_instance()):
                 if new_comments != current_comments:
                     if st.button("Save Comments"):
                         # Update comments in database
-                        database.query(f"""
+                        database.insert(f"""
                             UPDATE audit_case 
                             SET comments = ? 
                             WHERE id = ?
@@ -369,7 +371,7 @@ def active_cases(database: Database = Database.get_instance()):
             st.info("Please select a case to edit document values.")
 
 
-def settings(database: Database = None):
+def settings(database: Database = Database().get_instance()):
     """
     This is the settings ui page for the application.
 
@@ -387,19 +389,155 @@ def settings(database: Database = None):
     with application_tab:
         st.subheader("Application Settings")
 
-        # Application settings
-        st.write("Application settings will go here!")
+        # Certificate Template Settings
+        with st.expander("Certificate Template Settings", expanded=True):
+            st.write("Configure the template used for generating certificates.")
 
-        # TODO: Add application settings here (move audit log here?!)
+            # Get current template path
+            template_path = os.getenv('CERTIFICATE_TEMPLATE_PATH', './.filesystem/certificate_template.docx')
 
-        # TODO: Implement the templates and path selechtion here!
+            # Upload new template
+            st.markdown("#### Upload New Template")
+            st.write("""
+            Upload a new Word document (.docx) template for certificates. The template should contain the following placeholders:
+            - [DATE] - Current date
+            - [YEAR] - Current year
+            - [BAFIN_ID] - Client BaFin ID
+            - [INSTITUTE_NAME] - Client institute name
+            - [INSTITUTE_ADDRESS] - Client address
+            - [INSTITUTE_CITY] - Client city
+            - [FISCAL_YEAR_END] - End of fiscal year
+            - [VALIDATION_DATE] - Validation date
+            """)
 
+            uploaded_template = st.file_uploader("Upload template file", type="docx", key="template_uploader")
 
+            if uploaded_template is not None:
+                # Save the uploaded template
+                with open(template_path, "wb") as f:
+                    f.write(uploaded_template.getvalue())
+
+                st.success(f"Template updated successfully: {os.path.basename(template_path)}")
+
+            # Display current template info
+            st.markdown("#### Current Template")
+            if os.path.exists(template_path):
+                st.success(f"Template is configured: {os.path.basename(template_path)}")
+
+                # Option to download current template
+                with open(template_path, "rb") as file:
+                    st.download_button(
+                        label="Download Current Template",
+                        data=file,
+                        file_name=os.path.basename(template_path),
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    )
+            else:
+                st.warning(f"Template file not found at {template_path}")
+
+        # Terms and Conditions Settings
+        with st.expander("Terms and Conditions Settings", expanded=True):
+            st.write("Configure the Terms and Conditions PDF used for generating certificates.")
+
+            # Get current terms and conditions path
+            terms_path = os.getenv('CERTIFICATE_TOS_PATH', './.filesystem/terms_conditions.pdf')
+
+            # Upload new terms and conditions PDF
+            st.markdown("#### Upload New Terms and Conditions PDF")
+            st.write("Upload a new PDF document (.pdf) for the terms and conditions.")
+
+            uploaded_terms_pdf = st.file_uploader("Upload Terms and Conditions PDF", type="pdf", key="terms_uploader")
+
+            if uploaded_terms_pdf is not None:
+                # Save the uploaded terms and conditions PDF
+                with open(terms_path, "wb") as f:
+                    f.write(uploaded_terms_pdf.getvalue())
+
+                st.success(f"Terms and Conditions PDF updated successfully: {os.path.basename(terms_path)}")
+
+            # Display current terms and conditions info
+            st.markdown("#### Current Terms and Conditions PDF")
+            if os.path.exists(terms_path):
+                st.success(f"Terms and Conditions PDF is configured: {os.path.basename(terms_path)}")
+
+                # Option to download current terms and conditions PDF
+                with open(terms_path, "rb") as file:
+                    st.download_button(
+                        label="Download Current Terms and Conditions PDF",
+                        data=file,
+                        file_name=os.path.basename(terms_path),
+                        mime="application/pdf"
+                    )
+            else:
+                st.warning(f"Terms and Conditions PDF file not found at {terms_path}")
+
+        # Archive File Name Settings
+        with st.expander("Archive Settings", expanded=True):
+            st.write("Configure the naming convention for archive zip files.")
+
+            # Get the config handler instance
+            config = ConfigHandler.get_instance()
+
+            # Get current archive prefix from config
+            default_prefix = "audit_archive"
+            current_prefix = config.get("APP_SETTINGS", "archive_file_prefix", default_prefix)
+
+            # Input for archive file prefix
+            new_prefix = st.text_input(
+                "Archive File Prefix",
+                value=current_prefix,
+                help="This prefix will be used for naming archive zip files. The final format will be: prefix_YYYY-MM-DD.zip"
+            )
+
+            # Display preview of the file name
+            current_date = datetime.datetime.now().strftime("%Y-%m-%d")
+            st.write(f"Preview: `{new_prefix}_{current_date}.zip`")
+
+            if st.button("Save Archive Settings"):
+                # Save the prefix to the config
+                config.set("APP_SETTINGS", "archive_file_prefix", new_prefix)
+                st.success("Archive file prefix updated successfully!")
+
+        # Application log settings
+        with st.expander("Application Logs", expanded=False):
+            log_path = os.path.join(os.getenv('LOG_PATH', ''), 'application.log')
+            if os.path.exists(log_path):
+                try:
+                    # Use a deque to efficiently get the last 300 lines
+                    from collections import deque
+
+                    # Read the last 300 lines
+                    with open(log_path, 'r') as file:
+                        last_lines = deque(file, maxlen=300)
+                        last_lines = list(last_lines)
+
+                    # Add a slider to control how many lines to display
+                    num_lines = st.slider('Number of log lines to display',
+                                          min_value=10,
+                                          max_value=len(last_lines),
+                                          value=min(100, len(last_lines)),
+                                          step=10)
+
+                    # Get the selected number of lines from the end of the list
+                    displayed_lines = last_lines[-num_lines:] if num_lines < len(last_lines) else last_lines
+
+                    # Join the lines into a single string
+                    log_content = ''.join(displayed_lines)
+
+                    st.subheader(f'Application Logs (Last {num_lines} of {len(last_lines)} lines)')
+                    st.code(log_content)
+                except Exception as e:
+                    st.error(f"Error reading log file: {str(e)}")
+            else:
+                st.warning(f"Log file not found at {log_path}")
+
+    # Modify the archive button logic to use the custom archive name
     with audit_tab:
-        # New section for audit process initialization
+        # Existing audit_tab code here...
         st.subheader("Audit Process")
 
         with st.expander("Initialize Annual Audit Process", expanded=True):
+            # Initialize Annual Audit Process code...
             st.write("""
             This will create a new audit case (stage 1) for every client in the database 
             that doesn't already have an active case. Use this to start the annual audit process.
@@ -408,22 +546,16 @@ def settings(database: Database = None):
             # Add a confirmation checkbox for safety
             confirm_init = st.checkbox("I understand this will create new audit cases for all clients")
 
-            # Check if the database instance is provided, otherwise fetch the instance
-            if database:
-                db = database
-            else:
-                db = Database().get_instance()
-
             if st.button("Initialize Audit Cases", disabled=not confirm_init):
                 with st.spinner("Creating audit cases..."):
                     # Find clients without active audit cases
-                    clients_without_cases = db.query("""
-                        SELECT id FROM client 
-                        WHERE id NOT IN (
-                            SELECT client_id FROM audit_case 
-                            WHERE stage < 5
-                        )
-                    """)
+                    clients_without_cases = database.query("""
+                                                     SELECT id
+                                                     FROM client
+                                                     WHERE id NOT IN (SELECT client_id
+                                                                      FROM audit_case
+                                                                      WHERE stage < 5)
+                                                     """)
 
                     if not clients_without_cases:
                         st.warning("All clients already have active audit cases.")
@@ -431,10 +563,10 @@ def settings(database: Database = None):
                         # Create a new audit case for each client
                         created_count = 0
                         for client_id in clients_without_cases:
-                            db.insert("""
-                                INSERT INTO audit_case (client_id, stage, comments)
-                                VALUES (?, 1, 'Automatically created for annual audit process')
-                            """, (client_id[0],))
+                            database.insert("""
+                                      INSERT INTO audit_case (client_id, stage, comments)
+                                      VALUES (?, 1, 'Automatically created for annual audit process')
+                                      """, (client_id[0],))
                             created_count += 1
 
                         # Success message
@@ -453,12 +585,12 @@ def settings(database: Database = None):
             )
 
             # Get case statistics
-            stage_counts = db.query("""
-                SELECT stage, COUNT(*) 
-                FROM audit_case 
-                WHERE stage < 5 
-                GROUP BY stage
-            """)
+            stage_counts = database.query("""
+                                    SELECT stage, COUNT(*)
+                                    FROM audit_case
+                                    WHERE stage < 5
+                                    GROUP BY stage
+                                    """)
 
             # Create a dictionary of stage counts
             stage_stats = {1: 0, 2: 0, 3: 0, 4: 0}
@@ -481,7 +613,8 @@ def settings(database: Database = None):
             # Warning if there are cases not in stage 4
             not_completed = stage_stats[1] + stage_stats[2] + stage_stats[3]
             if not_completed > 0:
-                st.warning(f"⚠️ There are still {not_completed} active cases that are not ready for archiving (stages 1-3).")
+                st.warning(
+                    f"⚠️ There are still {not_completed} active cases that are not ready for archiving (stages 1-3).")
 
             # Add a confirmation checkbox for safety
             confirm_archive = st.checkbox("I understand this will archive all cases in stage 4")
@@ -489,39 +622,49 @@ def settings(database: Database = None):
             if st.button("Archive Completed Cases", disabled=not confirm_archive):
                 with st.spinner("Archiving completed cases..."):
                     # Count cases to be archived
-                    cases_to_archive = db.query("""
-                        SELECT COUNT(*) FROM audit_case 
-                        WHERE stage = 4
-                    """)[0][0]
+                    cases_to_archive = database.query("""
+                                                SELECT COUNT(*)
+                                                FROM audit_case
+                                                WHERE stage = 4
+                                                """)[0][0]
 
                     if cases_to_archive == 0:
                         st.info("No completed cases to archive.")
                     else:
-                        # TODO: Implement archiving logic - this would include:
+                        # Get archive file prefix from config
+                        default_prefix = "audit_archive"
+                        archive_prefix = config.get("APP_SETTINGS", "archive_file_prefix", default_prefix)
+                        current_date = datetime.datetime.now().strftime("%Y-%m-%d")
+                        archive_filename = f"{archive_prefix}_{current_date}.zip"
+
+                        # TODO: Implement archiving logic with the custom filename
                         # 1. Move documents to archive storage
                         # 2. Update database records
                         # 3. Create archive logs
 
                         # For now, just update the stage to 5 (Archived)
-                        db.query("""
+                        database.insert("""
                             UPDATE audit_case 
                             SET stage = 5,
                                 comments = CASE 
-                                    WHEN comments IS NULL THEN 'Archived automatically'
-                                    ELSE comments || ' | Archived automatically'
+                                    WHEN comments IS NULL THEN 'Archived automatically as {0}'
+                                    ELSE comments || ' | Archived automatically as {0}'
                                 END
                             WHERE stage = 4
-                        """)
+                        """.format(archive_filename))
 
                         # Success message
-                        st.success(f"Successfully archived {cases_to_archive} completed cases.")
+                        st.success(f"Successfully archived {cases_to_archive} completed cases as {archive_filename}.")
 
                         # Log the action
-                        log.info(f"Archived {cases_to_archive} completed cases")
+                        log.info(f"Archived {cases_to_archive} completed cases as {archive_filename}")
 
                         # Refresh the statistics
                         st.rerun()
+
+    # Existing user_tab code
     with user_tab:
+        # User management code... (no changes needed)
         st.subheader("User Management")
 
         # Check if the database instance is provided, otherwise fetch the instance
@@ -567,12 +710,14 @@ def settings(database: Database = None):
                 else:
                     # Delete the user
                     try:
-                        db.query("""
-                                 DELETE FROM user
+                        # TODO: Rename the method (refactor db to have functions instead of query methods)
+                        db.insert("""
+                                 DELETE
+                                 FROM user
                                  WHERE id = ?
                                  """, (selected_user_id,))
-                        db._conn.commit()
                         st.success("User deleted successfully.")
+
                         # Force refresh
                         st.rerun()
                     except Exception as e:
@@ -594,7 +739,9 @@ def settings(database: Database = None):
                 else:
                     # Check if user already exists
                     existing_user = db.query("""
-                                             SELECT id FROM user WHERE username_email = ?
+                                             SELECT id
+                                             FROM user
+                                             WHERE username_email = ?
                                              """, (new_username,))
 
                     if existing_user:
@@ -604,9 +751,8 @@ def settings(database: Database = None):
                             # Import the security module to create password hash
                             import workflow.security as sec
 
-                            # Generate password salt and hash
-                            password_salt = sec.generate_session_key(16)  # Using this function to generate a random salt
-                            password_hash = sec.hash_password(new_password, password_salt)
+                            # Generate password
+                            password_hash, password_salt = sec.hash_password(new_password)
 
                             # Insert the new user
                             db.insert("""
