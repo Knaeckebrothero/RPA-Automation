@@ -396,22 +396,6 @@ def settings(database: Database = Database().get_instance()):
             # Get current template path
             template_path = os.getenv('CERTIFICATE_TEMPLATE_PATH', './.filesystem/certificate_template.docx')
 
-            # Display current template info
-            st.markdown("#### Current Template")
-            if os.path.exists(template_path):
-                st.success(f"Template is configured: {os.path.basename(template_path)}")
-
-                # Option to download current template
-                with open(template_path, "rb") as file:
-                    st.download_button(
-                        label="Download Current Template",
-                        data=file,
-                        file_name=os.path.basename(template_path),
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    )
-            else:
-                st.warning(f"Template file not found at {template_path}")
-
             # Upload new template
             st.markdown("#### Upload New Template")
             st.write("""
@@ -435,19 +419,41 @@ def settings(database: Database = Database().get_instance()):
 
                 st.success(f"Template updated successfully: {os.path.basename(template_path)}")
 
-                # TODO: This is causing an error, but if it's not in there it's causing the application to get
-                #  stuck in a infinite loop, find a solution to this!!!
-                # Clear the uploaded file from the session state to avoid a loop
-                st.session_state["template_uploader"] = None
-                st.rerun()
+            # Display current template info
+            st.markdown("#### Current Template")
+            if os.path.exists(template_path):
+                st.success(f"Template is configured: {os.path.basename(template_path)}")
 
-        # TODO: The app gets stuck in a loop when uploading a new file, needs to be fixed asap!
+                # Option to download current template
+                with open(template_path, "rb") as file:
+                    st.download_button(
+                        label="Download Current Template",
+                        data=file,
+                        file_name=os.path.basename(template_path),
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    )
+            else:
+                st.warning(f"Template file not found at {template_path}")
+
         # Terms and Conditions Settings
         with st.expander("Terms and Conditions Settings", expanded=True):
             st.write("Configure the Terms and Conditions PDF used for generating certificates.")
 
             # Get current terms and conditions path
             terms_path = os.getenv('CERTIFICATE_TOS_PATH', './.filesystem/terms_conditions.pdf')
+
+            # Upload new terms and conditions PDF
+            st.markdown("#### Upload New Terms and Conditions PDF")
+            st.write("Upload a new PDF document (.pdf) for the terms and conditions.")
+
+            uploaded_terms_pdf = st.file_uploader("Upload Terms and Conditions PDF", type="pdf", key="terms_uploader")
+
+            if uploaded_terms_pdf is not None:
+                # Save the uploaded terms and conditions PDF
+                with open(terms_path, "wb") as f:
+                    f.write(uploaded_terms_pdf.getvalue())
+
+                st.success(f"Terms and Conditions PDF updated successfully: {os.path.basename(terms_path)}")
 
             # Display current terms and conditions info
             st.markdown("#### Current Terms and Conditions PDF")
@@ -464,23 +470,6 @@ def settings(database: Database = Database().get_instance()):
                     )
             else:
                 st.warning(f"Terms and Conditions PDF file not found at {terms_path}")
-
-            # Upload new terms and conditions PDF
-            st.markdown("#### Upload New Terms and Conditions PDF")
-            st.write("Upload a new PDF document (.pdf) for the terms and conditions.")
-
-            uploaded_terms_pdf = st.file_uploader("Upload Terms and Conditions PDF", type="pdf", key="terms_uploader")
-
-            if uploaded_terms_pdf is not None:
-                # Save the uploaded terms and conditions PDF
-                with open(terms_path, "wb") as f:
-                    f.write(uploaded_terms_pdf.getvalue())
-
-                st.success(f"Terms and Conditions PDF updated successfully: {os.path.basename(terms_path)}")
-
-                # Clear the uploaded file from the session state to avoid a loop
-                st.session_state["terms_uploader"] = None
-                st.rerun()
 
         # Archive File Name Settings
         with st.expander("Archive Settings", expanded=True):
