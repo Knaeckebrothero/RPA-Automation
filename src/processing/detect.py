@@ -524,12 +524,13 @@ def _detect_potential_signature_regions(gray_image):
 
 def date_present(image, date_regions=None):
     """
-    Detect if a handwritten date is present in the specified regions of an image.
+    Detect if any handwritten content is present in the expected date area of an image.
+    This function checks for the presence of content rather than verifying it's a valid date.
 
-    :param image: The image to check for dates (numpy array)
-    :param date_regions: Optional list of tuples [(x, y, w, h)] defining date areas
-                       If None, will attempt to detect likely date areas
-    :return: Boolean indicating if a date is detected
+    :param image: The image to check for date content (numpy array)
+    :param date_regions: Optional list of tuples [(x, y, w, h)] defining date areas.
+     If None, will use default regions based on document layout.
+    :return: Boolean indicating if content is detected in the date area
     """
     # Convert to grayscale if needed
     if len(image.shape) == 3:
@@ -540,11 +541,11 @@ def date_present(image, date_regions=None):
     # If no regions specified, use default regions based on document proportions
     if date_regions is None:
         h, w = gray.shape
-        # Default date regions - adjust based on your document layout
-        # Bottom left corner - common date area (as seen in your example)
+        # For the document example provided, date appears in bottom left
+        # Adjust these coordinates based on your specific document layout
         date_regions = [(0, 3*h//4, w//3, h//4)]
 
-    # Check each region for date characteristics
+    # Check each region for any handwritten content
     for region in date_regions:
         x, y, w, h = region
 
@@ -560,29 +561,17 @@ def date_present(image, date_regions=None):
         # Apply threshold to identify pen marks
         _, binary = cv2.threshold(roi, 200, 255, cv2.THRESH_BINARY_INV)
 
-        # Calculate pixel density
+        # Calculate pixel density - key indicator of handwritten content
         pixel_density = np.count_nonzero(binary) / binary.size
 
-        # Calculate contour characteristics
+        # Count non-trivial contours
         contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-        # Filter small noise contours
         significant_contours = [c for c in contours if cv2.contourArea(c) > 10]
 
-        # Date-specific characteristics:
-        # 1. Moderate pixel density (typically less dense than signatures)
-        # 2. Multiple small contours (digits, separators, location name)
-        # 3. Often aligned horizontally
-        if (0.005 < pixel_density < 0.05 and  # Lower threshold than signatures
-                len(significant_contours) >= 3):
-
-            # Check for horizontal alignment typical of dates
-            y_values = [cv2.boundingRect(c)[1] for c in significant_contours]
-            y_variance = np.var(y_values) if y_values else float('inf')
-
-            # Low variance indicates horizontal alignment
-            if y_variance < 100:  # Threshold for alignment variance
-                return True
+        # We only care if there's ANY significant content in the date area
+        # Lowered density threshold and contour requirements
+        if pixel_density > 0.003 and len(significant_contours) >= 2:
+            return True
 
     return False
 
