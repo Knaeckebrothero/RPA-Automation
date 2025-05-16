@@ -180,30 +180,57 @@ def stage_2(case_id: int, current_stage: int, db: Database = Database.get_instan
             # Put the display logic into a function to avoid duplication
             def _display_comparison_table_helper_function(doc, counter: int = 0):
                 nonlocal verification_result
-                
+
                 # Load document from JSON (use the third index to get the path)
                 document_pdf = PDF.from_json(doc[counter][2])
 
                 # Get comparison table
                 comparison_df = document_pdf.get_value_comparison_table()
 
+                # Check for signature and date
+                completeness = document_pdf.check_document_completeness()
+
                 # Display in UI
                 st.dataframe(comparison_df, use_container_width=True, hide_index=True)
+
+                # Create three columns for metrics
+                col1, col2, col3 = st.columns(3)
 
                 # Calculate match percentage
                 if not comparison_df.empty:
                     matches = comparison_df['Match status'].value_counts().get('✅', 0)
                     total = len(comparison_df)
                     match_percentage = (matches / total) * 100 if total > 0 else 0
-                    st.metric("Match Percentage", f"{match_percentage:.1f}%",
-                              help=f"{matches} of {total} fields match")
-                    
+
+                    # Column 1: Match Percentage
+                    with col1:
+                        st.metric("Match Percentage", f"{match_percentage:.1f}%",
+                                  help=f"{matches} of {total} fields match")
+
+                    # Column 2: Signature Status
+                    with col2:
+                        signature_icon = "✅" if completeness['has_signature'] else "❌"
+                        st.metric("Signature", signature_icon,
+                                  help="Document contains a signature" if completeness['has_signature']
+                                  else "No signature detected")
+
+                    # Column 3: Date Status
+                    with col3:
+                        date_icon = "✅" if completeness['has_date'] else "❌"
+                        st.metric("Date", date_icon,
+                                  help="Document contains a date" if completeness['has_date']
+                                  else "No date detected")
+
                     # Store match percentage for verification button logic
                     verification_result = {
                         'match_percentage': match_percentage,
                         'matches': matches,
-                        'total': total
+                        'total': total,
+                        'has_signature': completeness['has_signature'],
+                        'has_date': completeness['has_date'],
+                        'is_complete': completeness['is_complete']
                     }
+
                 return verification_result
 
             if documents:
@@ -221,15 +248,17 @@ def stage_2(case_id: int, current_stage: int, db: Database = Database.get_instan
                     verification_result = _display_comparison_table_helper_function(documents)
                 
                 # Add verification completion button if we're in stage 2
+                # Modify the verification button logic to also consider document completeness
                 if current_stage == 2 and verification_result:
                     st.divider()
-                    
-                    # If match percentage is 100%, allow direct completion
-                    if verification_result['match_percentage'] == 100.0:
+
+                    # If match percentage is 100% AND document is complete, allow direct completion
+                    if (verification_result['match_percentage'] == 100.0 and
+                            verification_result['is_complete']):
                         if st.button("Complete Verification"):
                             db.query("UPDATE audit_case SET stage = 3 WHERE id = ?", (case_id,))
-                            log.info(f"Data verification completed for case {case_id}. All fields matched.",
-                                    audit_log=True, case_id=case_id)
+                            log.info(f"Data verification completed for case {case_id}. All fields matched and document is complete.",
+                                     audit_log=True, case_id=case_id)
                             st.success("Verification Completed! Proceeding to next stage.")
                             # Clear cache and refresh
                             st.cache_data.clear()
@@ -237,24 +266,35 @@ def stage_2(case_id: int, current_stage: int, db: Database = Database.get_instan
                     else:
                         # Create two columns for the button and checkbox
                         col1, col2 = st.columns([3, 7])
-                        
+
                         # Show the checkbox in the second column
                         with col2:
-                            confirm_mismatch = st.checkbox(
-                                "I am aware that the values do not match our database and want to proceed regardless",
-                                key=f"mismatch-confirm-{case_id}"
+                            issue_message = []
+                            if verification_result['match_percentage'] < 100.0:
+                                issue_message.append("values do not match our database")
+                            if not verification_result['has_signature']:
+                                issue_message.append("signature is missing")
+                            if not verification_result['has_date']:
+                                issue_message.append("date is missing")
+
+                            issue_text = ", ".join(issue_message)
+                            confirm_issues = st.checkbox(
+                                f"I am aware that {issue_text} and want to proceed regardless",
+                                key=f"issues-confirm-{case_id}"
                             )
-                        
+
                         # Show the button in the first column
                         with col1:
-                            complete_button = st.button("Complete Verification", disabled=not confirm_mismatch)
-                            
+                            complete_button = st.button("Complete Verification", disabled=not confirm_issues)
+
                             if complete_button:
                                 db.query("UPDATE audit_case SET stage = 3 WHERE id = ?", (case_id,))
-                                log.info(f"Data verification completed for case {case_id} with manual override. " + 
-                                        f"Match percentage was {verification_result['match_percentage']:.1f}% " +
-                                        f"({verification_result['matches']} of {verification_result['total']} fields matched).",
-                                        audit_log=True, case_id=case_id)
+                                log.info(f"Data verification completed for case {case_id} with manual override. " +
+                                         f"Match percentage was {verification_result['match_percentage']:.1f}% " +
+                                         f"({verification_result['matches']} of {verification_result['total']} fields matched). " +
+                                         f"Signature: {verification_result['has_signature']}, " +
+                                         f"Date: {verification_result['has_date']}",
+                                         audit_log=True, case_id=case_id)
                                 st.success("Verification Completed with manual override! Proceeding to next stage.")
                                 # Clear cache and refresh
                                 st.cache_data.clear()
