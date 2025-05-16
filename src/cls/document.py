@@ -1002,6 +1002,71 @@ class PDF(Document):
         log.info(f"Generated comparison table with {len(df)} rows")
         return df
 
+    def check_for_signature(self):
+        """
+        Check if the document contains a signature.
+
+        :return: Boolean indicating if a signature was detected
+        """
+        if self._content:
+            # Convert the PDF document into a list of images
+            images = get_images_from_pdf(self._content)
+
+            # Check the last page for a signature (often where signatures are found)
+            if images:
+                last_page = images[-1]
+                np_image = np.array(last_page)  # TODO: Currently searches for a signature on the last page only.
+                bgr_image = cv2.cvtColor(np_image, cv2.COLOR_RGB2BGR)
+
+                # Use the signature detection function
+                from processing.detect import signature
+                has_signature = signature(bgr_image)
+
+                # Store the result as an attribute
+                self.add_attributes({"has_signature": has_signature})
+
+                if has_signature:
+                    log.debug(f"Document has a signature!")
+                else:
+                    log.debug(f"Document does not have a signature!")
+
+                return has_signature
+
+        return False
+
+    def check_document_completeness(self):
+        """
+        Check if the document contains both a signature and date.
+
+        :return: Dictionary with completeness status
+        """
+        completeness = {'has_signature': False, 'has_date': False, 'is_complete': False}
+
+        if self._content:
+            # Convert the PDF document into a list of images
+            images = get_images_from_pdf(self._content)
+
+            # Check the last page for signature and date
+            if images:
+                last_page = images[-1]
+                np_image = np.array(last_page)
+                bgr_image = cv2.cvtColor(np_image, cv2.COLOR_RGB2BGR)
+
+                # Use the detection functions
+                from processing.detect import signature, date_present
+
+                # Check for signature and date
+                completeness['has_signature'] = signature(bgr_image)
+                completeness['has_date'] = date_present(bgr_image)
+                completeness['is_complete'] = (completeness['has_signature'] and
+                                               completeness['has_date'])
+                # TODO: Add logging here!
+
+                # Store the results as attributes
+                self.add_attributes(completeness)
+
+        return completeness
+
     @classmethod
     def _create_from_json_data(cls, data, load_content):
         """

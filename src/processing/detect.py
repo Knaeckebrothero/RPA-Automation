@@ -429,3 +429,176 @@ def _similar(a, b):
     Calculate similarity ratio between two strings
     """
     return SequenceMatcher(None, a, b).ratio()
+
+
+def signature(image, signature_regions=None):
+    """
+    Detect if a signature is present in the specified regions of an image.
+
+    :param image: The image to check for signatures (numpy array)
+    :param signature_regions: Optional list of tuples [(x, y, w, h)] defining signature areas
+                            If None, will attempt to detect likely signature areas
+    :return: Boolean indicating if a signature is detected
+    """
+    # Convert to grayscale if needed
+    if len(image.shape) == 3:
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    else:
+        gray = image
+
+    # If no regions specified, try to detect potential signature areas
+    if signature_regions is None:
+        signature_regions = _detect_potential_signature_regions(gray)
+
+    # If still no regions found, use default regions based on document proportions
+    if not signature_regions:
+        h, w = gray.shape
+        # Default signature regions - adjust based on your document layout
+        # Bottom right corner - common signature area
+        signature_regions = [(w//2, 3*h//4, w//2, h//4)]
+
+    # Check each region for signature characteristics
+    for region in signature_regions:
+        x, y, w, h = region
+
+        # Extract the region
+        roi = gray[y:y+h, x:x+w]
+
+        # Apply threshold to identify pen marks
+        _, binary = cv2.threshold(roi, 200, 255, cv2.THRESH_BINARY_INV)
+
+        # Calculate pixel density
+        pixel_density = np.count_nonzero(binary) / binary.size
+
+        # Calculate contour characteristics
+        contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        # Filter small noise contours
+        significant_contours = [c for c in contours if cv2.contourArea(c) > 20]
+
+        # Combined heuristics
+        if (pixel_density > 0.01 and  # Adjust threshold as needed
+                len(significant_contours) >= 3):
+
+            return True
+
+    return False
+
+
+def _detect_potential_signature_regions(gray_image):
+    """
+    Detect potential signature regions by finding horizontal lines that might be
+    signature lines and looking above them.
+
+    :param gray_image: Grayscale image
+    :return: List of rectangles [(x, y, w, h)] representing potential signature areas
+    """
+    h, w = gray_image.shape
+    regions = []
+
+    # Detect horizontal lines
+    horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (int(w/15), 1))
+    horizontal = cv2.morphologyEx(gray_image, cv2.MORPH_OPEN, horizontal_kernel, iterations=1)
+    _, thresh_h = cv2.threshold(horizontal, 200, 255, cv2.THRESH_BINARY_INV)
+
+    # Find contours of horizontal lines
+    contours, _ = cv2.findContours(thresh_h, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Sort by Y position (bottom-up)
+    contours = sorted(contours, key=lambda c: cv2.boundingRect(c)[1], reverse=True)
+
+    # Check the bottom-most lines
+    for i, contour in enumerate(contours[:5]):  # Check only top 5 lines from bottom
+        x, y, w_line, h_line = cv2.boundingRect(contour)
+
+        # Only consider lines in the bottom half of the page
+        if y > h/2 and w_line > w/4:  # Line is at least 1/4 of page width
+            # Define signature region above the line
+            sig_height = int(h/10)  # Adjust height of signature area
+            sig_y = max(0, y - sig_height)
+
+            regions.append((x, sig_y, w_line, sig_height))
+
+    return regions
+
+
+def date_present(image, date_regions=None):
+    """
+    Detect if a handwritten date is present in the specified regions of an image.
+
+    :param image: The image to check for dates (numpy array)
+    :param date_regions: Optional list of tuples [(x, y, w, h)] defining date areas
+                       If None, will attempt to detect likely date areas
+    :return: Boolean indicating if a date is detected
+    """
+    # Convert to grayscale if needed
+    if len(image.shape) == 3:
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    else:
+        gray = image
+
+    # If no regions specified, use default regions based on document proportions
+    if date_regions is None:
+        h, w = gray.shape
+        # Default date regions - adjust based on your document layout
+        # Bottom left corner - common date area (as seen in your example)
+        date_regions = [(0, 3*h//4, w//3, h//4)]
+
+    # Check each region for date characteristics
+    for region in date_regions:
+        x, y, w, h = region
+
+        # Ensure region is within bounds
+        x = max(0, x)
+        y = max(0, y)
+        w = min(w, gray.shape[1] - x)
+        h = min(h, gray.shape[0] - y)
+
+        # Extract the region
+        roi = gray[y:y+h, x:x+w]
+
+        # Apply threshold to identify pen marks
+        _, binary = cv2.threshold(roi, 200, 255, cv2.THRESH_BINARY_INV)
+
+        # Calculate pixel density
+        pixel_density = np.count_nonzero(binary) / binary.size
+
+        # Calculate contour characteristics
+        contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        # Filter small noise contours
+        significant_contours = [c for c in contours if cv2.contourArea(c) > 10]
+
+        # Date-specific characteristics:
+        # 1. Moderate pixel density (typically less dense than signatures)
+        # 2. Multiple small contours (digits, separators, location name)
+        # 3. Often aligned horizontally
+        if (0.005 < pixel_density < 0.05 and  # Lower threshold than signatures
+                len(significant_contours) >= 3):
+
+            # Check for horizontal alignment typical of dates
+            y_values = [cv2.boundingRect(c)[1] for c in significant_contours]
+            y_variance = np.var(y_values) if y_values else float('inf')
+
+            # Low variance indicates horizontal alignment
+            if y_variance < 100:  # Threshold for alignment variance
+                return True
+
+    return False
+
+
+def detect_document_completeness(image):
+    """
+    Check if a document is complete with both signature and date.
+
+    :param image: The document image to check
+    :return: Dictionary with completeness status
+    """
+    has_signature = signature(image)
+    has_date = date_present(image)
+
+    return {
+        'has_signature': has_signature,
+        'has_date': has_date,
+        'is_complete': has_signature and has_date
+    }

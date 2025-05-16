@@ -136,6 +136,9 @@ def process_audit_case(document: PDF):
     case_id = document.get_audit_case_id()
 
     if document.compare_values():
+        # Check if the document is singed
+        document.check_for_signature()
+
         # If the values match, set the stage of the audit case to 3
         db.insert(
             f"""
