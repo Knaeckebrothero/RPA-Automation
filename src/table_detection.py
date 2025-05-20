@@ -18,6 +18,7 @@ from cls.document import PDF
 pdf_document = st.file_uploader(label="Upload PDF here", type=["pdf"])
 display_tables = st.checkbox("Show tables")
 display_signatures = st.checkbox("Show signatures")
+display_dates = st.checkbox("Show dates")
 
 if pdf_document is not None:
     pdf_content_bytes = pdf_document.read() # Read content once
@@ -65,7 +66,7 @@ if pdf_document is not None:
                 # Detect potential signature regions using the function from detect.py
                 signature_regions = dtct._detect_potential_signature_regions(gray_image_array)
                 st.write(f"Number of potential signature regions detected: {len(signature_regions)}")
-                
+
                 if not signature_regions:
                     st.write("No signature regions detected by the dynamic function.")
                 else:
@@ -73,18 +74,40 @@ if pdf_document is not None:
                     for region in signature_regions:
                         x_sig, y_sig, w_sig, h_sig = region # Renamed to avoid conflict with table loop vars
                         cv2.rectangle(result_image, (x_sig, y_sig), (x_sig + w_sig, y_sig + h_sig), (0, 0, 255), 2) # Red for signatures
-            
+
             elif signature_page_idx != -1 : # Only show if a signature page was determined
                 st.write(f"Page {i + 1} is not the identified signature page. Skipping signature detection.")
             # If signature_page_idx is -1, this loop won't execute the main signature logic, which is fine.
 
+        if display_dates:
+            if i == signature_page_idx:
+                st.write(f"Attempting to detect date regions on identified signature Page {i + 1}...")
+                # Convert to grayscale for date detection if not already done
+                if 'gray_image_array' not in locals():
+                    gray_image_array = cv2.cvtColor(bgr_image_array, cv2.COLOR_BGR2GRAY)
+                # Detect potential date regions using the function from detect.py
+                date_regions = dtct._detect_potential_date_regions(gray_image_array)
+                st.write(f"Number of potential date regions detected: {len(date_regions)}")
+
+                if not date_regions:
+                    st.write("No date regions detected by the dynamic function.")
+                else:
+                    # Visualize detected date regions
+                    for region in date_regions:
+                        x_date, y_date, w_date, h_date = region # Renamed to avoid conflict with other loop vars
+                        cv2.rectangle(result_image, (x_date, y_date), (x_date + w_date, y_date + h_date), (255, 0, 0), 2) # Blue for dates
+
+            elif signature_page_idx != -1 : # Only show if a signature page was determined
+                st.write(f"Page {i + 1} is not the identified signature page. Skipping date detection.")
+            # If signature_page_idx is -1, this loop won't execute the main date logic, which is fine.
+
         # Display the original and result images if any detection is enabled
-        if display_tables or (display_signatures and i == signature_page_idx and signature_regions): # Ensure regions were found to display
+        if display_tables or (display_signatures and i == signature_page_idx and signature_regions) or (display_dates and i == signature_page_idx and 'date_regions' in locals() and date_regions): # Ensure regions were found to display
             st.image(image, caption=f"Original - Page {i + 1}", use_column_width=False, width=350)
             st.image(cv2.cvtColor(result_image, cv2.COLOR_BGR2RGB),
                      caption=f"Detected Areas - Page {i + 1}",
                      use_column_width=False, width=350)
-        elif i == 0 and not display_tables and not (display_signatures and i == signature_page_idx): # Show original if nothing else is displayed on first page
+        elif i == 0 and not display_tables and not (display_signatures and i == signature_page_idx) and not (display_dates and i == signature_page_idx): # Show original if nothing else is displayed on first page
             st.image(image, caption=f"Original - Page {i + 1}", use_column_width=False, width=350)
 
 

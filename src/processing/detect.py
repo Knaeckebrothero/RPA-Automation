@@ -505,7 +505,7 @@ def _detect_potential_signature_regions(gray_image):
 
     # 2. Hough Line Transform
     # Parameters from your selection: threshold=80, minLineLength=int(w/3.5), maxLineGap=int(w/220)
-    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=80, minLineLength=int(w/3.5), maxLineGap=int(w/220))
+    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=80, minLineLength=int(w/3.5), maxLineGap=int(w/350))
 
     if lines is not None:
         potential_lines = []
@@ -521,7 +521,7 @@ def _detect_potential_signature_regions(gray_image):
                 # Only consider lines in the bottom 25% of the page
                 if line_y_center > (3 * h / 4): 
                     line_width = np.sqrt((x2 - x1)**2 + (y2 - y1)**2)
-                    
+
                     min_acceptable_width = w / 5
                     max_acceptable_width = w / 2.5 # From your selection
 
@@ -531,9 +531,65 @@ def _detect_potential_signature_regions(gray_image):
         potential_lines = sorted(potential_lines, key=lambda l: l[1], reverse=True)
 
         for i, (lx, ly, lw, lh_line) in enumerate(potential_lines):
-            sig_height = int(h / 13)
+            sig_height = int(h / 15)
             sig_y = max(0, ly - sig_height)
             regions.append((lx, sig_y, lw, sig_height))
+
+    return regions
+
+
+def _detect_potential_date_regions(gray_image):
+    """
+    Detect potential date regions by finding horizontal lines that might be
+    date lines and looking above them, using Hough Line Transform.
+    Dates typically appear in specific locations in forms, often on the 
+    left 50% and bottom 25% of the page.
+
+    :param gray_image: Grayscale image
+    :return: List of rectangles [(x, y, w, h)] representing potential date areas
+    """
+    h, w = gray_image.shape
+    regions = []
+
+    # 1. Edge Detection
+    edges = cv2.Canny(gray_image, 50, 150, apertureSize=3)
+
+    # 2. Hough Line Transform
+    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=120, minLineLength=int(w/6), maxLineGap=int(w/350))
+
+    if lines is not None:
+        potential_lines = []
+        for line in lines:
+            x1, y1, x2, y2 = line[0]
+            # 3. Filtering Lines
+            angle_thresh_degrees = 5
+            angle = np.arctan2(y2 - y1, x2 - x1) * 180. / np.pi
+            if abs(angle) < angle_thresh_degrees or abs(angle - 180) < angle_thresh_degrees or abs(angle + 180) < angle_thresh_degrees:
+                line_y_center = (y1 + y2) / 2
+                line_x_center = (x1 + x2) / 2
+
+                # --- ADJUSTED Y-POSITION CHECK ---
+                # Only consider lines in the bottom 25% of the page
+                if line_y_center > (3 * h / 4):
+                    # --- ADJUSTED X-POSITION CHECK ---
+                    # Only consider lines in the left 50% of the page
+                    if line_x_center < (w / 2):
+                        line_width = np.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+
+                        # Date lines are typically shorter than signature lines
+                        min_acceptable_width = w / 8
+                        max_acceptable_width = w / 5
+
+                        if line_width > min_acceptable_width and line_width < max_acceptable_width:
+                            potential_lines.append((min(x1, x2), int(line_y_center), int(line_width), max(1, abs(y2-y1))))
+
+        potential_lines = sorted(potential_lines, key=lambda l: l[1], reverse=True)
+
+        for i, (lx, ly, lw, lh_line) in enumerate(potential_lines):
+            # Date fields are typically smaller than signature fields
+            date_height = int(h / 22)
+            date_y = max(0, ly - date_height)
+            regions.append((lx, date_y, lw, date_height))
 
     return regions
 
@@ -545,7 +601,7 @@ def date(image, date_regions=None):
 
     :param image: The image to check for date content (numpy array)
     :param date_regions: Optional list of tuples [(x, y, w, h)] defining date areas.
-     If None, will use default regions based on document layout.
+     If None, will attempt to detect likely date areas.
     :return: Boolean indicating if content is detected in the date area
     """
     # Convert to grayscale if needed
@@ -554,8 +610,13 @@ def date(image, date_regions=None):
     else:
         gray = image
 
-    # If no regions specified, use default regions based on document proportions
+    # If no regions specified, try to detect potential date areas
     if date_regions is None:
+        date_regions = _detect_potential_date_regions(gray)
+        log.debug(f"Detected {len(date_regions)} potential date areas")
+
+    # If still no regions found, use default regions based on document proportions
+    if not date_regions:
         h, w = gray.shape
         # For the document example provided, date appears in bottom left
         # Adjust these coordinates based on your specific document layout
