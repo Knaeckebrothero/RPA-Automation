@@ -440,15 +440,19 @@ def signature(image, signature_regions=None):
                             If None, will attempt to detect likely signature areas
     :return: Boolean indicating if a signature is detected
     """
-    # Convert to grayscale if needed
     if len(image.shape) == 3:
+        # Convert to grayscale if needed
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        log.debug("Converted image to grayscale")
     else:
+        # Continue if not
         gray = image
+        log.debug("Image already grayscale")
 
     # If no regions specified, try to detect potential signature areas
     if signature_regions is None:
         signature_regions = _detect_potential_signature_regions(gray)
+        log.debug(f"Detected {len(signature_regions)} potential signature areas")
 
     # If still no regions found, use default regions based on document proportions
     if not signature_regions:
@@ -488,7 +492,7 @@ def signature(image, signature_regions=None):
 def _detect_potential_signature_regions(gray_image):
     """
     Detect potential signature regions by finding horizontal lines that might be
-    signature lines and looking above them.
+    signature lines and looking above them, using Hough Line Transform.
 
     :param gray_image: Grayscale image
     :return: List of rectangles [(x, y, w, h)] representing potential signature areas
@@ -496,33 +500,45 @@ def _detect_potential_signature_regions(gray_image):
     h, w = gray_image.shape
     regions = []
 
-    # Detect horizontal lines
-    horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (int(w/15), 1))
-    horizontal = cv2.morphologyEx(gray_image, cv2.MORPH_OPEN, horizontal_kernel, iterations=1)
-    _, thresh_h = cv2.threshold(horizontal, 200, 255, cv2.THRESH_BINARY_INV)
+    # 1. Edge Detection
+    edges = cv2.Canny(gray_image, 50, 150, apertureSize=3)
 
-    # Find contours of horizontal lines
-    contours, _ = cv2.findContours(thresh_h, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # 2. Hough Line Transform
+    # Parameters from your selection: threshold=80, minLineLength=int(w/3.5), maxLineGap=int(w/220)
+    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=80, minLineLength=int(w/3.5), maxLineGap=int(w/220))
 
-    # Sort by Y position (bottom-up)
-    contours = sorted(contours, key=lambda c: cv2.boundingRect(c)[1], reverse=True)
+    if lines is not None:
+        potential_lines = []
+        for line in lines:
+            x1, y1, x2, y2 = line[0]
+            # 3. Filtering Lines
+            angle_thresh_degrees = 5
+            angle = np.arctan2(y2 - y1, x2 - x1) * 180. / np.pi
+            if abs(angle) < angle_thresh_degrees or abs(angle - 180) < angle_thresh_degrees or abs(angle + 180) < angle_thresh_degrees:
+                line_y_center = (y1 + y2) / 2
 
-    # Check the bottom-most lines
-    for i, contour in enumerate(contours[:5]):  # Check only top 5 lines from bottom
-        x, y, w_line, h_line = cv2.boundingRect(contour)
+                # --- ADJUSTED Y-POSITION CHECK ---
+                # Only consider lines in the bottom 25% of the page
+                if line_y_center > (3 * h / 4): 
+                    line_width = np.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+                    
+                    min_acceptable_width = w / 5
+                    max_acceptable_width = w / 2.5 # From your selection
 
-        # Only consider lines in the bottom half of the page
-        if y > h/2 and w_line > w/4:  # Line is at least 1/4 of page width
-            # Define signature region above the line
-            sig_height = int(h/10)  # Adjust height of signature area
-            sig_y = max(0, y - sig_height)
+                    if line_width > min_acceptable_width and line_width < max_acceptable_width:
+                        potential_lines.append((min(x1, x2), int(line_y_center), int(line_width), max(1, abs(y2-y1))))
 
-            regions.append((x, sig_y, w_line, sig_height))
+        potential_lines = sorted(potential_lines, key=lambda l: l[1], reverse=True)
+
+        for i, (lx, ly, lw, lh_line) in enumerate(potential_lines):
+            sig_height = int(h / 13)
+            sig_y = max(0, ly - sig_height)
+            regions.append((lx, sig_y, lw, sig_height))
 
     return regions
 
 
-def date_present(image, date_regions=None):
+def date(image, date_regions=None):
     """
     Detect if any handwritten content is present in the expected date area of an image.
     This function checks for the presence of content rather than verifying it's a valid date.
@@ -584,7 +600,7 @@ def detect_document_completeness(image):
     :return: Dictionary with completeness status
     """
     has_signature = signature(image)
-    has_date = date_present(image)
+    has_date = date(image)
 
     return {
         'has_signature': has_signature,
