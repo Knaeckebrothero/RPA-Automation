@@ -1,22 +1,22 @@
-pandas
-numpy
-matplotlib
-python-dotenv
+pandas==2.2.3
+numpy==2.1.2
+matplotlib==3.9.2
+python-dotenv==1.0.1
 
-streamlit
-opencv-python
-pdf2image
-PyMuPDF
+streamlit==1.39.0
+opencv-python==4.10.0.84
+pdf2image==1.17.0
+PyMuPDF==1.24.12
 
 # For generating the certificate
-python-docx
-docx2pdf
-reportlab
+python-docx==1.1.2
+docx2pdf==0.1.8
+reportlab==4.4.0
 
-pillow  # Required by tesseract (allthough easyocr depends on it as well)
-beautifulsoup4
-pytesseract
-easyocr
+pillow==10.4.0  # Required by tesseract (allthough easyocr depends on it as well)
+beautifulsoup4==4.12.3
+pytesseract==0.3.13
+easyocr==1.7.2
 # Torch is recommended to use a gpu to speed up the ocr
 # pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
 
