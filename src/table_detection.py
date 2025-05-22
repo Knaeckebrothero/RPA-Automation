@@ -24,7 +24,8 @@ if pdf_document is not None:
     pdf_content_bytes = pdf_document.read() # Read content once
     images = get_images_from_pdf(pdf_content_bytes)
 
-    st.image(images, width=350)  # use_column_width="auto"
+    for image in images:
+        st.image(image, width=350)
 
     ocr_reader = create_ocr_reader(use_gpu=True)
 
@@ -44,10 +45,28 @@ if pdf_document is not None:
     for i, image in enumerate(images):
         # Convert the image to a NumPy array
         np_image_array = np.array(image)
+
         # Convert to BGR format for OpenCV
         bgr_image_array = cv2.cvtColor(np_image_array, cv2.COLOR_RGB2BGR)
         # Normalize image resolution
         bgr_image_array = dtct.normalize_image_resolution(bgr_image_array)
+
+        ### DISPLAY EDGES ###
+        edges = cv2.Canny(bgr_image_array, 80, 200, apertureSize=3)
+        #edges = cv2.Canny(bgr_image_array, 20, 70, apertureSize=3)
+        # Convert your BGR back to RGB for display
+        original_rgb = cv2.cvtColor(bgr_image_array, cv2.COLOR_BGR2RGB)
+
+        # Convert edges to RGB
+        edges_rgb = cv2.cvtColor(edges, cv2.COLOR_GRAY2RGB)
+
+        # Display both
+        col1, col2 = st.columns(2)
+        with col1:
+            st.image(original_rgb, caption="Original", width=350)
+        with col2:
+            st.image(edges_rgb, caption="Edges", width=350)
+        ### END DISPLAY EDGES ###
 
         result_image = bgr_image_array.copy()
 
