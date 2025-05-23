@@ -1,0 +1,16 @@
+[theme]
+base = "light"
+primaryColor = "#003366"           # Corporate Primary
+backgroundColor = "#0066CC"
+# backgroundColor = "#F5F5F5"        # Background
+secondaryBackgroundColor = "#0066CC"
+textColor = "#333333"              # Text
+font = "sans serif"
+
+[server]
+# enableCORS = false
+port = 8501
+headless = true
+
+[client]
+gatherUsageStats = false
