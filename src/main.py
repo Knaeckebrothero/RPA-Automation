@@ -51,6 +51,9 @@ def main():
         }
     )
 
+    # TODO: Replace with company logo
+    st.logo(image=".streamlit/example_logo.png", size="large", link=None, icon_image=None)
+
     # Initialize the session if the counter is not set
     if 'rerun_counter' not in st.session_state:
         st.session_state['rerun_counter'] = 0
