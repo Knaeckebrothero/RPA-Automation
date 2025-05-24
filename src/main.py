@@ -51,14 +51,8 @@ def main():
         }
     )
 
-    # st.logo("../.streamlit/example_logo.png")
-    # TODO: Fix the logo position or put it inside the sidebar!
-    try:
-        from PIL import Image
-        logo = Image.open("../.streamlit/example_logo.png")
-        st.image(logo, width=200)
-    except FileNotFoundError:
-        st.error("Logo file not found. Please check the path.")
+    # TODO: Replace with company logo
+    st.logo(image=".streamlit/example_logo.png", size="large", link=None, icon_image=None)
 
     # Initialize the session if the counter is not set
     if 'rerun_counter' not in st.session_state:
