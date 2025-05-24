@@ -273,7 +273,7 @@ def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instan
     """
     The third stage of the audit process.
     Cases in this stage have had their data verified and are now waiting for the certificate to be issued.
-    Once the certificate has been signed and submitted to the BaFin, the case will move to the next stage.
+    Once the certificate has been generated, the inspector can manually sign it and mark the process as complete.
 
     :param case_id: The ID of the case.
     :param current_stage: The current stage of the case.
@@ -356,35 +356,61 @@ def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instan
                             log.info(f"Certificate for case {case_id} has been downloaded.",
                                  audit_log=True, case_id=case_id)
                         
-                    # Add file uploader for signed certificate
-                    st.write("### Upload Signed Certificate")
-                    st.write("Please upload the signed certificate after review:")
-                    uploaded_certificate = st.file_uploader(
-                        "Upload signed certificate", 
-                        type=["pdf"],
-                        key=f"upload-signed-cert-{case_id}"
+                    # Get the case folder path
+                    case_folder = os.path.join(
+                        os.getenv('FILESYSTEM_PATH', './.filesystem'),
+                        "documents",
+                        str(case_id)
                     )
                     
-                    # Process uploaded certificate
-                    if uploaded_certificate is not None:
-                        try:
-                            # Save the uploaded certificate, replacing the original
-                            with open(cert_path, "wb") as f:
-                                f.write(uploaded_certificate.getvalue())
-                                
-                            # Update database to move to next stage
+                    st.divider()
+                    st.write("### Manual Process")
+                    st.write("Please follow these steps to complete the process:")
+                    st.write("1. Download the certificate")
+                    st.write("2. Sign the certificate manually")
+                    st.write("3. Save the signed certificate in the case folder")
+                    st.write("4. Click 'Complete Process' when finished")
+
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        # Button to open the case folder
+                        if st.button("Open Case Folder", key=f"open-folder-{case_id}"):
+                            # Check if folder exists
+                            if os.path.exists(case_folder):
+                                import subprocess
+                                import platform
+
+                                try:
+                                    # Open folder based on OS
+                                    if platform.system() == "Windows":
+                                        os.startfile(case_folder)
+                                    elif platform.system() == "Darwin":  # macOS
+                                        subprocess.call(["open", case_folder])
+                                    else:  # Linux
+                                        subprocess.call(["xdg-open", case_folder])
+
+                                    log.info(f"Case folder for case {case_id} was opened.",
+                                         audit_log=True, case_id=case_id)
+                                except Exception as e:
+                                    st.error(f"Error opening folder: {str(e)}")
+                                    log.error(f"Error opening folder for case {case_id}: {str(e)}",
+                                         audit_log=True, case_id=case_id)
+                            else:
+                                st.error(f"Case folder not found: {case_folder}")
+
+                    with col2:
+                        # Button to manually complete the process
+                        if st.button("Complete Process", key=f"complete-process-{case_id}"):
+                            # Update the database to move to the next stage
                             db.query("UPDATE audit_case SET stage = 4 WHERE id = ?", (case_id,))
-                            log.info(f"Signed certificate uploaded and audit process completed for case {case_id}.",
-                                     audit_log=True, case_id=case_id)
-                            st.success("Signed certificate uploaded successfully! Process completed.")
+                            log.info(f"Certificate process manually completed for case {case_id}.",
+                                 audit_log=True, case_id=case_id)
+                            st.success("Process completed successfully!")
                             
                             # Clear cache and refresh
                             st.cache_data.clear()
                             st.rerun()
-                        except Exception as e:
-                            st.error(f"Error saving signed certificate: {str(e)}")
-                            log.error(f"Error saving signed certificate for case {case_id}: {str(e)}",
-                                      audit_log=True, case_id=case_id)
                         
                 except Exception as e:
                     st.error(f"Error accessing certificate: {str(e)}")
