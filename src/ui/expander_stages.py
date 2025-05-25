@@ -5,6 +5,8 @@ import os
 import pandas as pd
 import streamlit as st
 import logging
+import datetime
+import mimetypes
 
 # Custom imports
 from cls.database import Database
@@ -180,7 +182,7 @@ def stage_2(case_id: int, current_stage: int, db: Database = Database.get_instan
             # Put the display logic into a function to avoid duplication
             def _display_comparison_table_helper_function(doc, counter: int = 0):
                 nonlocal verification_result
-                
+
                 # Load document from JSON (use the third index to get the path)
                 document_pdf = PDF.from_json(doc[counter][2])
 
@@ -197,7 +199,7 @@ def stage_2(case_id: int, current_stage: int, db: Database = Database.get_instan
                     match_percentage = (matches / total) * 100 if total > 0 else 0
                     st.metric("Match Percentage", f"{match_percentage:.1f}%",
                               help=f"{matches} of {total} fields match")
-                    
+
                     # Store match percentage for verification button logic
                     verification_result = {
                         'match_percentage': match_percentage,
@@ -219,11 +221,11 @@ def stage_2(case_id: int, current_stage: int, db: Database = Database.get_instan
                 else:
                     # Display the one document
                     verification_result = _display_comparison_table_helper_function(documents)
-                
+
                 # Add verification completion button if we're in stage 2
                 if current_stage == 2 and verification_result:
                     st.divider()
-                    
+
                     # If match percentage is 100%, allow direct completion
                     if verification_result['match_percentage'] == 100.0:
                         if st.button("Complete Verification"):
@@ -237,21 +239,21 @@ def stage_2(case_id: int, current_stage: int, db: Database = Database.get_instan
                     else:
                         # Create two columns for the button and checkbox
                         col1, col2 = st.columns([3, 7])
-                        
+
                         # Show the checkbox in the second column
                         with col2:
                             confirm_mismatch = st.checkbox(
                                 "I am aware that the values do not match our database and want to proceed regardless",
                                 key=f"mismatch-confirm-{case_id}"
                             )
-                        
+
                         # Show the button in the first column
                         with col1:
                             complete_button = st.button("Complete Verification", disabled=not confirm_mismatch)
-                            
+
                             if complete_button:
                                 db.query("UPDATE audit_case SET stage = 3 WHERE id = ?", (case_id,))
-                                log.info(f"Data verification completed for case {case_id} with manual override. " + 
+                                log.info(f"Data verification completed for case {case_id} with manual override. " +
                                         f"Match percentage was {verification_result['match_percentage']:.1f}% " +
                                         f"({verification_result['matches']} of {verification_result['total']} fields matched).",
                                         audit_log=True, case_id=case_id)
@@ -355,14 +357,14 @@ def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instan
                         if download_button:
                             log.info(f"Certificate for case {case_id} has been downloaded.",
                                  audit_log=True, case_id=case_id)
-                        
+
                     # Get the case folder path
                     case_folder = os.path.join(
                         os.getenv('FILESYSTEM_PATH', './.filesystem'),
                         "documents",
                         str(case_id)
                     )
-                    
+
                     st.divider()
                     st.write("### Manual Process")
                     st.write("Please follow these steps to complete the process:")
@@ -371,6 +373,108 @@ def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instan
                     st.write("3. Save the signed certificate in the case folder")
                     st.write("4. Click 'Complete Process' when finished")
 
+                    # File browser component
+                    st.write("### Case Files")
+                    if os.path.exists(case_folder):
+                        # Function to scan directory and build file tree
+                        def scan_directory(directory, relative_path=""):
+                            items = []
+                            for item in os.listdir(directory):
+                                full_path = os.path.join(directory, item)
+                                rel_path = os.path.join(relative_path, item)
+                                
+                                if os.path.isdir(full_path):
+                                    # Add directory with its children
+                                    children = scan_directory(full_path, rel_path)
+                                    items.append({
+                                        "name": item,
+                                        "type": "directory",
+                                        "path": rel_path,
+                                        "children": children
+                                    })
+                                else:
+                                    # Add file
+                                    items.append({
+                                        "name": item,
+                                        "type": "file",
+                                        "path": rel_path,
+                                        "size": os.path.getsize(full_path),
+                                        "modified": os.path.getmtime(full_path)
+                                    })
+                            return items
+                        
+                        # Scan case directory
+                        try:
+                            file_tree = scan_directory(case_folder)
+                            
+                            # Display files in a nice UI with icons
+                            def display_file_tree(items, base_path, level=0):
+                                for item in sorted(items, key=lambda x: (x["type"] != "directory", x["name"].lower())):
+                                    # Create unique key for each item
+                                    key_id = f"file-{item['path'].replace('/', '-')}"
+                                    
+                                    # Add appropriate icon and indentation
+                                    icon = "📁 " if item["type"] == "directory" else "📄 "
+                                    indent = "&nbsp;" * (level * 4)
+                                    
+                                    if item["type"] == "directory":
+                                        # Display folder with toggle
+                                        is_open = st.checkbox(
+                                            f"{indent}{icon} {item['name']}", 
+                                            value=level < 1,  # Auto-expand first level
+                                            key=key_id
+                                        )
+                                        if is_open and "children" in item:
+                                            display_file_tree(item["children"], base_path, level + 1)
+                                    else:
+                                        # Format file size
+                                        size_kb = item["size"] / 1024
+                                        size_str = f"{size_kb:.1f} KB" if size_kb < 1024 else f"{size_kb/1024:.1f} MB"
+                                        
+                                        # Create columns for file info and size
+                                        col1, col2 = st.columns([4, 1])
+                                        
+                                        with col1:
+                                            # Construct full path for file download
+                                            file_path = os.path.join(base_path, item["path"])
+                                            try:
+                                                # Read the file content
+                                                with open(file_path, "rb") as f:
+                                                    file_content = f.read()
+                                                
+                                                # Create a download button styled as a link
+                                                download_success = st.download_button(
+                                                    label=f"{indent}{icon} {item['name']}",
+                                                    data=file_content,
+                                                    file_name=item['name'],
+                                                    key=key_id,
+                                                    # Style to make it look like a regular link or text
+                                                    help=f"Click to download {item['name']}"
+                                                )
+                                                
+                                                # Log download attempts
+                                                if download_success:
+                                                    log.info(f"File {item['name']} downloaded for case {case_id}.",
+                                                         audit_log=True, case_id=case_id)
+                                            except Exception as e:
+                                                st.error(f"Error accessing file: {str(e)}")
+                                                log.error(f"Error accessing file {item['name']} for case {case_id}: {str(e)}",
+                                                     audit_log=True, case_id=case_id)
+                                        
+                                        with col2:
+                                            st.write(f"<small>{size_str}</small>", unsafe_allow_html=True)
+                            
+                            # Display the file tree
+                            display_file_tree(file_tree, case_folder)
+                            
+                        except Exception as e:
+                            st.error(f"Error scanning directory: {str(e)}")
+                            log.error(f"Error scanning directory for case {case_id}: {str(e)}",
+                                 audit_log=True, case_id=case_id)
+                    else:
+                        st.warning(f"Case folder not found: {case_folder}")
+                    
+                    st.divider()
                     col1, col2 = st.columns(2)
 
                     with col1:
