@@ -1,3 +1,5 @@
+# Uncomment the file to apply the theme changes
+
 [theme]
 base = "light"
 primaryColor = "#003664"
