@@ -272,7 +272,7 @@ def stage_2(case_id: int, current_stage: int, db: Database = Database.get_instan
 def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instance()):
     """
     The third stage of the audit process.
-    Cases in this stage have had their data verified and are now waiting for the certificate to be issued.
+    Cases at this stage have had their data verified and are now waiting for the certificate to be issued.
     Once the certificate has been generated, the inspector can manually sign it and mark the process as complete.
 
     :param case_id: The ID of the case.
@@ -292,9 +292,10 @@ def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instan
             os.getenv('FILESYSTEM_PATH', './.filesystem'),
             "documents",
             str(case_id),
-            "audit_log.txt"  # Changed from "audit_log.log" to match what we're creating
+            "audit_log.txt"
         )
 
+        # Show the table of audit history if the log file exists
         if os.path.exists(case_log_path):
             try:
                 # Read the log file
@@ -325,11 +326,10 @@ def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instan
 
         st.divider()
 
-        # Original functionality continues...
         if current_stage == 3:
             st.write("Certificate generation and issuance.")
 
-            # Check if certificate already exists
+            # Check if the certificate already exists
             cert_path = os.path.join(
                 os.getenv('FILESYSTEM_PATH', './.filesystem'),
                 "documents",
@@ -342,39 +342,34 @@ def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instan
                 st.success("Certificate has been generated!")
 
                 try:
-                    with open(cert_path, "rb") as file:
-                        download_button = st.download_button(
-                            label="Download Certificate",
-                            data=file,
-                            file_name=f"certificate_{case_id}.pdf",
-                            mime="application/pdf",
-                            key=f"download-cert-{case_id}"
-                        )
-
-                        # Log the download action
-                        if download_button:
-                            log.info(f"Certificate for case {case_id} has been downloaded.",
-                                 audit_log=True, case_id=case_id)
-                        
                     # Get the case folder path
                     case_folder = os.path.join(
                         os.getenv('FILESYSTEM_PATH', './.filesystem'),
                         "documents",
                         str(case_id)
                     )
-                    
+
                     st.divider()
-                    st.write("### Manual Process")
-                    st.write("Please follow these steps to complete the process:")
-                    st.write("1. Download the certificate")
-                    st.write("2. Sign the certificate manually")
-                    st.write("3. Save the signed certificate in the case folder")
-                    st.write("4. Click 'Complete Process' when finished")
 
-                    col1, col2 = st.columns(2)
+                    col1, col2, col3 = st.columns(3)
 
+                    # Button to download the certificate
                     with col1:
-                        # Button to open the case folder
+                        with open(cert_path, "rb") as file:
+                            download_button = st.download_button(
+                                label="Download Certificate",
+                                data=file,
+                                file_name=f"certificate_{case_id}.pdf",
+                                mime="application/pdf",
+                                key=f"download-cert-{case_id}"
+                            )
+
+                            if download_button:
+                                log.info(f"Certificate for case {case_id} has been downloaded.",
+                                         audit_log=True, case_id=case_id)
+
+                    # Button to open the case folder
+                    with col2:
                         if st.button("Open Case Folder", key=f"open-folder-{case_id}"):
                             # Check if folder exists
                             if os.path.exists(case_folder):
@@ -399,15 +394,15 @@ def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instan
                             else:
                                 st.error(f"Case folder not found: {case_folder}")
 
+                    # Button to manually complete the process
                     with col2:
-                        # Button to manually complete the process
                         if st.button("Complete Process", key=f"complete-process-{case_id}"):
                             # Update the database to move to the next stage
                             db.query("UPDATE audit_case SET stage = 4 WHERE id = ?", (case_id,))
                             log.info(f"Certificate process manually completed for case {case_id}.",
                                  audit_log=True, case_id=case_id)
                             st.success("Process completed successfully!")
-                            
+
                             # Clear cache and refresh
                             st.cache_data.clear()
                             st.rerun()
@@ -441,7 +436,7 @@ def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instan
         elif current_stage > 3:
             st.write("Certificate has been issued and process is completed.")
 
-            # Check if certificate exists and provide download button
+            # Check if the certificate exists and provide a download button
             cert_path = os.path.join(
                 os.getenv('FILESYSTEM_PATH', './.filesystem'),
                 "documents",
