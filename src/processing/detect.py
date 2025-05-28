@@ -429,3 +429,270 @@ def _similar(a, b):
     Calculate similarity ratio between two strings
     """
     return SequenceMatcher(None, a, b).ratio()
+
+
+def signature(image, signature_regions=None):
+    """
+    Detect if a signature is present in the specified regions of an image.
+
+    :param image: The image to check for signatures (numpy array)
+    :param signature_regions: Optional list of tuples [(x, y, w, h)] defining signature areas
+                            If None, will attempt to detect likely signature areas
+    :return: Boolean indicating if a signature is detected
+    """
+    if len(image.shape) == 3:
+        # Convert to grayscale if needed
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        log.debug("Converted image to grayscale")
+    else:
+        # Continue if not
+        gray = image
+        log.debug("Image already grayscale")
+
+    # Normalize the image
+    gray_normalized = normalize_image_resolution(gray)
+
+    # If no regions specified, try to detect potential signature areas
+    if signature_regions is None:
+        signature_regions = _detect_potential_signature_regions(gray_normalized)
+        log.debug(f"Detected {len(signature_regions)} potential signature areas")
+
+    # If still no regions found, use default regions based on document proportions
+    if not signature_regions:
+        h, w = gray_normalized.shape
+        # Default signature regions - adjust based on your document layout
+        # Bottom right corner - common signature area
+        signature_regions = [(w//2, 3*h//4, w//2, h//4)]
+
+    # Check each region for signature characteristics
+    for region in signature_regions:
+        x, y, w, h = region
+
+        # Extract the region
+        roi = gray_normalized[y:y+h, x:x+w]
+
+        # Apply threshold to identify pen marks
+        _, binary = cv2.threshold(roi, 200, 255, cv2.THRESH_BINARY_INV)
+
+        # Calculate pixel density
+        pixel_density = np.count_nonzero(binary) / binary.size
+
+        # Calculate contour characteristics
+        contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        # Filter small noise contours
+        significant_contours = [c for c in contours if cv2.contourArea(c) > 20]
+
+        # Combined heuristics and adjust threshold as needed
+        if pixel_density > 0.01 and len(significant_contours) >= 3:
+            return True
+
+    return False
+
+
+def _detect_potential_signature_regions(gray_image):
+    """
+    Detect potential signature regions by finding horizontal lines that might be
+    signature lines and looking above them, using Hough Line Transform.
+    Prioritizes regions that are more towards the right side of the image.
+
+    :param gray_image: Grayscale image
+    :return: List of rectangles [(x, y, w, h)]representing potential signature areas
+    """
+    h, w = gray_image.shape
+    regions = []
+
+    # 1. Edge Detection
+    edges = cv2.Canny(gray_image, 50, 150, apertureSize=3)
+
+    # 2. Hough Line Transform
+    # Original parameters threshold=80, minLineLength=int(w/3.5), maxLineGap=int(w/220)
+    # Tuned: threshold=80, minLineLength=int(w/2.6), maxLineGap=int(w/50)
+    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=80, minLineLength=int(w/3), maxLineGap=int(w/50))
+
+    if lines is not None:
+        potential_lines = []
+        for line in lines:
+            x1, y1, x2, y2 = line[0]
+            # 3. Filtering Lines
+            angle_thresh_degrees = 5
+            angle = np.arctan2(y2 - y1, x2 - x1) * 180. / np.pi
+            if abs(angle) < angle_thresh_degrees or abs(angle - 180) < angle_thresh_degrees or abs(angle + 180) < angle_thresh_degrees:
+                line_y_center = (y1 + y2) / 2
+                line_width = np.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+
+                # --- ADJUSTED Y-POSITION CHECK ---
+                # Only consider lines in the bottom 25% of the page
+                if line_y_center > (3 * h / 4):
+                    min_acceptable_width = w / 2.8 #2.65
+                    max_acceptable_width = w / 2.2
+
+                    if line_width > min_acceptable_width and line_width < max_acceptable_width:
+                        # --- RIGHT SIDE PRIORITIZATION ---
+                        # Calculate what percentage of the line is on the right half
+                        x_right = max(x1, x2)
+                        x_left = min(x1, x2)
+                        
+                        # Check if either the middle of the field is on the right side
+                        # OR more than 50% of the field is on the right side
+                        line_middle_x = (x_left + x_right) / 2
+                        is_middle_on_right = line_middle_x > (w / 2)
+                        
+                        # Calculate how much of the line is on the right side
+                        if x_right > (w / 2):
+                            if x_left < (w / 2):  # Line crosses the middle
+                                right_portion = x_right - (w / 2)
+                                right_portion_percentage = right_portion / line_width
+                            else:  # Line is fully on the right
+                                right_portion_percentage = 1.0
+                        else:  # Line is fully on the left
+                            right_portion_percentage = 0.0
+                        
+                        # Add to potential lines if it meets our right-side criteria
+                        if is_middle_on_right or right_portion_percentage > 0.5:
+                            potential_lines.append((min(x1, x2), int(line_y_center), int(line_width), max(1, abs(y2-y1))))
+
+        potential_lines = sorted(potential_lines, key=lambda l: l[1], reverse=True)
+
+        for i, (lx, ly, lw, lh_line) in enumerate(potential_lines):
+            sig_height = int(h / 15)
+            sig_y = max(0, ly - sig_height)
+            regions.append((lx, sig_y, lw, sig_height))
+
+    return regions
+
+
+def _detect_potential_date_regions(gray_image):
+    """
+    Detect potential date regions by finding horizontal lines that might be
+    date lines and looking above them, using Hough Line Transform.
+    Dates typically appear in specific locations in forms, often on the 
+    left 50% and bottom 25% of the page.
+
+    :param gray_image: Grayscale image
+    :return: List of rectangles [(x, y, w, h)] representing potential date areas
+    """
+    h, w = gray_image.shape
+    regions = []
+
+    # 1. Edge Detection
+    edges = cv2.Canny(gray_image, 50, 150, apertureSize=3)
+
+    # 2. Hough Line Transform
+    #lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=120, minLineLength=int(w/6), maxLineGap=int(w/350))
+    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=80, minLineLength=int(w/3), maxLineGap=int(w/50))
+
+    if lines is not None:
+        potential_lines = []
+        for line in lines:
+            x1, y1, x2, y2 = line[0]
+            # 3. Filtering Lines
+            angle_thresh_degrees = 5
+            angle = np.arctan2(y2 - y1, x2 - x1) * 180. / np.pi
+            if abs(angle) < angle_thresh_degrees or abs(angle - 180) < angle_thresh_degrees or abs(angle + 180) < angle_thresh_degrees:
+                line_y_center = (y1 + y2) / 2
+                line_x_center = (x1 + x2) / 2
+
+                # --- ADJUSTED Y-POSITION CHECK ---
+                # Only consider lines in the bottom 25% of the page
+                if line_y_center > (3 * h / 4):
+                    # --- ADJUSTED X-POSITION CHECK ---
+                    # Only consider lines in the left 50% of the page
+                    if line_x_center < (w / 2):
+                        line_width = np.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+
+                        # Date lines are typically shorter than signature lines
+                        min_acceptable_width = w / 20 # 8
+                        max_acceptable_width = w / 5 # 5
+
+                        if line_width > min_acceptable_width and line_width < max_acceptable_width:
+                            potential_lines.append((min(x1, x2), int(line_y_center), int(line_width), max(1, abs(y2-y1))))
+
+        potential_lines = sorted(potential_lines, key=lambda l: l[1], reverse=True)
+
+        for i, (lx, ly, lw, lh_line) in enumerate(potential_lines):
+            # Date fields are typically smaller than signature fields
+            date_height = int(h / 22)
+            date_y = max(0, ly - date_height)
+            regions.append((lx, date_y, lw, date_height))
+
+    return regions
+
+
+def date(image, date_regions=None):
+    """
+    Detect if any handwritten content is present in the expected date area of an image.
+    This function checks for the presence of content rather than verifying it's a valid date.
+
+    :param image: The image to check for date content (numpy array)
+    :param date_regions: Optional list of tuples [(x, y, w, h)] defining date areas.
+     If None, will attempt to detect likely date areas.
+    :return: Boolean indicating if content is detected in the date area
+    """
+    # Convert to grayscale if needed
+    if len(image.shape) == 3:
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    else:
+        gray = image
+
+    # Normalize the image
+    gray_normalized = normalize_image_resolution(gray)
+
+    # If no regions specified, try to detect potential date areas
+    if date_regions is None:
+        date_regions = _detect_potential_date_regions(gray_normalized)
+        log.debug(f"Detected {len(date_regions)} potential date areas")
+
+    # If still no regions found, use default regions based on document proportions
+    if not date_regions:
+        h, w = gray_normalized.shape
+        # For the document example provided, date appears in bottom left
+        # Adjust these coordinates based on your specific document layout
+        date_regions = [(0, 3*h//4, w//3, h//4)]
+
+    # Check each region for any handwritten content
+    for region in date_regions:
+        x, y, w, h = region
+
+        # Ensure region is within bounds
+        x = max(0, x)
+        y = max(0, y)
+        w = min(w, gray_normalized.shape[1] - x)
+        h = min(h, gray_normalized.shape[0] - y)
+
+        # Extract the region
+        roi = gray_normalized[y:y+h, x:x+w]
+
+        # Apply threshold to identify pen marks
+        _, binary = cv2.threshold(roi, 200, 255, cv2.THRESH_BINARY_INV)
+
+        # Calculate pixel density - key indicator of handwritten content
+        pixel_density = np.count_nonzero(binary) / binary.size
+
+        # Count non-trivial contours
+        contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        significant_contours = [c for c in contours if cv2.contourArea(c) > 10]
+
+        # We only care if there's ANY significant content in the date area
+        # Lowered density threshold and contour requirements
+        if pixel_density > 0.003 and len(significant_contours) >= 2:
+            return True
+
+    return False
+
+
+def detect_document_completeness(image):
+    """
+    Check if a document is complete with both signature and date.
+
+    :param image: The document image to check
+    :return: Dictionary with completeness status
+    """
+    has_signature = signature(image)
+    has_date = date(image)
+
+    return {
+        'has_signature': has_signature,
+        'has_date': has_date,
+        'is_complete': has_signature and has_date
+    }

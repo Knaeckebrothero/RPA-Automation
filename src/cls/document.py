@@ -313,6 +313,7 @@ class PDF(Document):
         self.bafin_id = bafin_id
         self.audit_case_id = audit_case_id
         self._audit_values = audit_values
+        self._signature_page_index = None
         log.debug("PDF document created")
 
     def __str__(self):
@@ -360,6 +361,9 @@ class PDF(Document):
             # Convert the PDF document into a list of images (one image per page)
             images = get_images_from_pdf(self._content)
 
+            # Track page characteristics for signature detection
+            page_data = []
+
             # Process each image in the PDF document
             for i, image in enumerate(images):
                 log.debug(f"Processing image: {i + 1}/{len(images)}")
@@ -372,11 +376,21 @@ class PDF(Document):
 
                 # Normalize the image resolution
                 bgr_image_array = dtct.normalize_image_resolution(bgr_image_array)
-                # TODO: Check if this works as expected!
 
                 # Detect tables
                 table_contours = dtct.tables(bgr_image_array)
                 log.debug(f"Number of pages in the document: {len(images)}")
+
+                # Calculate table metrics for this page
+                if table_contours:
+                    table_areas = [cv2.contourArea(contour) for contour in table_contours]
+                    page_data.append({
+                        'page_index': i,
+                        'num_tables': len(table_contours),
+                        'total_area': sum(table_areas),
+                        'max_area': max(table_areas),
+                        'min_area': min(table_areas) if table_areas else 0
+                    })
 
                 # Process each detected table
                 for j, contour in enumerate(table_contours):
@@ -413,7 +427,46 @@ class PDF(Document):
                         # Add the row data to the attributes
                         self._process_row_data(row_data)
 
+                # After processing all pages, determine the signature page
+                self._determine_signature_page(page_data)
+
             log.debug(self.__str__())
+
+    def _determine_signature_page(self, page_data):
+        """
+        Determine which page is most likely to contain the signature.
+
+        :param page_data: List of dictionaries with page data
+        """
+        if not page_data:
+            # Default to last page if no tables found
+            self._signature_page_index = -1
+            return
+
+        # Find pages with exactly two tables (criterion A)
+        pages_with_two_tables = [p for p in page_data if p['num_tables'] == 2]
+
+        if pages_with_two_tables:
+            # Look for a page that has both the largest and smallest tables
+            # Sort pages by maximum table area
+            sorted_by_max = sorted(page_data, key=lambda p: p['max_area'], reverse=True)
+            # Sort pages by minimum table area
+            sorted_by_min = sorted(page_data, key=lambda p: p['min_area'])
+
+            # If the same page has both the largest and smallest tables
+            if sorted_by_max[0]['page_index'] == sorted_by_min[0]['page_index']:
+                self._signature_page_index = sorted_by_max[0]['page_index']
+                log.debug(f"Selected page {self._signature_page_index + 1} for signature detection (has largest and smallest tables)")
+                return
+
+            # Otherwise, use the page with two tables that's closest to the end
+            self._signature_page_index = pages_with_two_tables[-1]['page_index']
+            log.debug(f"Selected page {self._signature_page_index + 1} for signature detection (has two tables)")
+        else:
+            # Default to the page with the largest table
+            largest_table_page = max(page_data, key=lambda p: p['max_area'])
+            self._signature_page_index = largest_table_page['page_index']
+            log.debug(f"Selected page {self._signature_page_index + 1} for signature detection (has largest table)")
 
     def _process_row_data(self, row_data):
         """
@@ -1001,6 +1054,85 @@ class PDF(Document):
         df = pd.DataFrame(comparison_data)
         log.info(f"Generated comparison table with {len(df)} rows")
         return df
+
+    def check_for_signature(self):
+        """
+        Check if the document contains a signature.
+
+        :return: Boolean indicating if a signature was detected
+        """
+        if self._content:
+            # Convert the PDF document into a list of images
+            images = get_images_from_pdf(self._content)
+
+            # Check the last page for a signature (often where signatures are found)
+            if images:
+                last_page = images[-1]
+                np_image = np.array(last_page)  # TODO: Currently searches for a signature on the last page only.
+                bgr_image = cv2.cvtColor(np_image, cv2.COLOR_RGB2BGR)
+
+                # Use the signature detection function
+                from processing.detect import signature
+                has_signature = signature(bgr_image)
+
+                # Store the result as an attribute
+                self.add_attributes({"has_signature": has_signature})
+
+                if has_signature:
+                    log.debug(f"Document has a signature!")
+                else:
+                    log.debug(f"Document does not have a signature!")
+
+                return has_signature
+
+        return False
+
+    def check_document_completeness(self):
+        """
+        Check if the document contains both a signature and date.
+
+        :return: Dictionary with completeness status
+        """
+        completeness = {'has_signature': False, 'has_date': False, 'is_complete': False}
+
+        if self._content:
+            # Convert the PDF document into a list of images
+            images = get_images_from_pdf(self._content)
+
+            if not images:
+                return completeness
+
+            # Determine which page to check - use detected signature page or default to last page
+            page_index = self._signature_page_index if self._signature_page_index is not None else -1
+
+            # Ensure page_index is valid
+            if page_index < 0:
+                page_index = len(images) + page_index  # Handle negative indexing
+
+            if page_index >= len(images):
+                log.warning(f"Signature page index {page_index} out of range, defaulting to last page")
+                page_index = -1
+
+            # Check the selected page
+            page_to_check = images[page_index]
+            np_image = np.array(page_to_check)
+            bgr_image = cv2.cvtColor(np_image, cv2.COLOR_RGB2BGR)
+
+            # Use the detection functions
+            from processing.detect import signature, date
+
+            # Check for signature and date
+            completeness['has_signature'] = signature(bgr_image)
+            completeness['has_date'] = date(bgr_image)
+            completeness['is_complete'] = (completeness['has_signature'] and completeness['has_date'])
+
+            log.info(f"Document completeness check on page {page_index + 1}: " +
+                     f"Signature: {completeness['has_signature']}, Date: {completeness['has_date']}")
+
+            # Store the results as attributes
+            self.add_attributes(completeness)
+
+        return completeness
 
     @classmethod
     def _create_from_json_data(cls, data, load_content):
