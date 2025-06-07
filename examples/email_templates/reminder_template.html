@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Erinnerung - Ausstehende Unterlagen</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+<table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto;">
+    <tr>
+        <td style="text-align: left; padding: 20px 0;">
+            <p>Sehr geehrte Damen und Herren,</p>
+
+            <p>wir möchten Sie daran erinnern, dass wir bisher noch keine Unterlagen zur Bestätigung
+                der Kostenumlage gemäß § 16 FinDAG von Ihnen erhalten haben.</p>
+
+            <p>Institut: <strong>{{client_name}}</strong><br>
+                BaFin-ID: <strong>{{bafin_id}}</strong></p>
+
+            {{days_overdue_text}}
+
+            {{custom_message_text}}
+
+            <p>Für die fristgerechte Weiterleitung der Bestätigung an die BaFin benötigen wir folgende Unterlagen:</p>
+
+            <ul>
+                <li>Formular zur Kostenumlage mit den erforderlichen Angaben</li>
+                <li>Unterschriebene Bestätigung der Richtigkeit der Angaben</li>
+                <li>Ggf. weitere erforderliche Nachweise</li>
+            </ul>
+
+            <p>Bitte senden Sie uns die vollständigen Unterlagen schnellstmöglich zu. Bei Verzögerungen
+                können wir die fristgerechte Bearbeitung nicht gewährleisten.</p>
+
+            <p>Sollten Sie die Unterlagen bereits versandt haben, betrachten Sie diese Erinnerung bitte als gegenstandslos.</p>
+
+            <p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>
+        </td>
+    </tr>
+
+    <tr>
+        <td style="text-align: left; padding: 20px 0;">
+            <p>Mit freundlichen Grüßen<br>
+                <br>
+                <img src="cid:logo" alt="Logo" style="max-width: 200px; height: auto;"><br>
+                <br>
+                Prüfungsverband<br>
+                Abteilung Bankenprüfung</p>
+        </td>
+    </tr>
+
+    <tr>
+        <td style="text-align: left; padding: 10px 0; font-size: 12px; color: #666;">
+            <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
+            <p><strong>Prüfungsverband</strong><br>
+                Musterstraße 123<br>
+                12345 Musterstadt<br>
+                Telefon: +49 (0) 123 456789-0<br>
+                E-Mail: info@pruefungsverband.de<br>
+                www.pruefungsverband.de</p>
+        </td>
+    </tr>
+
+    <tr>
+        <td style="text-align: center; padding: 20px; background-color: #f4f4f4;">
+            <p style="margin: 0; font-size: 11px; color: #777;">
+                Dies ist eine automatisch generierte Erinnerung.<br>
+                Bei Fragen wenden Sie sich bitte an Ihren zuständigen Sachbearbeiter.
+            </p>
+        </td>
+    </tr>
+</table>
+</body>
+</html>

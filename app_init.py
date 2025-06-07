@@ -152,6 +152,42 @@ def setup_filesystem(logger, base_dir, filesystem_dirs, force_reset=False): # co
                     logger.info(f"Copied {source_file} to {dest_file}")
                 else:
                     logger.warning(f"Source file not found: {source_file}")
+
+            # Copy email_templates folder
+            email_templates_source = 'examples/email_templates'
+            email_templates_dest = os.path.join(base_dir, 'email_templates')
+
+            if os.path.exists(email_templates_source):
+                # If destination exists and force_reset is not set, skip or merge
+                if os.path.exists(email_templates_dest):
+                    if force_reset:
+                        shutil.rmtree(email_templates_dest)
+                        shutil.copytree(email_templates_source, email_templates_dest)
+                        logger.info(f"Replaced email_templates directory at {email_templates_dest}")
+                    else:
+                        # Copy individual files to avoid overwriting customizations
+                        for item in os.listdir(email_templates_source):
+                            source_item = os.path.join(email_templates_source, item)
+                            dest_item = os.path.join(email_templates_dest, item)
+
+                            if os.path.isfile(source_item):
+                                if not os.path.exists(dest_item) or force_reset:
+                                    shutil.copy2(source_item, dest_item)
+                                    logger.info(f"Copied email template: {item}")
+                                else:
+                                    logger.info(f"Email template already exists, skipping: {item}")
+                else:
+                    # Directory doesn't exist, copy the whole thing
+                    shutil.copytree(email_templates_source, email_templates_dest)
+                    logger.info(f"Copied email_templates directory to {email_templates_dest}")
+
+                # List what was copied
+                if os.path.exists(email_templates_dest):
+                    template_files = os.listdir(email_templates_dest)
+                    logger.info(f"Email templates directory contains: {', '.join(template_files)}")
+            else:
+                logger.warning(f"Email templates source directory not found: {email_templates_source}")
+
         except Exception as e:
             logger.error(f"Error copying template files: {e}")
 
@@ -172,8 +208,8 @@ def download_emails(num_emails, logger):
     """
     try:
         logger.info(f"Downloading {num_emails} emails...")
-        
-        downloader_script_path = './examples/email_downloader.py' 
+
+        downloader_script_path = './examples/email_downloader.py'
         if not os.path.exists(downloader_script_path):
             logger.error(f"{downloader_script_path} not found")
             return False
@@ -244,23 +280,35 @@ def verify_application_setup(logger, required_dirs):
     Verify that all components of the application are properly set up.
 
     :param logger: Logger instance
+    :param required_dirs: List of required directories to check
     :return: True if successful, False otherwise
     """
     try:
         logger.info("Verifying application setup...")
-        
+
         base_dir = os.getenv('FILESYSTEM_PATH', './.filesystem')
 
+        # Check all required directories
         for directory in required_dirs:
             if not os.path.exists(directory):
                 logger.error(f"Required directory not found: {directory}")
-        
+
+        # Check for database
         default_db_path = os.path.join(base_dir, 'database.db')
-        if not os.path.exists(default_db_path): 
+        if not os.path.exists(default_db_path):
             logger.warning(f"Database file not found at default location {default_db_path}. If custom path used, this may be normal.")
 
+        # Check for .env file
         if not os.path.exists('./.env'):
             logger.warning(".env file not found - application may not function correctly")
+
+        # Check for email templates
+        email_templates_dir = os.path.join(base_dir, 'email_templates')
+        if os.path.exists(email_templates_dir):
+            templates = os.listdir(email_templates_dir)
+            logger.info(f"Found {len(templates)} email template(s): {', '.join(templates)}")
+        else:
+            logger.warning("Email templates directory not found")
 
         logger.info("Application setup verified successfully")
         return True
@@ -278,7 +326,7 @@ def main():
     """
     logger = setup_logging()
     args = parse_args()
-    
+
     # ConfigHandler instantiation removed from here
 
     logger.info("Starting application initialization")
@@ -290,6 +338,7 @@ def main():
     filesystem_dirs = [
         base_dir,
         os.path.join(base_dir, 'documents'),
+        os.path.join(base_dir, 'email_templates'),  # Added email_templates
         './example_mails',
         os.path.join(base_dir, 'logs')
     ]

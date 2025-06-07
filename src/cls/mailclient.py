@@ -7,6 +7,13 @@ import email
 from email.header import decode_header
 from bs4 import BeautifulSoup
 import pandas as pd
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.image import MIMEImage
+from email.mime.base import MIMEBase
+from email import encoders
+import smtplib
+from typing import Dict, List, Union
 
 # Custom imports
 from cls.singleton import Singleton
@@ -53,8 +60,8 @@ class Mailclient(Singleton):
     _connection = None  # Connection to the mail server
     _decoding_format = 'iso-8859-1'  # 'utf-8'
 
-    def __init__(self, imap_server: str = None, imap_port: int = None, username: str = None,
-                 password: str = None, inbox: str = None, *args, **kwargs):
+    def __init__(self, imap_server: str = None, imap_port: int = None, smtp_port: int = None,
+                 username: str = None, password: str = None, inbox: str = None, *args, **kwargs):
         """
         Automatically connects to the mailclient, using the provided credentials,
         once the class is instantiated.
@@ -65,11 +72,14 @@ class Mailclient(Singleton):
 
         :param imap_server: The imap server to connect to.
         :param imap_port: The port of the imap server.
+        :param smtp_port: The port of the smtp server.
         :param username: The username/mail to connect to.
         :param password: The user's password.
-        :param logger: The logger to use for the class.
         :param inbox: Inbox to connect to. Defaults to None.
         """
+        # Initialize instance attributes
+        self._smtp_connection = None
+
         if not imap_server:
             if os.getenv('IMAP_HOST'):
                 imap_server = os.getenv('IMAP_HOST')
@@ -81,6 +91,13 @@ class Mailclient(Singleton):
                 imap_port = int(os.getenv('IMAP_PORT'))
             else:
                 log.error('No IMAP port provided and no IMAP_PORT environment variable set!')
+
+        if not smtp_port:
+            if os.getenv('SMTP_PORT'):
+                smtp_port = int(os.getenv('SMTP_PORT'))
+            else:
+                log.warning('No SMTP port provided and no SMTP_PORT environment variable set! Using default 587.')
+                smtp_port = 587
 
         if not username:
             if os.getenv('IMAP_USER'):
@@ -100,7 +117,14 @@ class Mailclient(Singleton):
                     inbox = os.getenv('INBOX')
             except Exception as e:
                 log.info(f'No inbox provided and no INBOX environment variable set, defaulting to "INBOX", '
-                          f'error: {e}')
+                         f'error: {e}')
+
+        # Store credentials for later use
+        self._imap_server = imap_server
+        self._imap_port = imap_port
+        self._smtp_port = smtp_port
+        self._username = username
+        self._password = password
 
         # Connect to the mail server if not connected already
         if not self._connection:
@@ -122,6 +146,9 @@ class Mailclient(Singleton):
         """
         if self._connection:
             self.close()
+
+        if self._smtp_connection:
+            self.close_smtp()
 
         log.debug('Mail client destroyed')
 
@@ -176,6 +203,42 @@ class Mailclient(Singleton):
         self._connection = None
 
         log.debug('Connection server closed, mail set to none.')
+
+    def connect_smtp(self, smtp_server: str = None, smtp_port: int = None):
+        """
+        Connect to SMTP server for sending emails.
+
+        :param smtp_server: SMTP server address (uses IMAP server if not provided)
+        :param smtp_port: SMTP port (uses stored port or defaults to 587)
+        """
+        try:
+            if not smtp_server:
+                smtp_server = self._imap_server
+            if not smtp_port:
+                smtp_port = self._smtp_port or 587
+
+            self._smtp_connection = smtplib.SMTP(smtp_server, smtp_port)
+            self._smtp_connection.starttls()  # Enable encryption
+            self._smtp_connection.login(self._username, self._password)
+            log.debug(f'Successfully connected to SMTP server at {smtp_server}:{smtp_port}')
+
+        except Exception as e:
+            log.error(f'Error connecting to SMTP server: {e}')
+            self._smtp_connection = None
+            raise
+
+    def close_smtp(self):
+        """
+        Close the SMTP connection.
+        """
+        if self._smtp_connection:
+            try:
+                self._smtp_connection.quit()
+                log.debug('SMTP connection closed')
+            except Exception as e:
+                log.error(f'Error closing SMTP connection: {e}')
+            finally:
+                self._smtp_connection = None
 
     def select_inbox(self, inbox: str = None):
         """
@@ -340,7 +403,7 @@ class Mailclient(Singleton):
                                 'filename': filename,
                                 'content_type': part.get_content_type(),
                                 'email_id': email_id,  # TODO: Using the attributes is deprecated,
-                                                       #  use the 'email_id' directly in the PDF class
+                                #  use the 'email_id' directly in the PDF class
                                 'sender': email_message['From'],
                                 'date': email_message['Date']
                             }
@@ -371,3 +434,354 @@ class Mailclient(Singleton):
             print(email_id)
             log.error(f"Error processing email {email_id}: {str(e)}")
             return []
+
+    def send_email(self, to_email: Union[str, List[str]], subject: str, body: str = None,
+                   html_body: str = None, attachments: Dict[str, bytes] = None,
+                   cc: Union[str, List[str]] = None, bcc: Union[str, List[str]] = None,
+                   reply_to: str = None) -> bool:
+        """
+        Send an email using SMTP.
+
+        :param to_email: Recipient email address(es)
+        :param subject: Email subject
+        :param body: Plain text body (optional)
+        :param html_body: HTML body (optional)
+        :param attachments: Dictionary of {filename: file_bytes} (optional)
+        :param cc: CC recipients (optional)
+        :param bcc: BCC recipients (optional)
+        :param reply_to: Reply-to address (optional)
+        :return: True if email was sent successfully, False otherwise
+        """
+        try:
+            # Create message
+            msg = MIMEMultipart('alternative') if html_body else MIMEMultipart()
+            msg['From'] = self._username
+            msg['Subject'] = subject
+
+            # Handle multiple recipients
+            if isinstance(to_email, list):
+                msg['To'] = ', '.join(to_email)
+            else:
+                msg['To'] = to_email
+
+            if cc:
+                if isinstance(cc, list):
+                    msg['Cc'] = ', '.join(cc)
+                else:
+                    msg['Cc'] = cc
+
+            if reply_to:
+                msg['Reply-To'] = reply_to
+
+            # Add text body
+            if body:
+                msg.attach(MIMEText(body, 'plain'))
+
+            # Add HTML body
+            if html_body:
+                msg.attach(MIMEText(html_body, 'html'))
+
+            # Add attachments
+            if attachments:
+                for filename, file_data in attachments.items():
+                    part = MIMEBase('application', 'octet-stream')
+                    part.set_payload(file_data)
+                    encoders.encode_base64(part)
+                    part.add_header('Content-Disposition', f'attachment; filename= {filename}')
+                    msg.attach(part)
+
+            # Connect to SMTP if not already connected
+            if not self._smtp_connection:
+                self.connect_smtp()
+
+            # Collect all recipients
+            all_recipients = []
+            if isinstance(to_email, list):
+                all_recipients.extend(to_email)
+            else:
+                all_recipients.append(to_email)
+
+            if cc:
+                if isinstance(cc, list):
+                    all_recipients.extend(cc)
+                else:
+                    all_recipients.append(cc)
+
+            if bcc:
+                if isinstance(bcc, list):
+                    all_recipients.extend(bcc)
+                else:
+                    all_recipients.append(bcc)
+
+            # Send the email
+            self._smtp_connection.send_message(msg, to_addrs=all_recipients)
+            log.info(f'Email sent successfully to {to_email} with subject: {subject}')
+            return True
+
+        except Exception as e:
+            log.error(f'Error sending email: {e}')
+            return False
+
+    def send_email_from_template(self, to_email: Union[str, List[str]], subject: str,
+                                 template_path: str, template_vars: Dict[str, str] = None,
+                                 attachments: Dict[str, bytes] = None,
+                                 inline_images: Dict[str, str] = None) -> bool:
+        """
+        Send an email using an HTML template.
+
+        :param to_email: Recipient email address(es)
+        :param subject: Email subject
+        :param template_path: Path to HTML template file
+        :param template_vars: Dictionary of variables to replace in template
+        :param attachments: Dictionary of {filename: file_bytes} (optional)
+        :param inline_images: Dictionary of {cid: image_path} for inline images (optional)
+        :return: True if email was sent successfully, False otherwise
+        """
+        try:
+            # Read template
+            if not os.path.exists(template_path):
+                log.error(f'Template file not found: {template_path}')
+                return False
+
+            with open(template_path, 'r', encoding='utf-8') as file:
+                html_content = file.read()
+
+            # Replace template variables
+            if template_vars:
+                for key, value in template_vars.items():
+                    html_content = html_content.replace(f'{{{{{key}}}}}', str(value))
+
+            # Create message with inline images support
+            msg = MIMEMultipart('related')
+            msg['From'] = self._username
+            msg['Subject'] = subject
+
+            # Handle multiple recipients
+            if isinstance(to_email, list):
+                msg['To'] = ', '.join(to_email)
+            else:
+                msg['To'] = to_email
+
+            # Create the HTML part
+            html_part = MIMEText(html_content, 'html')
+            msg.attach(html_part)
+
+            # Add inline images
+            if inline_images:
+                for cid, image_path in inline_images.items():
+                    if os.path.exists(image_path):
+                        with open(image_path, 'rb') as img_file:
+                            img = MIMEImage(img_file.read())
+                            img.add_header('Content-ID', f'<{cid}>')
+                            msg.attach(img)
+                    else:
+                        log.warning(f'Inline image not found: {image_path}')
+
+            # Add attachments
+            if attachments:
+                for filename, file_data in attachments.items():
+                    part = MIMEBase('application', 'octet-stream')
+                    part.set_payload(file_data)
+                    encoders.encode_base64(part)
+                    part.add_header('Content-Disposition', f'attachment; filename= {filename}')
+                    msg.attach(part)
+
+            # Connect to SMTP if not already connected
+            if not self._smtp_connection:
+                self.connect_smtp()
+
+            # Send the email
+            self._smtp_connection.send_message(msg)
+            log.info(f'Template email sent successfully to {to_email} with subject: {subject}')
+            return True
+
+        except Exception as e:
+            log.error(f'Error sending template email: {e}')
+            return False
+
+    def send_reminder_email(self, to_email: str, client_name: str, bafin_id: str,
+                            days_overdue: int = None, custom_message: str = None,
+                            template_path: str = None) -> bool:
+        """
+        Send a reminder email to a client about missing documents.
+
+        :param to_email: Client email address
+        :param client_name: Client organization name
+        :param bafin_id: Client reference ID
+        :param days_overdue: Number of days overdue (optional)
+        :param custom_message: Custom message to include (optional)
+        :param template_path: Path to custom template file (optional)
+        :return: True if email was sent successfully, False otherwise
+        """
+        # Use provided template or default template path
+        if not template_path:
+            # Default template location - in filesystem directory
+            filesystem_path = os.getenv('FILESYSTEM_PATH', './.filesystem')
+            template_path = os.path.join(filesystem_path, 'email_templates', 'reminder_template.html')
+
+        # Create subject
+        subject = f"Reminder: Outstanding Documents (Reference: {bafin_id})"
+
+        # Prepare template variables
+        template_vars = {
+            'client_name': client_name,
+            'bafin_id': bafin_id,
+            'days_overdue_text': '',
+            'custom_message_text': ''
+        }
+
+        # Add optional overdue days text
+        if days_overdue:
+            template_vars['days_overdue_text'] = f'<p style="color: #cc0000;"><strong>The documents are {days_overdue} days overdue.</strong></p>'
+
+        # Add optional custom message
+        if custom_message:
+            template_vars['custom_message_text'] = f'<p><em>{custom_message}</em></p>'
+
+        # Check for logo in the same directory
+        template_dir = os.path.dirname(template_path)
+        logo_path = os.path.join(template_dir, 'logo.png')
+        inline_images = {'logo': logo_path} if os.path.exists(logo_path) else None
+
+        # Send using template
+        return self.send_email_from_template(
+            to_email=to_email,
+            subject=subject,
+            template_path=template_path,
+            template_vars=template_vars,
+            inline_images=inline_images
+        )
+
+    def send_confirmation_email(self, to_email: str, client_name: str, bafin_id: str,
+                                case_id: int, template_path: str = None) -> bool:
+        """
+        Send a confirmation email after documents have been received.
+
+        :param to_email: Client email address
+        :param client_name: Client institute name
+        :param bafin_id: Client BaFin ID
+        :param case_id: Audit case ID
+        :param template_path: Optional path to custom template
+        :return: True if email was sent successfully, False otherwise
+        """
+        # Use provided template or default template path
+        if not template_path:
+            # Default template location - in filesystem directory
+            filesystem_path = os.getenv('FILESYSTEM_PATH', './.filesystem')
+            template_path = os.path.join(filesystem_path, 'email_templates', 'response_template.html')
+
+        # Check if template exists, if not log warning
+        if not os.path.exists(template_path):
+            log.warning(f'Template file not found at {template_path}, falling back to basic template')
+            # You could either return False here or use a very basic fallback
+            # For now, let's try a basic fallback
+            return self._send_basic_confirmation_email(to_email, client_name, bafin_id, case_id)
+
+        # Prepare template variables
+        template_vars = {
+            'client_name': client_name,
+            'bafin_id': bafin_id,
+            'case_id': case_id
+        }
+
+        # Check if we need inline images (like logo)
+        template_dir = os.path.dirname(template_path)
+        logo_path = os.path.join(template_dir, 'logo.png')
+        inline_images = {'logo': logo_path} if os.path.exists(logo_path) else None
+
+        return self.send_email_from_template(
+            to_email=to_email,
+            subject=f"Confirmation: Documents Received (Reference: {bafin_id})",
+            template_path=template_path,
+            template_vars=template_vars,
+            inline_images=inline_images
+        )
+
+
+    def _send_basic_confirmation_email(self, to_email: str, client_name: str, bafin_id: str, case_id: int) -> bool:
+        """
+        Send a basic confirmation email without a template file.
+        This is a fallback method when the template file is not found.
+
+        :param to_email: Client email address
+        :param client_name: Client institute name
+        :param bafin_id: Client reference ID
+        :param case_id: Audit case ID
+        :return: True if email was sent successfully, False otherwise
+        """
+        subject = f"Confirmation: Documents Received (Reference: {bafin_id})"
+
+        # Basic plain text email as fallback
+        body = f"""
+            Dear Sir/Madam,
+
+            Thank you for submitting your documents.
+            
+            We confirm receipt of the documents for {client_name} (Reference ID: {bafin_id}).
+            Your submission is now being processed (Case Number: {case_id}).
+            
+            We will notify you once the review is complete.
+            You will receive a confirmation copy for your records.
+            
+            Best regards,
+            Audit Team
+            
+            ---
+            This is an automated message. Please do not reply to this email.
+            For questions, please contact your designated representative.
+            """
+
+        return self.send_email(
+            to_email=to_email,
+            subject=subject,
+            body=body
+        )
+
+    def mark_email_as_read(self, email_id: str) -> bool:
+        """
+        Mark an email as read.
+
+        :param email_id: The ID of the email to mark as read
+        :return: True if successful, False otherwise
+        """
+        try:
+            # Convert string ID to bytes if necessary
+            if isinstance(email_id, str):
+                email_id = email_id.encode()
+
+            self._connection.store(email_id, '+FLAGS', '\\Seen')
+            log.debug(f"Marked email {email_id} as read")
+            return True
+        except Exception as e:
+            log.error(f"Error marking email as read: {e}")
+            return False
+
+    def mark_email_as_answered(self, email_id: str) -> bool:
+        """
+        Mark an email as answered/replied.
+
+        :param email_id: The ID of the email to mark as answered
+        :return: True if successful, False otherwise
+        """
+        try:
+            # Convert string ID to bytes if necessary
+            if isinstance(email_id, str):
+                email_id = email_id.encode()
+
+            self._connection.store(email_id, '+FLAGS', '\\Answered')
+            log.debug(f"Marked email {email_id} as answered")
+            return True
+        except Exception as e:
+            log.error(f"Error marking email as answered: {e}")
+            return False
+
+    @staticmethod
+    def get_template_directory():
+        """
+        Get the default directory for email templates.
+        Templates are stored in the filesystem directory alongside certificate templates
+
+        :return: Path to the template directory
+        """
+        filesystem_path = os.getenv('FILESYSTEM_PATH', './.filesystem')
+        return os.path.join(filesystem_path, 'email_templates')

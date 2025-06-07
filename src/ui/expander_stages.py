@@ -408,6 +408,7 @@ def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instan
                                 log.info(f"Certificate for case {case_id} has been downloaded.",
                                          audit_log=True, case_id=case_id)
 
+                    # TODO: Refactor this since the button disappears once the stage is completed!
                     # Button to open the case folder
                     with col2:
                         if st.button("Open Case Folder", key=f"open-folder-{case_id}"):
@@ -435,7 +436,7 @@ def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instan
                                 st.error(f"Case folder not found: {case_folder}")
 
                     # Button to manually complete the process
-                    with col2:
+                    with col3:
                         if st.button("Complete Process", key=f"complete-process-{case_id}"):
                             # Update the database to move to the next stage
                             db.query("UPDATE audit_case SET stage = 4 WHERE id = ?", (case_id,))
