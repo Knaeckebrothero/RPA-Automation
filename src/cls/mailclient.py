@@ -435,7 +435,6 @@ class Mailclient(Singleton):
             log.error(f"Error processing email {email_id}: {str(e)}")
             return []
 
-    # SMTP Methods for sending emails
     def send_email(self, to_email: Union[str, List[str]], subject: str, body: str = None,
                    html_body: str = None, attachments: Dict[str, bytes] = None,
                    cc: Union[str, List[str]] = None, bcc: Union[str, List[str]] = None,
