@@ -697,44 +697,45 @@ class Mailclient(Singleton):
             inline_images=inline_images
         )
 
+
     def _send_basic_confirmation_email(self, to_email: str, client_name: str, bafin_id: str, case_id: int) -> bool:
-        def _send_basic_confirmation_email(self, to_email: str, client_name: str, bafin_id: str, case_id: int) -> bool:
+        """
+        Send a basic confirmation email without a template file.
+        This is a fallback method when the template file is not found.
+
+        :param to_email: Client email address
+        :param client_name: Client institute name
+        :param bafin_id: Client reference ID
+        :param case_id: Audit case ID
+        :return: True if email was sent successfully, False otherwise
+        """
+        subject = f"Confirmation: Documents Received (Reference: {bafin_id})"
+
+        # Basic plain text email as fallback
+        body = f"""
+            Dear Sir/Madam,
+
+            Thank you for submitting your documents.
+            
+            We confirm receipt of the documents for {client_name} (Reference ID: {bafin_id}).
+            Your submission is now being processed (Case Number: {case_id}).
+            
+            We will notify you once the review is complete.
+            You will receive a confirmation copy for your records.
+            
+            Best regards,
+            Audit Team
+            
+            ---
+            This is an automated message. Please do not reply to this email.
+            For questions, please contact your designated representative.
             """
-            Send a basic confirmation email without a template file.
-            This is a fallback method when the template file is not found.
 
-            :param to_email: Client email address
-            :param client_name: Client institute name
-            :param bafin_id: Client reference ID
-            :param case_id: Audit case ID
-            :return: True if email was sent successfully, False otherwise
-            """
-            subject = f"Confirmation: Documents Received (Reference: {bafin_id})"
-
-            # Basic plain text email as fallback
-            body = f"""Dear Sir/Madam,
-
-Thank you for submitting your documents.
-
-We confirm receipt of the documents for {client_name} (Reference ID: {bafin_id}).
-Your submission is now being processed (Case Number: {case_id}).
-
-We will notify you once the review is complete.
-You will receive a confirmation copy for your records.
-
-Best regards,
-Audit Team
-
----
-This is an automated message. Please do not reply to this email.
-For questions, please contact your designated representative.
-"""
-
-            return self.send_email(
-                to_email=to_email,
-                subject=subject,
-                body=body
-            )
+        return self.send_email(
+            to_email=to_email,
+            subject=subject,
+            body=body
+        )
 
     def mark_email_as_read(self, email_id: str) -> bool:
         """
