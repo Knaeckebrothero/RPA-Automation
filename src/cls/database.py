@@ -83,8 +83,7 @@ class Database(Singleton):
         :raises RuntimeError: If the required tables don't exist.
         """
         if required_tables is None:
-            required_tables = ['client', 'audit_case']
-            # TODO: Add the missing tables!
+            required_tables = ['client', 'audit_case', 'user', 'session_key', 'user_client_access']
 
         try:
             self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
@@ -167,14 +166,14 @@ class Database(Singleton):
         """
         try:
             query = """
-            SELECT 
-                id, institute, bafin_id, address, city, contact_person, 
-                phone, fax, email, p033, p034, p035, p036,
-                ab2s1n01, ab2s1n02, ab2s1n03, ab2s1n04, ab2s1n05,
-                ab2s1n06, ab2s1n07, ab2s1n08, ab2s1n09, ab2s1n10,
-                ab2s1n11, ratio
-            FROM client
-            """
+                    SELECT
+                        id, institute, bafin_id, address, city, contact_person,
+                        phone, fax, email, p033, p034, p035, p036,
+                        ab2s1n01, ab2s1n02, ab2s1n03, ab2s1n04, ab2s1n05,
+                        ab2s1n06, ab2s1n07, ab2s1n08, ab2s1n09, ab2s1n10,
+                        ab2s1n11, ratio
+                    FROM client \
+                    """
 
             # Get column names
             self.cursor.execute(f"PRAGMA table_info(client)")
@@ -190,43 +189,56 @@ class Database(Singleton):
             log.error(f"Error fetching clients: {e}")
             return pd.DataFrame()  # Return empty DataFrame on error
 
-    def get_active_client_cases(self) -> pd.DataFrame:
+    def get_active_client_cases(self, client_ids: list[int] = None) -> pd.DataFrame:
         """
         This method returns all active audit cases by joining the audit_case table with the client table.
         An active case is defined as one where the stage is less than 5.
 
+        :param client_ids: Optional list of client IDs to filter by (for access control)
         :return: A pandas DataFrame with active audit cases and their associated client information.
         """
         try:
+            # Base query
             query = """
-            SELECT 
-                a.id AS case_id,
-                a.client_id,
-                a.email_id,
-                a.stage,
-                a.created_at,
-                a.last_updated_at,
-                a.comments,
-                c.institute,
-                c.bafin_id,
-                c.address,
-                c.city,
-                c.contact_person,
-                c.phone,
-                c.fax,
-                c.email
-            FROM 
-                audit_case a
-            JOIN 
-                client c ON a.client_id = c.id
-            WHERE 
-                a.stage < 5
-            ORDER BY 
-                a.last_updated_at DESC
-            """
+                    SELECT
+                        a.id AS case_id,
+                        a.client_id,
+                        a.email_id,
+                        a.stage,
+                        a.created_at,
+                        a.last_updated_at,
+                        a.comments,
+                        c.institute,
+                        c.bafin_id,
+                        c.address,
+                        c.city,
+                        c.contact_person,
+                        c.phone,
+                        c.fax,
+                        c.email
+                    FROM
+                        audit_case a
+                            JOIN
+                        client c ON a.client_id = c.id
+                    WHERE
+                        a.stage < 5 \
+                    """
+
+            # Add client ID filter if provided
+            params = []
+            if client_ids is not None:
+                if not client_ids:  # Empty list means no access
+                    log.info("No accessible clients provided, returning empty DataFrame")
+                    return pd.DataFrame()
+
+                placeholders = ','.join(['?' for _ in client_ids])
+                query += f" AND a.client_id IN ({placeholders})"
+                params.extend(client_ids)
+
+            query += " ORDER BY a.last_updated_at DESC"
 
             # Execute query
-            data = self.query(query)
+            data = self.query(query, params if params else None)
 
             # Define column names for the DataFrame
             columns = [
@@ -249,3 +261,86 @@ class Database(Singleton):
         except sqlite3.Error as e:
             log.error(f"Error fetching active audit cases: {e}")
             return pd.DataFrame()  # Return empty DataFrame on error
+
+    def get_user_by_email(self, email: str) -> dict | None:
+        """
+        Get user information by email address.
+
+        :param email: The email address to search for
+        :return: Dictionary with user information or None if not found
+        """
+        try:
+            result = self.query("""
+                                SELECT id, username_email, role, created_at
+                                FROM user
+                                WHERE LOWER(username_email) = LOWER(?)
+                                """, (email,))
+
+            if result:
+                return {
+                    'id': result[0][0],
+                    'email': result[0][1],
+                    'role': result[0][2],
+                    'created_at': result[0][3]
+                }
+            return None
+
+        except sqlite3.Error as e:
+            log.error(f"Error fetching user by email: {e}")
+            return None
+
+    def get_client_by_bafin_id(self, bafin_id: int) -> dict | None:
+        """
+        Get client information by BaFin ID.
+
+        :param bafin_id: The BaFin ID to search for
+        :return: Dictionary with client information or None if not found
+        """
+        try:
+            result = self.query("""
+                                SELECT id, institute, bafin_id, address, city,
+                                       contact_person, phone, fax, email
+                                FROM client
+                                WHERE bafin_id = ?
+                                """, (bafin_id,))
+
+            if result:
+                return {
+                    'id': result[0][0],
+                    'institute': result[0][1],
+                    'bafin_id': result[0][2],
+                    'address': result[0][3],
+                    'city': result[0][4],
+                    'contact_person': result[0][5],
+                    'phone': result[0][6],
+                    'fax': result[0][7],
+                    'email': result[0][8]
+                }
+            return None
+
+        except sqlite3.Error as e:
+            log.error(f"Error fetching client by BaFin ID: {e}")
+            return None
+
+    def execute_migration(self, migration_sql: str) -> bool:
+        """
+        Execute a migration SQL script.
+
+        :param migration_sql: The SQL script to execute
+        :return: True if successful, False otherwise
+        """
+        try:
+            # Split the SQL script by semicolons to handle multiple statements
+            statements = [s.strip() for s in migration_sql.split(';') if s.strip()]
+
+            for statement in statements:
+                self.cursor.execute(statement)
+
+            self._conn.commit()
+            log.info("Migration executed successfully")
+            return True
+
+        except sqlite3.Error as e:
+            log.error(f"Error executing migration: {e}")
+            self._conn.rollback()
+            return False

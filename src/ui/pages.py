@@ -17,6 +17,8 @@ import ui.expander_stages as expander_stages
 import workflow.security as sec
 from cls.document import PDF
 from cls.config import ConfigHandler
+from workflow.access_control import AccessControl
+from workflow.excel_import import ExcelImporter
 
 
 # Set up logging
@@ -33,23 +35,24 @@ def home(mailclient: Mailclient = None, database: Database = Database.get_instan
     # Page title and description
     st.header('Document Fetcher')
     st.write('Welcome to the Document Fetcher application!')
-    
+
+    # Get user's accessible clients
+    user_id = st.session_state.get('user_id')
+    user_role = st.session_state.get('user_role', 'auditor')
+
     # Fetch the emails (exclude those who have already been downloaded)
     emails = auditflow.fetch_new_emails(database)
-    # TODO: Check if this interferes with the visuals (since we don't just load all emails present)
 
     # Configure visuals layout
     column_left, column_right = st.columns(2)
 
     # Display the mails
     st.dataframe(emails, hide_index=True)
-    # TODO: Check if the new selector ids work (e.g. the list number matches the number used by the selector)
 
     # Display a plot on the right
     with column_left:
         # Pie chart showing the submission ratio
         st.pyplot(visuals.pie_submission_ratio())
-        # TODO: Fix issue with labels overlapping
 
     # Display a table on the left
     with column_right:
@@ -57,48 +60,59 @@ def home(mailclient: Mailclient = None, database: Database = Database.get_instan
             st.warning("No new emails to process.")
             return
 
-        # Display a multiselect box to select documents to process
-        docs_to_process = st.multiselect('Select documents to process', emails['ID'])
+        # Only show email processing buttons for admin and inspector roles
+        if AccessControl.can_access_feature(user_role, 'process_emails'):
+            # Display a multiselect box to select documents to process
+            docs_to_process = st.multiselect('Select documents to process', emails['ID'])
 
-        # Process only the selected documents
-        if st.button('Process selected documents'):
-            with st.spinner(f'Processing mails'):
-                auditflow.assess_emails(docs_to_process)
-
-            # Rerun the app to update the display
-            st.rerun()
-
-        # Process all the documents
-        if st.button('Process all documents'):
-
-            # Check if the mailclient instance is provided, otherwise fetch the instance
-            if not mailclient:
-                mailclient = Mailclient.get_instance()
-
-            # Get all mails that are already part of an active audit case
-            already_processed_mails = [x[0] for x in database.query(
-                """
-                SELECT email_id 
-                FROM audit_case
-                WHERE email_id IS NOT NULL
-                AND stage < 5
-                """)]
-
-            # If no mails are in the database, fetch all mails
-            if len(already_processed_mails) > 0:
+            # Process only the selected documents
+            if st.button('Process selected documents'):
                 with st.spinner(f'Processing mails'):
-                    auditflow.assess_emails(mailclient.get_mails(excluded_ids=already_processed_mails)['ID'])
-            else:
-                with st.spinner(f'Processing mails'):
-                    auditflow.assess_emails(emails['ID'])
+                    auditflow.assess_emails(docs_to_process)
 
-            # Rerun the app to update the display
-            st.rerun()
+                # Rerun the app to update the display
+                st.rerun()
 
-    # Fetch the active cases and clients
-    active_cases_df = database.get_active_client_cases()
+            # Process all the documents
+            if st.button('Process all documents'):
+                # Check if the mailclient instance is provided, otherwise fetch the instance
+                if not mailclient:
+                    mailclient = Mailclient.get_instance()
+
+                # Get all mails that are already part of an active audit case
+                already_processed_mails = [x[0] for x in database.query(
+                    """
+                    SELECT email_id
+                    FROM audit_case
+                    WHERE email_id IS NOT NULL
+                      AND stage < 5
+                    """)]
+
+                # If no mails are in the database, fetch all mails
+                if len(already_processed_mails) > 0:
+                    with st.spinner(f'Processing mails'):
+                        auditflow.assess_emails(mailclient.get_mails(excluded_ids=already_processed_mails)['ID'])
+                else:
+                    with st.spinner(f'Processing mails'):
+                        auditflow.assess_emails(emails['ID'])
+
+                # Rerun the app to update the display
+                st.rerun()
+
+    # Fetch the active cases based on user's access
+    if user_role == 'admin':
+        # Admins see all cases
+        active_cases_df = database.get_active_client_cases()
+    else:
+        # Other users see only their assigned cases
+        accessible_clients = AccessControl.get_accessible_clients(user_id, user_role, database)
+        active_cases_df = database.get_active_client_cases(client_ids=accessible_clients)
+
     if active_cases_df.empty:
-        st.info("No active audit cases found. All cases have been completed and archived.")
+        if user_role == 'admin':
+            st.info("No active audit cases found. All cases have been completed and archived.")
+        else:
+            st.info("You have no active audit cases assigned to you.")
         return
 
     # Display a table of all active cases
@@ -122,7 +136,7 @@ def home(mailclient: Mailclient = None, database: Database = Database.get_instan
 
     # Add a button to refresh the data
     if st.button("Refresh Cases"):
-        st.cache_data.clear()  # TODO: Check if this deletes the database and stuff as well
+        st.cache_data.clear()
         st.rerun()
 
 
@@ -134,15 +148,27 @@ def active_cases(database: Database = Database.get_instance()):
     """
     log.debug('Rendering active cases page')
 
-    # Fetch the active cases and clients
-    active_cases_df = database.get_active_client_cases()
-    # TODO: Move the active_cases df to the session state!
+    # Get user's access information
+    user_id = st.session_state.get('user_id')
+    user_role = st.session_state.get('user_role', 'auditor')
+
+    # Fetch the active cases based on user's access
+    if user_role == 'admin':
+        # Admins see all cases
+        active_cases_df = database.get_active_client_cases()
+    else:
+        # Other users see only their assigned cases
+        accessible_clients = AccessControl.get_accessible_clients(user_id, user_role, database)
+        active_cases_df = database.get_active_client_cases(client_ids=accessible_clients)
 
     # Page title and description
     st.header('Active Cases')
 
     if active_cases_df.empty:
-        st.info("No active audit cases found. All cases have been completed and archived.")
+        if user_role == 'admin':
+            st.info("No active audit cases found. All cases have been completed and archived.")
+        else:
+            st.info("You have no active audit cases assigned to you.")
         return
 
     # Setup session state for selected case if not already initialized
@@ -171,10 +197,15 @@ def active_cases(database: Database = Database.get_instance()):
             # Find the selected case
             selected_case = active_cases_df[active_cases_df['case_id'] == case_id].iloc[0]
 
+            # Verify user has access to this case
+            if not AccessControl.can_access_client(user_id, selected_case['client_id'], user_role, database):
+                st.error("You don't have access to view this case.")
+                return
+
             # Display case information
             st.markdown(
                 f"**Case {selected_case['case_id']} Stage:** {visuals.stage_badge(selected_case['stage'])}",
-                        unsafe_allow_html=True
+                unsafe_allow_html=True
             )
 
             # Define steps based on stage
@@ -185,10 +216,10 @@ def active_cases(database: Database = Database.get_instance()):
             expander_stages.stage_2(case_id, current_stage, database)
 
             # Display additional stages based on the user role
-            if st.session_state['user_role'] == 'inspector':
+            if AccessControl.can_access_feature(user_role, 'generate_certificate'):
                 expander_stages.stage_3(case_id, current_stage, database)
-            elif st.session_state['user_role'] == 'admin':
-                expander_stages.stage_3(case_id, current_stage, database)
+
+            if AccessControl.can_access_feature(user_role, 'complete_process'):
                 expander_stages.stage_4(case_id, current_stage, database)
 
             # Divider
@@ -379,14 +410,25 @@ def settings(database: Database = Database().get_instance()):
     """
     log.debug('Rendering settings page')
 
+    # Check if user has access to settings
+    user_role = st.session_state.get('user_role', 'auditor')
+    if not AccessControl.can_access_feature(user_role, 'settings'):
+        st.error("You don't have permission to access settings.")
+        return
+
     # Page title and description
     st.header('Settings')
     st.write('Configure the application settings below.')
 
     # Split the page into tabs
-    application_tab, audit_tab, user_tab = st.tabs(["Application Settings", "Audit Settings", "User Management"])
+    tabs = ["Application Settings", "Audit Settings", "User Management"]
+    if AccessControl.can_access_feature(user_role, 'user_management'):
+        tabs.append("Access Control")
 
-    with application_tab:
+    tab_objects = st.tabs(tabs)
+
+    # Application Settings tab
+    with tab_objects[0]:
         st.subheader("Application Settings")
 
         # Certificate Template Settings
@@ -531,10 +573,69 @@ def settings(database: Database = Database().get_instance()):
             else:
                 st.warning(f"Log file not found at {log_path}")
 
-    # Modify the archive button logic to use the custom archive name
-    with audit_tab:
-        # Existing audit_tab code here...
+    # Audit Settings tab
+    with tab_objects[1]:
         st.subheader("Audit Process")
+
+        # Excel Import Section
+        with st.expander("Initialize Audit Season from Excel", expanded=False):
+            st.write("""
+            Upload an Excel file to initialize the audit season. The file should contain:
+            - **Bank ID**: BaFin ID of the institution (required)
+            - **Inspector 1**: Email of the first inspector
+            - **Inspector 2**: Email of the second inspector
+            - **Auditor**: Email of the auditor
+            
+            Additional columns (Nr, Name, PLZ, City, Comment) are optional and will be ignored for now.
+            """)
+
+            uploaded_file = st.file_uploader("Choose Excel file", type=['xlsx', 'xls'])
+
+            if uploaded_file is not None:
+                # Validate file structure
+                is_valid, issues = ExcelImporter.validate_excel_structure(uploaded_file)
+
+                if not is_valid:
+                    st.error("Excel file validation failed:")
+                    for issue in issues:
+                        st.error(f"• {issue}")
+                else:
+                    st.success("Excel file structure is valid!")
+
+                    # Show preview
+                    df_preview = pd.read_excel(uploaded_file)
+                    st.write("Preview (first 5 rows):")
+                    st.dataframe(df_preview.head())
+
+                    # Import button
+                    if st.button("Import Audit Season Data"):
+                        # Reset file pointer
+                        uploaded_file.seek(0)
+
+                        # Perform import
+                        importer = ExcelImporter(database)
+                        results = importer.import_audit_season(
+                            uploaded_file,
+                            st.session_state['user_id']
+                        )
+
+                        # Show results
+                        if results['success']:
+                            st.success(f"Import completed successfully! {results['success_count']} rows processed.")
+                        else:
+                            st.error("Import completed with errors.")
+
+                        # Show errors
+                        if results['errors']:
+                            st.error("Errors:")
+                            for error in results['errors']:
+                                st.error(f"• {error}")
+
+                        # Show warnings
+                        if results['warnings']:
+                            st.warning("Warnings:")
+                            for warning in results['warnings']:
+                                st.warning(f"• {warning}")
 
         with st.expander("Initialize Annual Audit Process", expanded=True):
             # Initialize Annual Audit Process code...
@@ -662,9 +763,8 @@ def settings(database: Database = Database().get_instance()):
                         # Refresh the statistics
                         st.rerun()
 
-    # Existing user_tab code
-    with user_tab:
-        # User management code... (no changes needed)
+    # User Management tab
+    with tab_objects[2]:
         st.subheader("User Management")
 
         # Check if the database instance is provided, otherwise fetch the instance
@@ -765,6 +865,94 @@ def settings(database: Database = Database().get_instance()):
                             st.rerun()
                         except Exception as e:
                             st.error(f"Error creating user: {str(e)}")
+
+    # Access Control tab (displayed only if user has access)
+    if AccessControl.can_access_feature(user_role, 'user_management'):
+        with tab_objects[-1]:
+            st.subheader("Access Control Management")
+
+            # User access management
+            st.markdown("### User Client Access")
+
+            # Select a user to manage
+            users_data = database.query("""
+                                        SELECT id, username_email, role
+                                        FROM user
+                                        WHERE role != 'admin'
+                                        ORDER BY username_email
+                                        """)
+
+            if users_data:
+                user_options = [(row[0], f"{row[1]} ({row[2]})") for row in users_data]
+                selected_user_id = st.selectbox(
+                    "Select user to manage access",
+                    options=[uid for uid, _ in user_options],
+                    format_func=lambda x: next((label for uid, label in user_options if uid == x), ""),
+                    index=None
+                )
+
+                if selected_user_id:
+                    # Show current access
+                    st.markdown("#### Current Access")
+                    current_access = AccessControl.get_user_client_access(selected_user_id, database)
+
+                    if current_access:
+                        access_df = pd.DataFrame(current_access)
+                        st.dataframe(access_df[['institute', 'bafin_id', 'granted_at']], use_container_width=True)
+
+                        # Revoke access
+                        st.markdown("#### Revoke Access")
+                        client_to_revoke = st.selectbox(
+                            "Select client to revoke access",
+                            options=[acc['client_id'] for acc in current_access],
+                            format_func=lambda x: next((acc['institute'] for acc in current_access if acc['client_id'] == x), ""),
+                            index=None
+                        )
+
+                        if client_to_revoke and st.button("Revoke Access"):
+                            if AccessControl.revoke_client_access(selected_user_id, client_to_revoke, database):
+                                st.success("Access revoked successfully!")
+                                st.rerun()
+                            else:
+                                st.error("Failed to revoke access.")
+                    else:
+                        st.info("This user has no client access assigned.")
+
+                    # Grant new access
+                    st.markdown("#### Grant New Access")
+
+                    # Get clients the user doesn't have access to
+                    current_client_ids = [acc['client_id'] for acc in current_access]
+                    available_clients = database.query("""
+                        SELECT id, institute, bafin_id
+                        FROM client
+                        WHERE id NOT IN ({})
+                        ORDER BY institute
+                    """.format(','.join(['?'] * len(current_client_ids)) if current_client_ids else '0'),
+                                                       current_client_ids if current_client_ids else None)
+
+                    if available_clients:
+                        client_options = [(row[0], f"{row[1]} (BaFin: {row[2]})") for row in available_clients]
+                        client_to_grant = st.selectbox(
+                            "Select client to grant access",
+                            options=[cid for cid, _ in client_options],
+                            format_func=lambda x: next((label for cid, label in client_options if cid == x), ""),
+                            index=None
+                        )
+
+                        if client_to_grant and st.button("Grant Access"):
+                            if AccessControl.grant_client_access(
+                                    selected_user_id,
+                                    client_to_grant,
+                                    st.session_state['user_id'],
+                                    database
+                            ):
+                                st.success("Access granted successfully!")
+                                st.rerun()
+                            else:
+                                st.error("Failed to grant access.")
+                    else:
+                        st.info("User already has access to all clients.")
 
 
 def about():
@@ -897,6 +1085,7 @@ def login(database: Database = None) -> bool:
             st.session_state['session_key'] = session_key
             st.session_state['user_id'] = user_id
             st.session_state['user_role'] = role
+            st.session_state['username'] = username  # Store username for display
             st.session_state['client_ip'] = client_ip  # Store IP in session state for later use
 
             # Log successful login
