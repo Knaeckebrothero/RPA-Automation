@@ -586,7 +586,7 @@ def settings(database: Database = Database().get_instance()):
             - **Inspector 2**: Email of the second inspector
             - **Auditor**: Email of the auditor
             
-            Additional columns (Nr, Name, PLZ, City, Comment) are optional and will be ignored for now.
+            Additional columns like Nr, Name, PLZ, City or Comment will be ignored.
             """)
 
             uploaded_file = st.file_uploader("Choose Excel file", type=['xlsx', 'xls'])
@@ -596,7 +596,7 @@ def settings(database: Database = Database().get_instance()):
                 is_valid, issues = ExcelImporter.validate_excel_structure(uploaded_file)
 
                 if not is_valid:
-                    st.error("Excel file validation failed:")
+                    st.error("Excel file validation failed")
                     for issue in issues:
                         st.error(f"• {issue}")
                 else:
