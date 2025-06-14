@@ -577,16 +577,24 @@ def settings(database: Database = Database().get_instance()):
     with tab_objects[1]:
         st.subheader("Audit Process")
 
+        # Updated Excel Import Section in settings() function from ui/pages.py
+        # This replaces the Excel Import Section within the Audit Settings tab
+
         # Excel Import Section
         with st.expander("Initialize Audit Season from Excel", expanded=False):
             st.write("""
             Upload an Excel file to initialize the audit season. The file should contain:
             - **Bank ID**: BaFin ID of the institution (required)
-            - **Inspector 1**: Email of the first inspector
-            - **Inspector 2**: Email of the second inspector
-            - **Auditor**: Email of the auditor
+            - **Inspector 1**: Name or email of the first inspector
+            - **Inspector 2**: Name or email of the second inspector
+            - **Auditor**: Name or email of the auditor
             
             Additional columns like Nr, Name, PLZ, City or Comment will be ignored.
+            
+            **Note:** If users don't exist in the system, they will be created automatically with:
+            - Username generated from their name (all spaces removed, lowercase) + @example.com
+            - Secure random password
+            - Appropriate role (inspector/auditor)
             """)
 
             uploaded_file = st.file_uploader("Choose Excel file", type=['xlsx', 'xls'])
@@ -624,6 +632,34 @@ def settings(database: Database = Database().get_instance()):
                             st.success(f"Import completed successfully! {results['success_count']} rows processed.")
                         else:
                             st.error("Import completed with errors.")
+
+                        # Show created users if any
+                        if results['created_users']:
+                            st.info(f"Created {results['total_created_users']} new users:")
+
+                            # Create a dataframe for better display
+                            created_users_df = pd.DataFrame(results['created_users'])
+                            created_users_df = created_users_df[['name', 'username', 'password', 'role', 'row']]
+                            created_users_df.columns = ['Name', 'Username', 'Password', 'Role', 'Excel Row']
+
+                            # Display the created users
+                            st.dataframe(created_users_df, use_container_width=True)
+
+                            # Add download button for created users
+                            csv = created_users_df.to_csv(index=False)
+                            st.download_button(
+                                label="Download Created Users (CSV)",
+                                data=csv,
+                                file_name="created_users.csv",
+                                mime="text/csv"
+                            )
+
+                            st.warning("""
+                            ⚠️ **Important**: Please save these credentials securely!
+                            - The passwords shown above are temporary and should be communicated to users securely
+                            - Users should be instructed to change their passwords on first login
+                            - These passwords will not be shown again
+                            """)
 
                         # Show errors
                         if results['errors']:

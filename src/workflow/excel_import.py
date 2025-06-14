@@ -9,6 +9,7 @@ from io import BytesIO
 # Custom imports
 from cls.database import Database
 from workflow.access_control import AccessControl
+import workflow.security as sec
 
 
 # Set up logging
@@ -30,6 +31,7 @@ class ExcelImporter:
         self.errors = []
         self.warnings = []
         self.success_count = 0
+        self.created_users = []  # Track users created during import
 
     def import_audit_season(self, excel_data: BytesIO | str, granted_by: int) -> Dict:
         """
@@ -42,6 +44,7 @@ class ExcelImporter:
         self.errors = []
         self.warnings = []
         self.success_count = 0
+        self.created_users = []
 
         try:
             # Read Excel file
@@ -114,51 +117,38 @@ class ExcelImporter:
             # Process Inspector 1
             inspector1 = row.get('Inspector 1')
             if not pd.isna(inspector1) and inspector1:
-                user = self._find_user(str(inspector1).strip())
+                user = self._find_or_create_user(str(inspector1).strip(), 'inspector', row_number)
                 if user:
                     assignments.append({
                         'user_id': user['id'],
                         'client_id': client_id,
                         'role': 'inspector'
                     })
-                else:
-                    self.warnings.append(f"Row {row_number}: Inspector 1 '{inspector1}' not found")
 
             # Process Inspector 2
             inspector2 = row.get('Inspector 2')
             if not pd.isna(inspector2) and inspector2:
-                user = self._find_user(str(inspector2).strip())
+                user = self._find_or_create_user(str(inspector2).strip(), 'inspector', row_number)
                 if user:
                     assignments.append({
                         'user_id': user['id'],
                         'client_id': client_id,
                         'role': 'inspector'
                     })
-                else:
-                    self.warnings.append(f"Row {row_number}: Inspector 2 '{inspector2}' not found")
 
             # Process Auditor
             auditor = row.get('Auditor')
             if not pd.isna(auditor) and auditor:
-                user = self._find_user(str(auditor).strip())
+                user = self._find_or_create_user(str(auditor).strip(), 'auditor', row_number)
                 if user:
                     assignments.append({
                         'user_id': user['id'],
                         'client_id': client_id,
                         'role': 'auditor'
                     })
-                else:
-                    self.warnings.append(f"Row {row_number}: Auditor '{auditor}' not found")
 
             # Grant access permissions
             for assignment in assignments:
-                # Verify user has the correct role
-                if assignment['role'] != user['role'] and user['role'] != 'admin':
-                    self.warnings.append(
-                        f"Row {row_number}: User {user['email']} has role '{user['role']}' "
-                        f"but is assigned as '{assignment['role']}'"
-                    )
-
                 # Grant access
                 success = AccessControl.grant_client_access(
                     assignment['user_id'],
@@ -178,6 +168,87 @@ class ExcelImporter:
         except Exception as e:
             self.errors.append(f"Row {row_number}: Processing error - {str(e)}")
             log.error(f"Error processing row {row_number}: {e}")
+
+    def _find_or_create_user(self, identifier: str, role: str, row_number: int) -> Dict | None:
+        """
+        Find a user by identifier or create a new one if not found.
+
+        :param identifier: Name or email address from Excel
+        :param role: The role to assign to the user ('inspector' or 'auditor')
+        :param row_number: Row number for error reporting
+        :return: User dictionary or None
+        """
+        # First check if it's already an email address
+        if '@' in identifier:
+            # Try to find by email
+            user = self.db.get_user_by_email(identifier)
+            if user:
+                return user
+
+            # If it looks like an email but user not found, log warning
+            self.warnings.append(f"Row {row_number}: User with email '{identifier}' not found, creating new user")
+            username = identifier
+        else:
+            # Generate username from name
+            username = self._generate_username(identifier)
+
+            # Check if user already exists
+            user = self.db.get_user_by_email(username)
+            if user:
+                return user
+
+        # User doesn't exist, create new one
+        log.info(f"Creating new user: {username} with role: {role}")
+
+        # Generate secure password
+        password = sec.generate_secure_password()
+
+        # Hash the password
+        password_hash, password_salt = sec.hash_password(password)
+
+        try:
+            # Insert the new user
+            user_id = self.db.insert("""
+                                     INSERT INTO user (username_email, password_hash, password_salt, role)
+                                     VALUES (?, ?, ?, ?)
+                                     """, (username, password_hash, password_salt, role))
+
+            # Track the created user with their credentials
+            self.created_users.append({
+                'username': username,
+                'password': password,  # Store plaintext password for reporting
+                'role': role,
+                'name': identifier,
+                'row': row_number
+            })
+
+            log.info(f"Successfully created user: {username} with ID: {user_id}")
+
+            # Return the created user info
+            return {
+                'id': user_id,
+                'email': username,
+                'role': role
+            }
+
+        except Exception as e:
+            self.errors.append(f"Row {row_number}: Failed to create user '{username}' - {str(e)}")
+            log.error(f"Error creating user: {e}")
+            return None
+
+    def _generate_username(self, name: str, domain: str = "example.com") -> str:
+        """
+        Generate a username from a name by removing ALL whitespaces and converting to lowercase.
+
+        :param name: The name to convert
+        :param domain: Email domain to append (default: example.com)
+        :return: Generated username as email
+        """
+        # Remove ALL whitespaces (including between words) and convert to lowercase
+        username_part = ''.join(name.split()).lower()
+
+        # Append domain
+        return f"{username_part}@{domain}"
 
     def _find_user(self, identifier: str) -> Dict | None:
         """
@@ -223,8 +294,10 @@ class ExcelImporter:
             'success_count': self.success_count,
             'errors': self.errors,
             'warnings': self.warnings,
+            'created_users': self.created_users,
             'total_errors': len(self.errors),
-            'total_warnings': len(self.warnings)
+            'total_warnings': len(self.warnings),
+            'total_created_users': len(self.created_users)
         }
 
     @staticmethod
