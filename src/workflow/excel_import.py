@@ -18,14 +18,38 @@ log = logging.getLogger(__name__)
 # TODO: Move this functionality into the processing/files module!
 class ExcelImporter:
     """
-    Handles importing audit initialization data from Excel files.
+    Handles importing data from Excel files and processing related records in the database.
+
+    The ExcelImporter class is designed to streamline the process of importing and validating
+    data from Excel files, specifically for managing audit season data. It interacts with
+    a database to identify or create records, manage access permissions, and maintain import logs.
+
+    Features:
+    - Reads and validates Excel file content, ensuring required columns are present.
+    - Processes rows to identify clients, manage related cases, and grant access permissions.
+    - Creates new user accounts as necessary and logs successes, warnings, and errors.
+    - Tracks created users and their credentials for reporting.
+
+    :ivar db: The database instance used for operations.
+    :type db: Database
+    :ivar errors: List of errors encountered during the import process.
+    :type errors: list
+    :ivar warnings: List of warnings encountered during the import process.
+    :type warnings: list
+    :ivar success_count: The count of successfully processed rows.
+    :type success_count: int
+    :ivar created_users: A list of users created during the import process.
+    :type created_users: list
     """
 
     def __init__(self, database: Database = None):
         """
-        Initialize the Excel importer.
+        Initializes the importer with the given database instance or retrieves a default
+        singleton instance of the Database if none is provided. It sets up empty structures
+        to track errors, warnings, created users, and count of successful operations.
 
-        :param database: Database instance (optional)
+        :param database: An optional database instance to be used during the import process.
+        :type database: Database
         """
         self.db = database or Database.get_instance()
         self.errors = []
@@ -35,11 +59,22 @@ class ExcelImporter:
 
     def import_audit_season(self, excel_data: BytesIO | str, granted_by: int) -> Dict:
         """
-        Import audit season data from an Excel file.
+        Imports audit season data from an Excel file, processes it, and logs the results.
+        The method reads an Excel file, validates its structure for required columns,
+        processes each row of the file, and aggregates the import status.
 
-        :param excel_data: Either a file path or BytesIO object containing Excel data
-        :param granted_by: The ID of the user performing the import (for audit trail)
-        :return: Dictionary with import results
+        The function maintains error logs, warnings, and success counts throughout
+        the execution to provide a complete summary of the operation.
+
+        :param excel_data: The path to the Excel file (as a string) or file-like BytesIO object
+                          containing the data to be imported.
+        :type excel_data: BytesIO | str
+        :param granted_by: The user ID of the individual granting the changes or initiating
+                           the import operation.
+        :type granted_by: int
+        :return: A dictionary containing the results of the operation including error messages,
+                 warning details, and success metrics.
+        :rtype: Dict
         """
         self.errors = []
         self.warnings = []
@@ -73,11 +108,20 @@ class ExcelImporter:
 
     def _process_row(self, row: pd.Series, row_number: int, granted_by: int):
         """
-        Process a single row from the Excel file.
+        Processes a single row of data from a given pandas Series, performs various operations such as
+        retrieving or validating client information, handling access permissions, and logging results.
 
-        :param row: Pandas Series representing one row
-        :param row_number: The row number in Excel (for error reporting)
-        :param granted_by: User ID performing the import
+        This method identifies the client associated with the provided row by their BaFin ID, verifies
+        the existence of an associated audit case, and processes user assignments for roles such as
+        Inspector or Auditor. It ensures appropriate access permissions are granted for these roles
+        while maintaining logs for warnings, errors, and successful operations.
+
+        :param row: The row data from the input file as a pandas Series.
+        :type row: pd.Series
+        :param row_number: The index or number of the row being processed.
+        :type row_number: int
+        :param granted_by: The ID of the user granting access permissions.
+        :type granted_by: int
         """
         try:
             # Get BaFin ID
@@ -171,12 +215,20 @@ class ExcelImporter:
 
     def _find_or_create_user(self, identifier: str, role: str, row_number: int) -> Dict | None:
         """
-        Find a user by identifier or create a new one if not found.
+        Finds an existing user by identifier or creates a new one if the user doesn't exist. If the identifier
+        contains an '@', it is treated as an email address and looked up directly. If not, it is assumed to
+        be a name, and a username is generated. A new user is created with a secure password if no matching
+        user is found. Created users are tracked in a list for reporting.
 
-        :param identifier: Name or email address from Excel
-        :param role: The role to assign to the user ('inspector' or 'auditor')
-        :param row_number: Row number for error reporting
-        :return: User dictionary or None
+        :param identifier: An email address or name identifier for the user.
+        :type identifier: str
+        :param role: The role to assign to the user, such as admin or user.
+        :type role: str
+        :param row_number: The row number in the input data where the user information was found.
+        :type row_number: int
+        :return: A dictionary containing information about the created or found user, including ID, email,
+                 and role, or None if creation failed.
+        :rtype: Dict | None
         """
         # First check if it's already an email address
         if '@' in identifier:
@@ -238,11 +290,17 @@ class ExcelImporter:
 
     def _generate_username(self, name: str, domain: str = "example.com") -> str:
         """
-        Generate a username from a name by removing ALL whitespaces and converting to lowercase.
+        Generates a username by processing the given name and combining it
+        with the provided domain. Whitespaces from the name are removed, and
+        the resulting string is converted to lowercase before appending the
+        domain to create the final username.
 
-        :param name: The name to convert
-        :param domain: Email domain to append (default: example.com)
-        :return: Generated username as email
+        :param name: The name to use for generating the username.
+        :type name: str
+        :param domain: The domain to append to the username. Defaults to "example.com".
+        :type domain: str
+        :return: The generated username in the format "processed_name@domain".
+        :rtype: str
         """
         # Remove ALL whitespaces (including between words) and convert to lowercase
         username_part = ''.join(name.split()).lower()
@@ -252,10 +310,13 @@ class ExcelImporter:
 
     def _find_user(self, identifier: str) -> Dict | None:
         """
-        Find a user by email or username.
+        Finds a user based on the provided identifier, which could be an email or a part of a username.
 
-        :param identifier: Email address or username
-        :return: User dictionary or None
+        :param identifier: The user identifier to search for. It can be an email or a part of a username.
+        :type identifier: str
+        :return: A dictionary containing user details if a match is found. Returns None if no match
+            is found.
+        :rtype: Dict | None
         """
         # First try as email
         user = self.db.get_user_by_email(identifier)
@@ -285,9 +346,14 @@ class ExcelImporter:
 
     def _get_results(self) -> Dict:
         """
-        Get the results of the import operation.
+        Generates and returns a dictionary summarizing results of a process. The dictionary
+        contains information about the success status, counts of successes, errors, warnings,
+        and created users along with total numeric counts for errors, warnings, and created
+        users.
 
-        :return: Dictionary with results
+        :return: A dictionary that includes the process success status, success count, errors,
+            warnings, created users, and total counts for errors, warnings, and created users.
+        :rtype: Dict
         """
         return {
             'success': len(self.errors) == 0,
@@ -303,10 +369,17 @@ class ExcelImporter:
     @staticmethod
     def validate_excel_structure(excel_data: BytesIO | str) -> Tuple[bool, List[str]]:
         """
-        Validate that an Excel file has the expected structure.
+        Validates the structure and contents of an Excel file against required and recommended
+        column criteria, ensuring data integrity checks such as missing columns, duplicate IDs,
+        and empty rows. Returns a boolean indicating whether the validation passed and a list
+        of issues if any are found.
 
-        :param excel_data: Either a file path or BytesIO object containing Excel data
-        :return: Tuple of (is_valid, list_of_issues)
+        :param excel_data: The input Excel data, which can either be a BytesIO object or a string
+            representing the file path.
+        :type excel_data: BytesIO | str
+        :return: A tuple where the first element is a boolean indicating whether the validation
+            passed and the second element is a list of validation issues found, if any.
+        :rtype: Tuple[bool, List[str]]
         """
         issues = []
 

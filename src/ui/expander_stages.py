@@ -32,14 +32,20 @@ def _icon(icon: bool = False) -> str:
 # Stage 1: Waiting for documents
 def stage_1(case_id: int, current_stage: int, db: Database = Database.get_instance()):
     """
-    This is the first/default stage an audit case can be in.
-    Cases in this stage are part of this year's audit and are waiting for the documents to be received.
-    Once a document is received, meaning the application has received an email that contains a document with the
-    client's baFin ID, the case will move to the next stage.
+    Handles the processing and updating of audit cases at stage 1. The function
+    provides an interface to manage document submissions for an audit case. It
+    supports uploading documents manually or specifying an email ID for document
+    submission. Additionally, it retrieves and displays information about
+    documents if they have already been submitted.
 
-    :param case_id: The ID of the case.
-    :param current_stage: The current stage of the case.
-    :param db: The database instance to use. Optional and will be fetched from the class if not provided.
+    :param case_id: ID of the audit case to be processed.
+    :type case_id: int
+    :param current_stage: Current stage of the audit case.
+    :type current_stage: int
+    :param db: Database instance used for querying and updating data.
+    :type db: Database
+    :return: None
+    :rtype: None
     """
     with st.expander(
             "Documents Received",
@@ -136,14 +142,19 @@ def stage_1(case_id: int, current_stage: int, db: Database = Database.get_instan
 # Stage 2: Data verification
 def stage_2(case_id: int, current_stage: int, db: Database = Database.get_instance()):
     """
-    The second stage of the audit process.
-    Cases in this stage have had their documents received and are now waiting for the data to be verified.
-    Once the data verification process has been successful, the case will move to the next stage.
-    Should the data verification process fail, the case will remain in this stage, waiting for manual intervention.
+    Performs stage 2 of the case review process, which involves verifying client data against
+    records stored in the database. The verification includes matching fields and ensuring
+    completeness of the document. The function handles data display, user interaction for
+    verification review, and allows progress to the next stage after successful validation.
 
-    :param case_id: The ID of the case.
-    :param current_stage: The current stage of the case.
-    :param db: The database instance to use. Optional and will be fetched from the class if not provided.
+    :param case_id: Unique identifier for the audit case
+    :type case_id: int
+    :param current_stage: Current stage of the audit process for the case
+    :type current_stage: int
+    :param db: Database connection instance, defaults to shared instance of `Database`
+    :type db: Database
+    :return: None
+    :rtype: None
     """
     with st.expander(
             "Data verification",
@@ -311,13 +322,17 @@ def stage_2(case_id: int, current_stage: int, db: Database = Database.get_instan
 # Stage 3: Certification
 def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instance()):
     """
-    The third stage of the audit process.
-    Cases at this stage have had their data verified and are now waiting for the certificate to be issued.
-    Once the certificate has been generated, the inspector can manually sign it and mark the process as complete.
+    Executes the third stage of a case processing workflow, facilitating certificate issuance, audit history display,
+    and user interaction with files and processes. This stage ensures certificates are generated, available for
+    download, or queued for completion. The function conditionally handles UI rendering and relevant functionality
+    based on the current workflow stage.
 
-    :param case_id: The ID of the case.
-    :param current_stage: The current stage of the case.
-    :param db: The database instance to use. Optional and will be fetched from the class if not provided.
+    :param case_id: Unique identifier for the case being processed.
+    :type case_id: int
+    :param current_stage: Current processing stage of the case.
+    :type current_stage: int
+    :param db: Database instance for executing queries and fetching case-related data.
+    :type db: Database
     """
     with st.expander(
             "Certificate issued",
@@ -512,13 +527,22 @@ def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instan
 # Stage 4: Process completion
 def stage_4(case_id: int, current_stage: int, db: Database = Database.get_instance()):
     """
-    The fourth and final stage of the audit process.
-    Cases in this stage have successfully completed the audit process and are now waiting to be archived.
-    Once the case has been archived, it will no longer be part of the current year's audit.
+    Handles the actions and display logic for stage 4 of the audit case process.
+    This function manages the following workflows:
+    - Indicates if the certification process is incomplete.
+    - Allows users to download all documents related to the audit case
+      as a ZIP archive.
+    - Oversees the archival of the case once all processes are completed.
 
-    :param case_id: The ID of the case.
-    :param current_stage: The current stage of the case.
-    :param db: The database instance to use. Optional and will be fetched from the class if not provided.
+    :param case_id: The ID of the audit case being processed.
+    :type case_id: int
+    :param current_stage: The current stage of the audit process for the case.
+    :type current_stage: int
+    :param db: An instance of the database for executing queries. Defaults to a
+        singleton instance of the Database class.
+    :type db: Database
+    :return: None
+    :rtype: None
     """
     with st.expander(
             "Process completed",

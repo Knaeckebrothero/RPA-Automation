@@ -14,12 +14,14 @@ from functools import wraps
 
 def add_audit_log_parameter(func) -> callable:
     """
-    Decorator to add case_id parameter to logging methods and include username from session state.
-    This decorator modifies the logging methods to include the current user
-    and handle audit logging when a case_id is provided.
+    Decorator function that modifies a logging function to include additional features
+    such as attaching a username, user role, and handling audit logging based on `case_id`.
+    The decorator facilitates enhanced logging capabilities while maintaining backward
+    compatibility.
 
-    :param func: The function to decorate.
-    :return: The decorated function.
+    :param func: The original logging function to be wrapped.
+    :return: The wrapped logging function with additional functionality.
+    :rtype: callable
     """
     @wraps(func)
     def wrapper(self, msg, *args, **kwargs) -> callable:
@@ -83,23 +85,98 @@ def add_audit_log_parameter(func) -> callable:
 class AuditableLogger(logging.Logger):
     @add_audit_log_parameter
     def debug(self, msg, *args, **kwargs):
+        """
+        Logs a debug message along with any additional arguments and keyword arguments
+        using the underlying logging mechanism.
+
+        This method extends the standard debug log functionality by allowing
+        added customization or operations through the `add_audit_log_parameter`
+        decorator. It forwards the provided message (`msg`) and optional
+        arguments (`args` and `kwargs`) to its superclass implementation
+        to handle the actual logging.
+
+        :param msg: The debug message to be logged.
+        :param args: Additional positional arguments to be passed to the
+            superclass's logging method.
+        :param kwargs: Additional keyword arguments to be passed to the
+            superclass's logging method.
+        :return: The result of the superclass's debug logging call.
+        """
         return super().debug(msg, *args, **kwargs)
 
     @add_audit_log_parameter
     def info(self, msg, *args, **kwargs):
+        """
+        Logs a message with the INFO level. This method is a wrapper for the logging functionality,
+        invoking the parent class's `info` method while allowing addition of audit log parameters
+        if the decorator modifies or processes such parameters.
+
+        :param msg: The log message to record.
+        :param args: Additional positional arguments passed to the logger.
+        :param kwargs: Additional keyword arguments passed to the logger.
+        :return: The result returned by the parent class's `info` method.
+        """
         return super().info(msg, *args, **kwargs)
 
     @add_audit_log_parameter
     def warning(self, msg, *args, **kwargs):
+        """
+        Logs a warning message with the provided parameters. This method allows
+        the inclusion of additional arguments and keyword arguments that can
+        customize the log message or provide supplementary information.
+
+        This method wraps around the parent class's `warning` method to leverage
+        its functionality while allowing additional control through the
+        `@add_audit_log_parameter` decorator.
+
+        :param msg: The warning message to log.
+        :param args: Additional positional arguments passed to the overridden
+            `warning` method.
+        :param kwargs: Additional keyword arguments passed to the overridden
+            `warning` method.
+        :return: The result of the parent class's `warning` method.
+        """
         return super().warning(msg, *args, **kwargs)
 
     @add_audit_log_parameter
     def error(self, msg, *args, **kwargs):
+        """
+        Logs an error message along with any additional arguments or keyword arguments.
+
+        Delegates the logging functionality to the parent class's `error` method, passing
+        all provided arguments and keyword arguments. This method is typically used to
+        record error-level log messages in an audit trail.
+
+        :param msg: The error message to log.
+        :type msg: str
+        :param args: Additional positional arguments to include in the log entry.
+        :type args: tuple
+        :param kwargs: Additional keyword arguments to include in the log entry.
+        :type kwargs: dict
+        :return: The result of the parent class's `error` method.
+        """
         return super().error(msg, *args, **kwargs)
 
     @add_audit_log_parameter
     def critical(self, msg, *args, **kwargs):
+        """
+        Logs a critical message, typically indicating a serious failure,
+        error, or an exceptional condition that requires immediate
+        attention. This method delegates the actual logging behavior
+        to the parent class's `critical` method, ensuring consistent
+        handling of message formatting and any additional audit log
+        parameter functionality.
+
+        :param msg: The message to be logged. Can include formatting placeholders.
+        :type msg: str
+        :param args: Additional positional arguments to format the message, if any.
+        :type args: tuple
+        :param kwargs: Additional keyword arguments for customization or compatibility purposes.
+        :type kwargs: dict
+        :return: The result of calling the parent class's critical method.
+        """
         return super().critical(msg, *args, **kwargs)
+
 
 # Register the custom logger class
 logging.setLoggerClass(AuditableLogger)
@@ -113,12 +190,21 @@ def configure_global_logger(
         logging_directory: str = './logs/',
 ):
     """
-    This function configures a custom logger for printing and saving logs in a logfile.
+    Configures the global logger to log messages to both the console and a file.
+    The function sets up the logging directory, creates file and console handlers,
+    initializes a formatter with the specified format, and applies logging levels
+    to both the file and console handlers. The logger is configured for global use.
 
-    :param console_level: The logging level for logging in the console.
-    :param file_level: The logging level for logging in the logfile.
-    :param logging_format: Format used for logging.
-    :param logging_directory: Path for the directory where the log files should be saved to.
+    :param console_level: Logging level for the console handler.
+    :type console_level: int
+    :param file_level: Logging level for the file handler.
+    :type file_level: int
+    :param logging_format: The logging format string used by the formatter.
+    :type logging_format: str
+    :param logging_directory: The directory path where log files will be written.
+    :type logging_directory: str
+    :return: The globally configured logger instance.
+    :rtype: logging.Logger
     """
     # Configure the root logger
     logger = logging.getLogger()
@@ -145,13 +231,17 @@ def configure_global_logger(
 
 def get_audit_case_logger(case_id):
     """
-    Get or create a logger dedicated to a specific audit case.
-    If the logger is being created for the first time, it will be initialized
-    with historical events.
+    Creates or retrieves a logger specific to an audit case. The logger is set up
+    to handle file-based logging for the particular case. If the logger does not
+    already exist, it creates and configures it, ensuring the necessary logging
+    directory and files exist. Additionally, it prevents propagation to parent
+    loggers and schedules initialization if the log file is new.
 
-    :param case_id: The ID of the audit case.
-    :param db: Optional database connection.
-    :return: A Logger instance for the audit case.
+    :param case_id: The unique identifier of the audit case for which the logger
+        is created or retrieved.
+    :type case_id: int
+    :return: A logger instance that writes audit logs for the specific case.
+    :rtype: logging.Logger
     """
     logger_name = f"audit_case_{case_id}"
     logger = logging.getLogger(logger_name)
@@ -205,10 +295,14 @@ def get_audit_case_logger(case_id):
 @st.cache_resource
 def configure_custom_logger(logger: logging.Logger, log_file: str):
     """
-    Configure a custom logger with a specific log file.
+    Configures a custom logger by attaching handlers if not already present. The logger will log
+    messages to both a specified file and the console. The logging format includes timestamp,
+    logger name, log level, and the message, and is applied to all handlers.
 
-    :param logger: The logger to configure.
-    :param log_file: The log file path.
+    :param logger: The logger instance to be configured
+    :type logger: logging.Logger
+    :param log_file: The file path where log messages will be written
+    :type log_file: str
     """
     if not logger.hasHandlers():
         logger.setLevel(logging.DEBUG)
@@ -225,11 +319,16 @@ def configure_custom_logger(logger: logging.Logger, log_file: str):
 
 def initialize_audit_log(case_id, db=None):
     """
-    Initialize an audit log for a case with historical information.
-    This should be called when we first create the audit log file.
+    Initializes the audit log for a specific case by recording various stages of the audit case
+    workflow, such as case creation, document processing, verification, certificate generation,
+    process completion, and archiving. The function interacts with the database to retrieve
+    necessary case and document information and writes these details into an audit log file.
 
-    :param case_id: The ID of the audit case.
-    :param db: Optional database connection.
+    :param case_id: The identifier of the audit case for which the audit log is to be initialized.
+    :type case_id: int
+    :param db: An optional database instance to be used for querying case and document information.
+                If not provided, a default database instance will be used.
+    :type db: Database, optional
     """
     if db is None:
         from cls.database import Database
@@ -343,6 +442,7 @@ def initialize_audit_log(case_id, db=None):
         # Get file creation/modification time
         cert_time = os.path.getmtime(cert_path)
         cert_datetime = datetime.datetime.fromtimestamp(cert_time)
+        # TODO: Get back to this
 
         # Log certificate generation
         audit_logger.info("Certificate generated successfully")
@@ -358,10 +458,15 @@ def initialize_audit_log(case_id, db=None):
 
 def process_pending_log_initializations(db=None):
     """
-    Process any pending log initializations that were deferred to avoid circular imports.
-    This should be called from a safe context (e.g., at the end of an audit workflow).
+    Processes pending log initializations. This function is responsible for iterating
+    through the global `_pending_log_initializations` list, initializing audit logs
+    for the respective cases. If the database connection is not provided, it fetches
+    an instance of the database. Any errors during the log initialization are logged
+    without halting the processing of subsequent cases. After successful processing,
+    the pending log initialization list is cleared.
 
-    :param db: Optional database connection.
+    :param db: Database connection instance.
+    :type db: Optional[Database]
     """
     global _pending_log_initializations
 

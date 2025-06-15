@@ -14,9 +14,16 @@ log = logging.getLogger(__name__)
 
 def navbar(database=None) -> int:
     """
-    This is the sidebar ui page for the application.
+    Renders a navigation bar in the Streamlit sidebar and manages user navigation
+    through the application. The navbar adjusts dynamically based on the user's
+    access role and client assignments. It initializes the page state, displays
+    buttons for navigation, shows user-related information, and provides a logout
+    functionality.
 
-    :return: The selected page number.
+    :param database: Optional instance of the database used for user session management.
+    :type database: cls.database.Database or None
+    :return: The current page index as an integer.
+    :rtype: int
     """
     access_role = streamlit.session_state['user_role']
     user_id = streamlit.session_state.get('user_id')

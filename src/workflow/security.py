@@ -21,9 +21,17 @@ log = logging.getLogger(__name__)
 
 def get_client_ip() -> str:
     """
-    Get the client's remote IP address using Streamlit's runtime API.
+    Retrieve the IP address of the client making a request.
 
-    :return: Client IP address or 'unknown' if not found
+    This function retrieves the client IP address by accessing the current
+    script runtime context and fetching client information from its session.
+    If the script run context or session information is unavailable, or if
+    any error occurs during the process, a default value of 'unknown' is
+    returned. Errors encountered during the retrieval process are logged
+    for debugging purposes.
+
+    :return: The client IP address or 'unknown' if it cannot be retrieved.
+    :rtype: str
     """
     try:
         # Get the current script run context
@@ -47,13 +55,21 @@ def get_client_ip() -> str:
 
 def check_login_attempts(ip_address, database: Database = None, max_attempts=5, window_minutes=15):
     """
-    Check if an IP address has exceeded the maximum number of failed login attempts.
+    Checks if the specified IP address has exceeded the allowed number of login attempts
+    within a defined time window. This is used to prevent brute force login attempts by
+    monitoring failed login activity. If the login attempts exceed the threshold, the
+    function returns True, otherwise False.
 
-    :param ip_address: The client IP address
-    :param database: Database connection
-    :param max_attempts: Maximum number of failed attempts allowed
-    :param window_minutes: Time window in minutes to consider for failed attempts
-    :return: True if too many attempts, False otherwise
+    :param ip_address: The IP address to check for failed login attempts.
+    :type ip_address: str
+    :param database: Optional database instance. If not provided, a default instance is fetched.
+    :type database: Database or None
+    :param max_attempts: Maximum allowed failed login attempts before blocking the IP.
+    :type max_attempts: int
+    :param window_minutes: Time window in minutes to consider failed login attempts.
+    :type window_minutes: int
+    :return: A boolean indicating whether the IP address has exceeded the login attempt limit.
+    :rtype: bool
     """
     if ip_address == 'unknown':
         return False
@@ -102,11 +118,20 @@ def check_login_attempts(ip_address, database: Database = None, max_attempts=5, 
 
 def record_failed_attempt(ip_address, username, database: Database = None):
     """
-    Record a failed login attempt.
+    Records a failed login attempt in the database with the given IP address and username.
 
-    :param ip_address: The client IP address
-    :param username: The username that was attempted
-    :param database: Database connection
+    This function logs a failed login attempt by inserting a record into the
+    `login_attempts` table of a database. If the `ip_address` is 'unknown', it
+    does not proceed. The function can optionally use a provided database
+    instance; otherwise, it fetches a default instance of the database.
+
+    :param ip_address: The IP address from where the login attempt was made.
+    :type ip_address: str
+    :param username: The username provided during the failed login attempt.
+    :type username: str
+    :param database: An optional database instance to record the login attempt.
+                     If not provided, a default database instance is retrieved.
+    :type database: Database, optional
     """
     if ip_address == 'unknown':
         return
@@ -130,11 +155,19 @@ def record_failed_attempt(ip_address, username, database: Database = None):
 
 def record_successful_login(ip_address, user_id, database: Database = None):
     """
-    Record a successful login and clean up old failed attempts.
+    Records a successful login attempt in the database. If necessary, it also performs
+    cleanup of older login attempt records to maintain the table size within a manageable
+    limit. Older records beyond a cutoff period (30 days) are deleted. This function logs
+    a message indicating the successful addition of a new record or captures any errors
+    encountered during the process.
 
-    :param ip_address: The client IP address
-    :param user_id: The user ID that successfully logged in
-    :param database: Database connection
+    :param ip_address: The IP address of the user who successfully logged in.
+    :type ip_address: str
+    :param user_id: The unique identifier of the user who successfully logged in.
+    :type user_id: str
+    :param database: An optional instance of the Database class to use for operations.
+        If not provided, a new instance is fetched or initialized.
+    :type database: Database, optional
     """
     if ip_address == 'unknown':
         return
@@ -167,21 +200,37 @@ def record_successful_login(ip_address, user_id, database: Database = None):
 # TODO: Move this stuff to a separate user class!
 def generate_session_key(length=32):
     """
-    Generate a random session key.
+    Generate a secure session key.
 
-    :param length: Length of the session key in bytes
-    :return: Hexadecimal session key string
+    This function generates a secure random session key
+    using the `secrets.token_hex` method. The length of the
+    generated key can be customized by specifying a value
+    for the `length` parameter (default is 32).
+
+    :param length: The length of the generated session key.
+    :type length: int
+    :return: A randomly generated hexadecimal session key.
+    :rtype: str
     """
     return secrets.token_hex(length)
 
 
 def hash_password(password, salt=None) -> tuple[str, str]:
     """
-    Hash a password using SHA-256 with a salt.
+    Hashes a given password using PBKDF2-HMAC-SHA256 along with a salt. If no salt
+    is provided, generates a new random salt. The hashed password and the salt are
+    returned as hexadecimal strings.
 
-    :param password: Plain text password
-    :param salt: Optional salt, will be generated if not provided
-    :return: Tuple of (hash, salt)
+    Defaults to 100,000 iterations for the hashing process.
+
+    :param password: The password to be hashed. Accepts a string or bytes.
+    :type password: str or bytes
+    :param salt: A cryptographic salt in hexadecimal string format or bytes.
+                 If not provided, a 256-bit random salt will be generated.
+    :type salt: str or bytes or None
+    :return: A tuple containing the hashed password as a hexadecimal string and the
+             salt as a hexadecimal string.
+    :rtype: tuple[str, str]
     """
     if salt is None:
         # Generate a random salt if not provided
@@ -207,12 +256,19 @@ def hash_password(password, salt=None) -> tuple[str, str]:
 
 def verify_password(stored_hash, stored_salt, provided_password):
     """
-    Verify if a provided password matches the stored hash.
+    Verifies whether the provided password generates the same hash as the stored hash
+    by using the stored salt.
 
-    :param stored_hash: Stored password hash
-    :param stored_salt: Stored salt
-    :param provided_password: Password to verify
-    :return: True if password matches, False otherwise
+    :param stored_hash: The precomputed hash of the password to be verified.
+    :type stored_hash: str
+    :param stored_salt: The salt value used when generating the stored hash, in hex
+        string format.
+    :type stored_salt: str
+    :param provided_password: The password provided by the user to be checked.
+    :type provided_password: str
+    :return: A boolean value indicating whether the provided password matches the
+        stored hash after hashing with the stored salt.
+    :rtype: bool
     """
     # Convert hex string to bytes
     salt = bytes.fromhex(stored_salt)
@@ -226,12 +282,17 @@ def verify_password(stored_hash, stored_salt, provided_password):
 
 def create_session(user_id, database: Database = None, session_duration_hours=1):
     """
-    Create a new session for the user.
+    Generates a new session for a given user, stores it in the database, and returns the session key.
 
-    :param user_id: User ID
-    :param database: Database connection
-    :param session_duration_hours: Session duration in hours
-    :return: Session key
+    :param user_id: The ID of the user for whom the session is to be created.
+    :type user_id: int
+    :param database: Optional database instance to use for interacting with the session table. If not provided,
+        the function will create or fetch a singleton instance.
+    :type database: Database, optional
+    :param session_duration_hours: The number of hours for which the session will be valid. Defaults to 1 hour.
+    :type session_duration_hours: int
+    :return: The generated session key if the session is created successfully, otherwise None.
+    :rtype: str or None
     """
     session_key = generate_session_key()
     expires_at = datetime.now() + timedelta(hours=session_duration_hours)
@@ -266,11 +327,18 @@ def create_session(user_id, database: Database = None, session_duration_hours=1)
 
 def validate_session(session_key, database: Database = None):
     """
-    Validate a session key.
+    Validates a provided session key against the database to determine its
+    validity. Checks include verifying the existence of the session key and
+    whether it has expired. If the session key is expired, it will be removed
+    from the database.
 
-    :param session_key: Session key to validate
-    :param database: Database connection
-    :return: User ID if session is valid, None otherwise
+    :param session_key: The session key to validate.
+    :type session_key: str
+    :param database: Optional database instance. If not provided, a default
+                     instance will be used.
+    :type database: Database, optional
+    :return: The user ID associated with the session key if valid, otherwise None.
+    :rtype: Union[int, None]
     """
     if not session_key:
         return None
@@ -311,11 +379,18 @@ def validate_session(session_key, database: Database = None):
 
 def get_user_role(user_id, database: Database = None):
     """
-    Get the role of a user.
+    Retrieves the role associated with a specific user ID from a database. If the
+    database is not provided, a default database instance will be used. The method
+    queries the database for the role associated with the user ID and returns it
+    if found. Returns None if the user ID is not found or if an error occurs.
 
-    :param user_id: User ID
-    :param database: Database connection
-    :return: User role or None if user not found
+    :param user_id: The unique identifier of the user whose role is being queried.
+    :type user_id: int
+    :param database: An optional database instance to use for querying. If not
+        specified, a default database instance will be used.
+    :type database: Database, optional
+    :return: The role associated with the user ID if found, otherwise None.
+    :rtype: str or None
     """
     if database:
         db = database
@@ -337,11 +412,19 @@ def get_user_role(user_id, database: Database = None):
 
 def logout(session_key, database: Database = None):
     """
-    Log out a user by deleting their session.
+    Logs out a user by removing the specified session key from the database.
 
-    :param session_key: Session key
-    :param database: Database connection
-    :return: True if successful, False otherwise
+    This function attempts to delete the provided session key from the
+    database to effectively log out the user. If a custom database instance
+    is provided, it will use that; otherwise, it will use the default
+    singleton database instance.
+
+    :param session_key: The session key of the user to be logged out.
+    :type session_key: str
+    :param database: Optional database instance to be used for logging out.
+    :type database: Database, optional
+    :return: True if the session key is successfully removed, False otherwise.
+    :rtype: bool
     """
     if database:
         db = database
@@ -360,11 +443,23 @@ def logout(session_key, database: Database = None):
 
 def require_auth(database: Database = None, required_role=None) -> bool:
     """
-    Check if current user is authenticated and has required role.
+    Checks if a user is authenticated and authorized based on the session key,
+    database validation, and required role. If a valid session key is found in
+    the session state and the user meets the required role criteria (if specified),
+    authentication is granted. Otherwise, it is denied.
 
-    :param database: Database connection
-    :param required_role: Role required to access the page (optional)
-    :return: True if authenticated with required role, False otherwise
+    Provides functionality to validate the user's session using the provided
+    or default database instance, and queries the associated user role when
+    necessary to match the required role.
+
+    :param database: The `Database` instance to be used for session validation
+        and role querying.
+    :type database: Database, optional
+    :param required_role: The role required for authorization. If specified, the
+        function will ensure that the user's role matches the given role.
+    :type required_role: Any, optional
+    :return: A boolean indicating if the user is authenticated and authorized.
+    :rtype: bool
     """
     if 'session_key' not in st.session_state or not st.session_state['session_key']:
         return False
@@ -392,10 +487,19 @@ def require_auth(database: Database = None, required_role=None) -> bool:
 
 def generate_secure_password(length: int = 12) -> str:
     """
-    Generate a secure random password.
+    Generates a secure and random password of a given length. The generated password
+    will include at least one lowercase letter, one uppercase letter, one digit,
+    and one special character. The remaining characters will be randomly selected
+    from all available characters, and the order will be shuffled to ensure
+    unpredictability.
 
-    :param length: Length of the password (default: 12)
-    :return: A secure random password string
+    :param length: The total length of the password to be generated. Must be greater
+                   than or equal to 4 to ensure the inclusion of one character from
+                   each required set (lowercase, uppercase, digit, special).
+    :type length: int
+    :return: A randomly generated password string that fulfills all necessary
+             security requirements.
+    :rtype: str
     """
     # Define character sets
     lowercase = string.ascii_lowercase

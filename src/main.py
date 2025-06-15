@@ -3,12 +3,10 @@ This file holds the main function for the application.
 
 https://docs.streamlit.io/
 """
-from dotenv import load_dotenv, find_dotenv
-import streamlit as st
-import logging
 import os
-
-from streamlit import session_state
+import logging
+import streamlit as st
+from dotenv import load_dotenv, find_dotenv
 
 # Custom imports
 import cls
@@ -18,6 +16,7 @@ import ui.pages as page
 from workflow.audit import get_emails as workflow_get_emails
 import workflow.security as sec
 
+
 # Set up logging
 log = logging.getLogger(__name__)
 
@@ -25,7 +24,13 @@ log = logging.getLogger(__name__)
 @st.cache_resource
 def _get_database():
     """
-    Helper function to cache the database instance.
+    Retrieves a cached instance of the database resource. This function uses the
+    streamlit `st.cache_resource` decorator to cache the database instance for
+    reuse, which optimizes performance by avoiding repetitive resource
+    initialization.
+
+    :return: Cached database instance retrieved using the `get_instance` method.
+    :rtype: cls.Database
     """
     return cls.Database().get_instance()
 
@@ -33,12 +38,33 @@ def _get_database():
 @st.cache_resource
 def _get_mailclient():
     """
-    Helper function to cache the mail client instance.
+    Caches and retrieves the singleton instance of the Mailclient.
+
+    This function ensures that the Mailclient instance is created only once
+    and is reused on subsequent calls. It utilizes Streamlit's
+    `st.cache_resource` to cache the resource effectively.
+
+    :return: Cached instance of the Mailclient.
+    :rtype: Mailclient
     """
     return cls.Mailclient.get_instance()
 
 
 def main():
+    """
+    The main function serves as the entry point of the application. It initializes the Streamlit
+    configuration, session state, logging, and user authentication. Depending on the user's state,
+    it displays appropriate pages and handles navigation within the application. The function contains
+    important setup and management routines necessary for proper functioning of the app.
+
+    :raises RuntimeError: Raised when critical errors occur during initialization, such as missing
+        environment variables or failure to load configuration files.
+
+    :param None: This function does not accept any parameters.
+
+    :return: This function does not explicitly return any value but is essential for preparing the
+        application environment and executing its core routines.
+    """
     st.set_page_config(
         layout="wide",
         page_title="Document Fetcher",

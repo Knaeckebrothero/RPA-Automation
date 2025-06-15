@@ -16,6 +16,19 @@ log  = logging.getLogger(__name__)
 
 
 def get_images_from_pdf(pdf_bytes: bytes) -> list[np.array]:
+    """
+    Extracts images from a PDF file in bytes and returns them as a list of image objects.
+
+    This function takes in a PDF file in bytes format, processes each page, and extracts
+    images embedded within the document. The extracted images are returned as objects
+    (such as PIL images) for further manipulation or analysis. If an image cannot be
+    extracted from any page, the error is logged without halting the extraction process.
+
+    :param pdf_bytes: The PDF document content in bytes format.
+    :type pdf_bytes: bytes
+    :return: A list of image objects extracted from the PDF file.
+    :rtype: list[np.array]
+    """
     pdf_doc = fitz.open("pdf", pdf_bytes)
     extracted_images = []
 
@@ -37,12 +50,21 @@ def get_images_from_pdf(pdf_bytes: bytes) -> list[np.array]:
 # TODO: Add the terms and conditions here (it's currently added in the gernerate_certificate function)
 def create_certificate_from_template(client_info: dict, audit_case_id: int) -> str | None:
     """
-    Create a certificate by filling in the template with client information.
+    Creates a certificate document from a specified template, replacing placeholders
+    with client-specific and dynamic information. The certificate is saved in a
+    designated location based on the audit case ID and other environment variables.
 
-    :param client_info: Dictionary containing client information
-    :param audit_case_id: The ID of the audit case
-
-    :return: Path to the created certificate file or None if failed
+    :param client_info: A dictionary containing client-specific information used to replace
+        placeholders within the certificate template. Possible keys include:
+        'bafin_id' (int), 'institute' (str), 'address' (str), 'city' (str),
+        'validation_date' (str, optional in ISO-8601 format).
+    :type client_info: dict
+    :param audit_case_id: A unique identifier for the audit case, used to determine the
+        storage location for the generated certificate.
+    :type audit_case_id: int
+    :return: The file path where the created certificate document is stored, or None if
+        an error occurred during its creation.
+    :rtype: str | None
     """
     try:
         # Get template path from environment variable or use a default
@@ -108,13 +130,15 @@ def create_certificate_from_template(client_info: dict, audit_case_id: int) -> s
 
 def convert_docx_to_pdf(docx_path: str) -> str | None:
     """
-    Convert a DOCX file to PDF using an appropriate method.
+    Converts a .docx file to a .pdf file using various methods including docx2pdf, LibreOffice,
+    and a fallback to ReportLab if other methods fail. The method attempts to maintain compatibility
+    across different systems, using docx2pdf on Windows, LibreOffice on compatible platforms, and
+    manually creating the PDF as a last resort.
 
-    Args:
-        docx_path: Path to the DOCX file
-
-    Returns:
-        str: Path to the PDF file or None if failed
+    :param docx_path: The complete file path to the DOCX file to be converted.
+    :type docx_path: str
+    :return: The file path to the generated PDF if successful, otherwise None if conversion fails.
+    :rtype: str | None
     """
     try:
         # Define the PDF output path
@@ -205,14 +229,20 @@ def convert_docx_to_pdf(docx_path: str) -> str | None:
 
 def extract_first_page(document_path: str, audit_case_id: int) -> str | None:
     """
-    Extract the first page from a PDF document.
+    Extracts the first page of a given document and saves it as a new PDF file in a specific directory.
 
-    Args:
-        document_path: Path to the PDF document
-        audit_case_id: The ID of the audit case
+    This function opens a PDF document, verifies the existence of pages, and extracts the first page into
+    a new PDF. The generated file is saved to a directory defined by an environment variable, with
+    directories created if they do not exist. If an error occurs during the process, it logs the error
+    and returns None.
 
-    Returns:
-        str: Path to the extracted first page or None if failed
+    :param document_path: The file path to the PDF document to be processed.
+    :type document_path: str
+    :param audit_case_id: The unique identifier for the audit case to which the document belongs.
+    :type audit_case_id: int
+    :return: The file path to the newly created PDF document containing the first page, or None if an
+             error occurs.
+    :rtype: str | None
     """
     try:
         # Open the document
@@ -246,16 +276,21 @@ def extract_first_page(document_path: str, audit_case_id: int) -> str | None:
 
 def combine_pdfs(certificate_path: str, first_page_path: str, terms_path: str, audit_case_id: int) -> str | None:
     """
-    Combine the certificate, first page of the audit document, and terms & conditions into a single PDF.
+    Combines multiple PDF files into a single PDF file and saves the result. The function
+    creates a combined PDF by appending a certificate, the first page of an audit document,
+    and terms & conditions into one document. The resulting PDF is saved to a directory
+    structured using the provided audit case ID.
 
-    Args:
-        certificate_path: Path to the certificate PDF
-        first_page_path: Path to the first page of the audit document
-        terms_path: Path to the terms & conditions PDF
-        audit_case_id: The ID of the audit case
-
-    Returns:
-        str: Path to the combined PDF or None if failed
+    :param certificate_path: Path to the PDF file containing the certificate.
+    :type certificate_path: str
+    :param first_page_path: Path to the PDF file containing the first page of the audit document.
+    :type first_page_path: str
+    :param terms_path: Path to the PDF file containing the terms and conditions.
+    :type terms_path: str
+    :param audit_case_id: Unique identifier of the audit case used to organize and name the resulting file.
+    :type audit_case_id: int
+    :return: The file path of the saved combined PDF file if successful, otherwise None.
+    :rtype: str | None
     """
     try:
         # Check if all input files exist

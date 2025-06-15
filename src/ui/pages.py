@@ -27,8 +27,15 @@ log = logging.getLogger(__name__)
 
 def home(mailclient: Mailclient = None, database: Database = Database.get_instance()):
     """
-    This is the main ui page for the application.
-    It serves as a landing page and provides the user with options to navigate the application.
+    Render the home page of the Document Fetcher application. The page provides functionalities for
+    viewing fetched emails, processing them, and displaying active audit cases. The layout includes
+    sections for email operations and auditing case listings, with appropriate access control checks
+    based on the user's role.
+
+    :param mailclient: The mail client instance used for fetching and handling emails.
+    :type mailclient: Mailclient, optional
+    :param database: The database instance used for querying and updating audit-related information.
+    :type database: Database, optional
     """
     log.debug('Rendering home page')
 
@@ -142,9 +149,12 @@ def home(mailclient: Mailclient = None, database: Database = Database.get_instan
 
 def active_cases(database: Database = Database.get_instance()):
     """
-    UI page for viewing and managing active audit cases.
+    Fetches and displays active audit cases based on the user's role and permissions.
+    The function retrieves data from the database, provides a selection interface for cases,
+    and allows users to view and manage case details as well as document information.
 
-    :param database: Database instance to use. Defaults to the global database instance.
+    :param database: Database instance used for querying and updating case and document data.
+    :type database: Database
     """
     log.debug('Rendering active cases page')
 
@@ -404,9 +414,11 @@ def active_cases(database: Database = Database.get_instance()):
 
 def settings(database: Database = Database().get_instance()):
     """
-    This is the settings ui page for the application.
+    Render and manage the settings page for the application interface. This function checks user access
+    rights and dynamically displays the appropriate configuration sections for the application.
 
-    :param database: Optional database instance to use.
+    :param database: Database instance used for managing and storing application-related settings.
+    :type database: Database
     """
     log.debug('Rendering settings page')
 
@@ -799,6 +811,7 @@ def settings(database: Database = Database().get_instance()):
                         # Refresh the statistics
                         st.rerun()
 
+    # TODO: Break these down into their own functions for better organization
     # User Management tab
     with tab_objects[2]:
         st.subheader("User Management")
@@ -993,7 +1006,18 @@ def settings(database: Database = Database().get_instance()):
 
 def about():
     """
-    This is the about ui page for the application.
+    Provides the implementation of the about section for a Streamlit application. This
+    includes rendering information about the application, displaying application logs from
+    a predefined log file with adjustable visibility using a slider, and enabling users
+    to submit bug reports.
+
+    :param st: Streamlit module for building the application interface.
+    :type st: module
+    :param os: Standard Python module for handling file paths and environment variables.
+    :type os: module
+    :param deque: A double-ended queue from collections module for efficiently fetching
+                  lines from the end of the log file.
+    :type deque: collections.deque
     """
     st.header('About')
     st.write('FinDAG Document Processing Application')
@@ -1048,9 +1072,17 @@ def about():
 
 def login(database: Database = None) -> bool:
     """
-    Display a login form and handle authentication.
+    Handles the login functionality for the Document Fetcher application. It allows users to
+    log in using valid credentials and manages user sessions securely. The function implements
+    basic protection against brute force attacks by tracking failed login attempts.
 
-    :return: True if login is successful, False otherwise.
+    :param database: An instance of the Database class that provides methods for querying,
+        inserting, and managing the application's database.
+    :type database: Database, optional
+    :return: True if the login is successful, otherwise False.
+    :rtype: bool
+
+    :raises Exception: If there is an error during the login process, such as database connection issues
     """
     st.title("Document Fetcher - Login")
     st.markdown("Please enter your credentials to access the application.")

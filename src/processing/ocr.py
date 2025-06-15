@@ -11,11 +11,18 @@ from easyocr import Reader
 
 def ocr_cell(cell_image, reader: Reader = None) -> str:
     """
-    Perform OCR on a cell image using EasyOCR.
+    Performs OCR (Optical Character Recognition) on a provided cell image to extract
+    text content. If a pre-initialized OCR reader is not provided, a new one is
+    created internally. In cases where no text is detected in the cell, it attempts
+    an additional process for identifying content such as single digits.
 
-    :param cell_image: The image of the cell to perform OCR on.
-    :param reader: The EasyOCR reader instance. If None, a new reader will be created.
-    :return: The extracted text from the cell image.
+    :param cell_image: The image of the cell to process for text extraction.
+    :type cell_image: numpy.ndarray
+    :param reader: An optional EasyOCR Reader instance for performing OCR.
+                   If not provided, a default reader will be created.
+    :type reader: Reader, optional
+    :return: The text extracted from the cell image after performing OCR.
+    :rtype: str
     """
     # Create a new reader if one wasn't provided
     if reader is None:
@@ -38,11 +45,19 @@ def ocr_cell(cell_image, reader: Reader = None) -> str:
 
 def create_ocr_reader(language: str = 'en', use_gpu: bool = False) -> Reader:
     """
-    Create an EasyOCR reader instance with GPU support if available and enabled.
+    Creates an OCR Reader object with specified language and hardware preference (CPU or GPU). This function
+    allows using a GPU for OCR processing if available and explicitly requested or defaults to CPU otherwise.
+    The function will check the environment variable 'OCR_USE_GPU' and use its value if the `use_gpu` parameter
+    is not explicitly provided.
 
-    :param language: The language for OCR. Default is 'en' (English).
-    :param use_gpu: Boolean flag to indicate if GPU should be used. Default is False.
-    :return: An EasyOCR reader instance
+    :param language: Language to be used by the OCR Reader. Defaults to 'en' (English).
+    :type language: str
+    :param use_gpu: Flag indicating whether to enable GPU for OCR processing. Defaults to False.
+                    If not explicitly provided, this flag is determined by the 'OCR_USE_GPU' environment
+                    variable ('true', '1', 'yes' for GPU; otherwise CPU).
+    :type use_gpu: bool
+    :return: An OCR Reader instance configured to process text in the specified language using either CPU or GPU.
+    :rtype: Reader
     """
     if not use_gpu:
         # Check if GPU should be used (default is False)
@@ -68,11 +83,18 @@ def create_ocr_reader(language: str = 'en', use_gpu: bool = False) -> Reader:
 
 def ocr_cell_tesseract(cell_image) -> str:
     """
-    Perform OCR on a cell image using Tesseract.
-    This is kept for testing purposes but not used in production.
+    Extracts text from a given cell image using Tesseract OCR.
 
-    :param cell_image: The image of the cell to perform OCR on.
-    :return: The extracted text from the cell image.
+    This function takes an image of a cell as input, processes it to be compatible
+    with Tesseract OCR, and extracts textual content from it. The input is expected
+    to be a cell image in OpenCV's format, which is converted to a PIL Image before
+    passing it to Tesseract OCR. The extracted text is stripped of leading and
+    trailing whitespace before being returned.
+
+    :param cell_image: The input image of a cell from which text needs to be extracted.
+    :type cell_image: numpy.ndarray
+    :return: The textual content extracted from the cell image.
+    :rtype: str
     """
     # Convert to PIL Image for Tesseract
     pil_image = Image.fromarray(cv2.cvtColor(cell_image, cv2.COLOR_BGR2RGB))
@@ -88,13 +110,19 @@ def ocr_cell_tesseract(cell_image) -> str:
 
 def _handle_empty_cell_result_easyocr(cell_image, reader: Reader) -> str:
     """
-    Handle cases where EasyOCR doesn't detect any text in a cell.
-    This function tries specialized approaches for single digits,
-    particularly focusing on detecting "0" values.
+    Attempts to interpret possible numeric content in an image of a single cell using enhanced preprocessing
+    and EasyOCR. The function first applies grayscale conversion and thresholding before analyzing contours
+    for plausible text regions. If contours suggest the presence of numeric elements, enhanced preprocessing
+    such as resizing and examining ratios of dimensions and area are used to identify numeric shapes.
+    Fallback mechanisms like detecting specific contour characteristics, such as circularity, are implemented
+    to identify the digit "0" in ambiguous cases. If no numeric content is found, an empty string is returned.
 
-    :param cell_image: The cell image that returned no OCR results
-    :param reader: The EasyOCR reader instance
-    :return: The detected text or "0" if a digit-like pattern is found
+    :param cell_image: Image of the cell to be analyzed. Could be in grayscale or color.
+    :type cell_image: numpy.ndarray
+    :param reader: Pre-initialized EasyOCR reader instance for OCR detection of numbers.
+    :type reader: Reader
+    :return: Numeric content detected in the cell, or an empty string if none is found.
+    :rtype: str
     """
     # Convert to grayscale if it's not already
     if len(cell_image.shape) == 3:

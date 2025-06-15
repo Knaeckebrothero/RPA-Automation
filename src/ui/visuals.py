@@ -16,9 +16,20 @@ log = logging.getLogger(__name__)
 # TODO: Fix issue with labels overlapping
 def pie_submission_ratio() -> plt.Figure:
     """
-    This function generates a pie chart showing the ratio of companies that have already submitted something.
+    Generates a pie chart illustrating the distribution of client cases categorized
+    into successfully processed, currently in progress, and not submitted. The chart
+    also accounts for situations where no data is available.
 
-    :return: The plot as a matplotlib figure.
+    The calculation uses data retrieved from the `Database` instance. It queries the
+    number of distinct clients in the following categories:
+      - Successfully processed cases (stage 5).
+      - Cases in progress (stages > 1 and < 5, or stage 1 with an associated email).
+      - Clients with no submitted cases.
+
+    If all these categories have zero values, the chart will indicate "No data".
+
+    :return: A matplotlib figure containing the generated pie chart.
+    :rtype: plt.Figure
     """
     db = Database.get_instance()
 
@@ -65,11 +76,22 @@ def pie_submission_ratio() -> plt.Figure:
 
 def stage_badge(stage: int, pure_string: bool = False) -> str:
     """
-    Return HTML for a status badge based on the audit case status code.
+    Returns a status badge or status text based on the given stage. The badge can be
+    formatted in HTML or returned as plain text depending on the `pure_string` flag.
 
-    :param stage: The status code from the audit_case table
-    :param pure_string: If True, return only the status text without HTML
-    :return: HTML string for a colored badge showing the status
+    The function supports five stages with respective statuses and colors. If the
+    stage number does not correspond to a predefined value, "Unknown" and a red
+    color (#FF0000) are returned.
+
+    :param stage: The numeric representation of the current process stage. Accepted
+        stages range from 1 to 5.
+    :type stage: int
+    :param pure_string: Determines whether the return value should be plain text or
+        an HTML-formatted badge. If True, plain text is returned. Defaults to False.
+    :type pure_string: bool
+    :return: A plain status string or an HTML-formatted badge summarizing the
+        corresponding process stage.
+    :rtype: str
     """
     if pure_string:
         # Return only the status text without HTML
@@ -109,9 +131,16 @@ def stage_badge(stage: int, pure_string: bool = False) -> str:
 
 def client_info_box(client_data):
     """
-    Display client information in a formatted info box.
+    Displays a formatted information box about a client based on the provided
+    data. The information is divided into columns for better layout and includes
+    details such as institute name, BaFin ID, address, contact person, and
+    other contact details. A warning message is displayed if no client data
+    is available.
 
-    :param client_data: Pandas DataFrame row containing client information
+    :param client_data: Dictionary containing client-related information. Expected
+        keys are 'institute', 'bafin_id', 'address', 'city', 'contact_person',
+        'phone', 'fax', and 'email'.
+    :type client_data: dict or None
     """
     if client_data is None:
         st.warning("No client data available")

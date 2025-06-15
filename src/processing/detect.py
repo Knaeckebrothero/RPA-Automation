@@ -15,11 +15,18 @@ log = log.getLogger(__name__)
 
 def normalize_image_resolution(image, target_dpi=400):
     """
-    Normalize image to a standard resolution based on target DPI.
+    Normalizes the resolution of the given image to the specified target DPI by resizing the image based
+    on its estimated DPI. If the image's estimated DPI matches the target DPI, the image is returned
+    unaltered. Otherwise, the function rescales the image dimensions proportionally to match the desired
+    DPI.
 
-    :param image: Input image (numpy array)
-    :param target_dpi: Target DPI to normalize to (default 400)
-    :return: Resized image normalized to target DPI
+    :param image: The input image to be normalized.
+    :type image: numpy.ndarray
+    :param target_dpi: The desired DPI (dots per inch) to which the image should be normalized.
+                       Defaults to 400 if not specified.
+    :type target_dpi: int, optional
+    :return: The image resized to the target DPI if necessary, or the unaltered image otherwise.
+    :rtype: numpy.ndarray
     """
     # Get current image dimensions
     h, w = image.shape[:2]
@@ -28,7 +35,6 @@ def normalize_image_resolution(image, target_dpi=400):
     # For this example, we'll estimate based on common document sizes
     # A typical A4 document is 8.27 × 11.69 inches
     # At 600 DPI, that would be approximately 4960 × 7016 pixels
-
     estimated_dpi = estimate_dpi(h, w)
 
     # Calculate scaling factor
@@ -46,12 +52,19 @@ def normalize_image_resolution(image, target_dpi=400):
 
 def estimate_dpi(height, width):
     """
-    Estimate the DPI of an image based on its dimensions.
-    This is a rough estimation assuming standard document sizes.
+    Estimates the dots per inch (DPI) of an image or screen based on its dimensions
+    (height and width). It assumes the document is of A4 size, where the longest
+    dimension is typically used for portrait orientation (11.69 inches). The function
+    calculates the DPI by dividing the longest dimension by the longest inch of an
+    A4 document. The result is clamped within a reasonable range (75-1200), where
+    the lower and upper bounds represent typical minimum and maximum DPI values.
 
-    :param height: Image height in pixels
-    :param width: Image width in pixels
-    :return: Estimated DPI
+    :param height: The height of the image or screen in pixels.
+    :type height: int
+    :param width: The width of the image or screen in pixels.
+    :type width: int
+    :return: The estimated DPI clamped within the range of 75 and 1200.
+    :rtype: float
     """
     # Assuming the document is A4 (8.27 × 11.69 inches)
     # Longest dimension is usually height for portrait orientation
@@ -71,18 +84,23 @@ def estimate_dpi(height, width):
 
 def tables(bgr_image_array: np.array) -> List[np.array]:
     """
-    This function detects the contours of tables in an image.
+    Detects and extracts potential table regions from a given image represented as a
+    NumPy array. The function processes the input image to identify horizontal and
+    vertical lines, combines them to form a mask, and then detects contours that
+    correspond to possible table regions. It performs filtering based on area and
+    containment rules to refine the detected table regions.
 
-    It does so by detecting horizontal and vertical lines in the image and combining them to form a mask.
-    The contours of the mask are then extracted and filtered based on area to identify the tables.
-    It also filters out contours that are contained within other contours to avoid detecting
-    cells as tables.
+    Tables are identified based on structural cues such as horizontal and
+    vertical lines, followed by contour detection and analysis.
 
-    The function uses a point-based containment check to ensure accuracy, where a contour
-    is considered "inside" another if most of its points fall within the area of the larger contour.
+    :param bgr_image_array: Input image in BGR color format or grayscale. A 3-dimensional array
+        is assumed as a color image, which will be converted into grayscale internally for
+        further processing. Grayscale images are processed directly.
+    :type bgr_image_array: np.array
 
-    :param bgr_image_array: A NumPy array representing the input image in BGR format.
-    :return: A list of points representing the contours of the detected tables.
+    :return: A list of NumPy arrays representing the contours of detected table regions.
+        Each contour describes the boundary of a potential table in the input image.
+    :rtype: List[np.array]
     """
     if len(bgr_image_array.shape) == 3:  # Check if the image is in color
         # Convert to grayscale for structural analysis
@@ -177,14 +195,36 @@ def tables(bgr_image_array: np.array) -> List[np.array]:
 
 def _is_contour_inside(cnt1, cnt2, img_shape, threshold=0.9):
     """
-    Helper function to check if contour cnt1 is inside contour cnt2.
-    Uses a pixel-based approach to check what percentage of cnt1's points lie inside cnt2.
+    Determines if one contour is mostly contained within another contour based
+    on a specified threshold. The function evaluates the percentage of points
+    from the smaller contour that are inside the larger contour. If this
+    percentage exceeds the given threshold, the smaller contour is considered
+    to be inside the larger contour. The function uses a binary mask to aid
+    in the calculation.
 
-    :param cnt1: First contour (potentially inside)
-    :param cnt2: Second contour (potentially containing)
-    :param img_shape: Shape of the image (height, width)
-    :param threshold: Percentage threshold for containment (default: 0.9)
-    :return: True if cnt1 is inside cnt2, False otherwise
+    :param cnt1: The smaller contour whose points will be checked for containment.
+        The contour should be a list or array of points.
+    :type cnt1: list or numpy.ndarray
+
+    :param cnt2: The potentially larger contour within which the points of `cnt1`
+        will be tested for containment. The contour should be a list or array of
+        points.
+    :type cnt2: list or numpy.ndarray
+
+    :param img_shape: The shape of the binary mask used for containment testing.
+        Should typically be `(height, width)` of the image from which contours
+        were extracted.
+    :type img_shape: tuple
+
+    :param threshold: The minimum percentage (0-1) of `cnt1` points required
+        to be inside `cnt2` for `cnt1` to be considered contained. Default is
+        0.9 (90%).
+    :type threshold: float
+
+    :return: A boolean indicating whether the smaller contour (`cnt1`) is
+        considered contained within the larger contour (`cnt2`) based on the
+        threshold.
+    :rtype: bool
     """
     # Create a mask for the potentially larger contour
     mask = np.zeros(img_shape, dtype=np.uint8)
@@ -205,11 +245,20 @@ def _is_contour_inside(cnt1, cnt2, img_shape, threshold=0.9):
 
 def rows(table_image: np.array) -> List[Tuple[int, int]]:
     """
-    Detect rows in a table by finding horizontal separator lines,
-    filtering out small gaps and borders.
+    Extracts the row boundaries from an image of a table by detecting horizontal lines.
+    The function works with a grayscale image or automatically converts a color image
+    to grayscale. Horizontal lines are identified to determine row boundaries, and rows
+    are created based on the lines detected. Post-processing is applied to filter out
+    insignificant rows and handle edge cases where no lines are detected.
 
-    :param table_image: A NumPy array representing the table image
-    :return: A list of tuples representing the y-coordinates of rows
+    :param table_image: The input image of the table, expected as a numpy array.
+        The image should represent the table from which row boundaries need to be extracted.
+    :type table_image: np.array
+
+    :return: A list of tuples representing the start and end vertical positions of the
+        detected rows in the table. Each tuple consists of two integers: the start and
+        end y-coordinate of a row.
+    :rtype: List[Tuple[int, int]]
     """
     # Convert to grayscale if needed
     if len(table_image.shape) == 3:
@@ -285,10 +334,17 @@ def rows(table_image: np.array) -> List[Tuple[int, int]]:
 
 def cells(row_image: np.array) -> List[Tuple[int, int]]:
     """
-    Detect cells in a row by finding significant vertical separator lines.
+    Extracts cells from a row image by detecting vertical line separators. This function processes
+    a given row image and identifies the x-coordinate boundaries of potential "cells" (subsections
+    of the row). It uses computer vision techniques, such as contour detection and binary
+    thresholding, to determine vertical lines, which serve as separators for the cells.
 
-    :param row_image: A NumPy array representing the row image
-    :return: A list of tuples representing the x-coordinates of detected cells
+    :param row_image: Image of a single row from a table, represented as a numpy array. This image
+        may be in grayscale or color format.
+    :type row_image: np.array
+    :return: A list of tuples where each tuple represents the start and end x-coordinates of a cell
+        within the row. Each tuple defines the range `(start_x, end_x)` encompassing the cell.
+    :rtype: List[Tuple[int, int]]
     """
     # Input validation
     if row_image is None or row_image.size == 0:
@@ -355,12 +411,17 @@ def cells(row_image: np.array) -> List[Tuple[int, int]]:
 
 def bafin_id(text: str) -> int | None:
     """
-    Extract the BaFin ID from a text string.
-    The function looks for patterns like "BaFin-ID 12345678" or "BaFin-ID (wenn bekannt) 12345678"
-    and handles potential OCR errors in the surrounding text.
+    Extracts a BaFin ID from the given text string.
 
-    :param text: The text to search for a BaFin ID
-    :return: The 8-digit BaFin ID if found, or an empty string if no valid BaFin ID is found
+    The function attempts to find a valid German BaFin (Federal Financial Supervisory Authority)
+    identification number (ID), which is an 8-digit numeric value. It employs multiple
+    regular expression patterns to detect the ID within the provided text. Keywords and
+    context are also examined to identify possible IDs if primary patterns fail.
+
+    :param text: The input text in which the BaFin ID needs to be identified.
+    :type text: str
+    :return: The extracted BaFin ID as an integer if found, otherwise None.
+    :rtype: int | None
     """
     if not text:
         log.warning("Empty text provided to extract_bafin_id")
@@ -426,19 +487,39 @@ def bafin_id(text: str) -> int | None:
 
 def _similar(a, b):
     """
-    Calculate similarity ratio between two strings
+    Computes the similarity ratio between two sequences.
+
+    This function calculates the similarity ratio between two input sequences
+    using the `difflib.SequenceMatcher`. The similarity ratio is a floating-point
+    value between 0 and 1, where 1 indicates a perfect match, and values closer
+    to 0 indicate less similarity.
+
+    :param a: The first sequence to compare.
+    :type a: str
+    :param b: The second sequence to compare.
+    :type b: str
+    :return: The similarity ratio between the two sequences.
+    :rtype: float
     """
     return SequenceMatcher(None, a, b).ratio()
 
 
 def signature(image, signature_regions=None):
     """
-    Detect if a signature is present in the specified regions of an image.
+    Detects the presence of a signature in an image by analyzing specified or detected
+    signature regions. The image is analyzed for features typically found in a signature,
+    such as pixel density and contour characteristics. If no regions are specified, the
+    function attempts to detect potential signature areas or switches to default signature
+    regions based on common document layout.
 
-    :param image: The image to check for signatures (numpy array)
-    :param signature_regions: Optional list of tuples [(x, y, w, h)] defining signature areas
-                            If None, will attempt to detect likely signature areas
-    :return: Boolean indicating if a signature is detected
+    :param image: Input image to analyze for signature presence. Can be grayscale or colored.
+    :type image: numpy.ndarray
+    :param signature_regions: Optional. List of regions (x, y, width, height) to specifically
+                               analyze for signature presence. If not provided, signature regions
+                               are detected automatically or default regions are used.
+    :type signature_regions: list[tuple[int, int, int, int]] | None
+    :return: Indicates whether a signature is present in the analyzed regions of the image.
+    :rtype: bool
     """
     if len(image.shape) == 3:
         # Convert to grayscale if needed
@@ -492,12 +573,23 @@ def signature(image, signature_regions=None):
 
 def _detect_potential_signature_regions(gray_image):
     """
-    Detect potential signature regions by finding horizontal lines that might be
-    signature lines and looking above them, using Hough Line Transform.
-    Prioritizes regions that are more towards the right side of the image.
+    Detects potential signature regions in a grayscale image based on specific
+    geometric and positional constraints.
 
-    :param gray_image: Grayscale image
-    :return: List of rectangles [(x, y, w, h)]representing potential signature areas
+    This function processes the input grayscale image to identify straight
+    line segments that are horizontally oriented, situated in the lower
+    portion of the image, and fit the expected characteristics of signature
+    lines. Detected regions are then adjusted around these line segments to
+    define bounding areas that may contain a signature.
+
+    :param gray_image: A single-channel image (grayscale) to analyze for potential
+        signature regions.
+    :type gray_image: numpy.ndarray
+    :return: A list of rectangular regions of interest that may contain
+        signatures. Each region is represented by a tuple `(x, y, width,
+        height)`, where `x` and `y` specify the top-left corner of the rectangle,
+        and `width`, `height` indicate its size.
+    :rtype: list[tuple[int, int, int, int]]
     """
     h, w = gray_image.shape
     regions = []
@@ -564,13 +656,16 @@ def _detect_potential_signature_regions(gray_image):
 
 def _detect_potential_date_regions(gray_image):
     """
-    Detect potential date regions by finding horizontal lines that might be
-    date lines and looking above them, using Hough Line Transform.
-    Dates typically appear in specific locations in forms, often on the 
-    left 50% and bottom 25% of the page.
+    Detects and extracts potential regions in an image that could correspond to a date field. The function assumes
+    that the input image is in grayscale format. It identifies date regions by analyzing horizontal line features
+    in the image, which often delimit date fields. Several criteria such as angle, position, and size are utilized
+    to filter and detect relevant regions.
 
-    :param gray_image: Grayscale image
-    :return: List of rectangles [(x, y, w, h)] representing potential date areas
+    :param gray_image: Input grayscale image to process for detecting potential date regions.
+    :type gray_image: numpy.ndarray
+    :return: A list of potential bounding boxes likely to contain date information. Each bounding box is represented
+             as a tuple (x, y, width, height).
+    :rtype: list[tuple[int, int, int, int]]
     """
     h, w = gray_image.shape
     regions = []
@@ -621,13 +716,23 @@ def _detect_potential_date_regions(gray_image):
 
 def date(image, date_regions=None):
     """
-    Detect if any handwritten content is present in the expected date area of an image.
-    This function checks for the presence of content rather than verifying it's a valid date.
+    Determines the presence of handwritten content in specific regions of an
+    image, primarily aimed at detecting handwritten dates on documents. The
+    image is processed, and date regions are either provided or detected
+    automatically. Various checks such as pixel density, contours, and region
+    validation are performed to identify handwritten content.
 
-    :param image: The image to check for date content (numpy array)
-    :param date_regions: Optional list of tuples [(x, y, w, h)] defining date areas.
-     If None, will attempt to detect likely date areas.
-    :return: Boolean indicating if content is detected in the date area
+    :param image: Input image, either in grayscale or color. If the image is
+        in color, it will be converted to grayscale.
+    :type image: numpy.ndarray
+    :param date_regions: Optional parameter specifying regions of interest
+        (ROIs) in the format [(x, y, w, h), ...] to check for handwritten
+        content. If not provided, regions will be automatically detected based
+        on document layout.
+    :type date_regions: list[tuple[int, int, int, int]] | None
+    :return: A Boolean value indicating whether significant handwritten
+        content is detected in the specified or detected date regions.
+    :rtype: bool
     """
     # Convert to grayscale if needed
     if len(image.shape) == 3:
@@ -683,10 +788,17 @@ def date(image, date_regions=None):
 
 def detect_document_completeness(image):
     """
-    Check if a document is complete with both signature and date.
+    Analyzes an image of a document to determine its completeness, based on the presence
+    of a signature and a date. The function inspects the given image for these two key
+    elements and returns a dictionary containing the evaluation results.
 
-    :param image: The document image to check
-    :return: Dictionary with completeness status
+    :param image: The input image containing the document to analyze.
+    :type image: Any
+    :return: A dictionary with the completeness assessment results. It includes:
+             - 'has_signature': Boolean indicating if a signature is detected.
+             - 'has_date': Boolean indicating if a date is detected.
+             - 'is_complete': Boolean indicating if the document has both a signature and a date present.
+    :rtype: dict
     """
     has_signature = signature(image)
     has_date = date(image)
