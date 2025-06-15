@@ -52,20 +52,59 @@ else:
 
 class HTMLTextExtractor(HTMLParser):
     """
-    Simple HTML parser to extract text content from HTML.
-    This replaces BeautifulSoup's get_text() functionality.
+    A utility class for extracting and processing plain text from HTML content.
+
+    This class extends the `HTMLParser` class to allow parsing of HTML while
+    selectively handling specific HTML elements. It removes script and style
+    content, cleans up whitespace, and formats block elements to include
+    structured newlines. It is particularly useful for extracting readable
+    text from HTML documents.
+
+    :ivar text_parts: List of accumulated text parts during parsing.
+    :type text_parts: list[str]
+    :ivar skip_data: Counter used to determine whether to skip adding text
+       (e.g., when within <script> or <style> tags).
+    :type skip_data: int
     """
     def __init__(self):
+        """
+        Manages the initialization of an object with text-related attributes.
+
+        This initializer sets up the necessary attributes for managing and processing
+        text data. It initializes an empty list to hold parts of text and a counter
+        to handle skip-related operations.
+        """
         super().__init__()
         self.text_parts = []
         self.skip_data = 0
 
     def handle_starttag(self, tag, attrs):
-        # Skip script and style content
+        """
+        Handles the start of an HTML or XML tag encountered during parsing. If the tag
+        is either 'script' or 'style', it increments the counter to skip their content.
+
+        :param tag: The name of the tag encountered.
+        :type tag: str
+        :param attrs: A list of attributes of the tag, where each attribute is a tuple
+            consisting of the attribute name and its value.
+        :type attrs: list[tuple[str, str | None]]
+        """
         if tag in ('script', 'style'):
             self.skip_data += 1
 
     def handle_endtag(self, tag):
+        """
+        Handles the closing HTML tags during parsing and performs actions based on the tag type.
+
+        This function processes end tags encountered in HTML content. For script and
+        style tags, it adjusts an internal counter to properly skip the data associated
+        with these tags. For block elements such as paragraphs or headers, it appends
+        a newline to the collected text data to reflect the proper structure of the
+        HTML content.
+
+        :param tag: The end tag that is being processed.
+        :type tag: str
+        """
         if tag in ('script', 'style'):
             self.skip_data -= 1
         # Add newline for block elements
@@ -73,6 +112,17 @@ class HTMLTextExtractor(HTMLParser):
             self.text_parts.append('\n')
 
     def handle_data(self, data):
+        """
+        Handles input data by cleaning it and appending to internal storage.
+
+        This method processes the given data by stripping whitespace from the
+        input. If the cleaned text is not empty and the skip_data attribute
+        is 0, it appends the processed text and a space to the internal list
+        text_parts.
+
+        :param data: Input string data to be processed.
+        :type data: str
+        """
         if self.skip_data == 0:
             # Clean up whitespace
             text = data.strip()
@@ -81,7 +131,18 @@ class HTMLTextExtractor(HTMLParser):
                 self.text_parts.append(' ')
 
     def get_text(self):
-        # Join all text parts and clean up extra whitespace
+        """
+        Joins text parts into a single formatted string by removing extra whitespace
+        and normalizing spacing. This method combines the text segments provided in
+        `self.text_parts` while ensuring that excessive whitespace and newlines are
+        cleaned up for consistent formatting.
+
+        :raises AttributeError: If `self.text_parts` is not defined or is of an
+            incompatible type.
+
+        :return: A cleaned, formatted string combining all text parts.
+        :rtype: str
+        """
         text = ''.join(self.text_parts)
         # Replace multiple spaces with single space
         text = re.sub(r'\s+', ' ', text)
@@ -92,11 +153,14 @@ class HTMLTextExtractor(HTMLParser):
     @classmethod
     def extract_text_from_html(cls, html_content):
         """
-        Extract plain text from HTML content.
-        This replaces BeautifulSoup's get_text() functionality.
+        Extracts text content from an HTML string using an HTML parser. In case of an
+        error during the parsing process, it falls back to a simple regex-based
+        approach to strip HTML tags.
 
-        :param html_content: HTML string
-        :return: Extracted text
+        :param html_content: A string containing HTML content to extract text from.
+        :type html_content: str
+        :return: The extracted text content with HTML tags removed.
+        :rtype: str
         """
         parser = cls()
         try:
@@ -111,34 +175,41 @@ class HTMLTextExtractor(HTMLParser):
 
 class Mailclient(Singleton):
     """
-    Handles the functionality of connecting to an IMAP mail server, logging in, selecting
-    inboxes, and managing email messages. It also provides basic SMTP functionality for
-    sending emails.
+    A mail client designed to handle operations like connecting to mail servers,
+    logging in, fetching emails, sending emails via SMTP, managing inboxes,
+    and maintaining secure connections. The class uses environment variables as
+    default sources for credentials and server information, allowing for
+    flexibility in deployment and configuration. It also incorporates connection
+    reuse and cleanup mechanisms to manage resources efficiently.
 
-    The class is implemented as a singleton to ensure that only one instance is created,
-    allowing for the consistent management of mail server connections and credentials.
-    The class automatically fetches environment variables for missing parameters and logs
-    its operations. Proper management of server connections is ensured by using the connect,
-    login, and close methods.
+    Usage of this class assumes familiarity with basic email protocols
+    (IMAP and SMTP) and requires the presence of the necessary credentials for
+    authentication.
 
-    :ivar _connection: Connection to the IMAP mail server.
-    :type _connection: IMAP4_SSL or None
-    :ivar _decoding_format: The decoding format used for emails (e.g., 'iso-8859-1').
+    :ivar _connection: Connection object representing the IMAP server connection.
+    :type _connection: Optional[IMAP4_SSL]
+    :ivar _decoding_format: Format used to decode email content. Default is
+        `iso-8859-1`, but can be set to `utf-8` or other formats as needed.
     :type _decoding_format: str
-    :ivar _imap_server: The IMAP server address for connection.
-    :type _imap_server: str
-    :ivar _imap_port: The port number of the IMAP server.
-    :type _imap_port: int
-    :ivar _smtp_port: The port number of the SMTP server.
-    :type _smtp_port: int
-    :ivar _username: The username/email address of the account.
-    :type _username: str
-    :ivar _password: The password of the user account.
-    :type _password: str
-    :ivar _inbox: The inbox selected for mail operations.
-    :type _inbox: str
-    :ivar _smtp_connection: Connection to the SMTP server for sending emails.
-    :type _smtp_connection: SMTP or None
+    :ivar _smtp_connection: Connection object for the SMTP server, used for sending
+        emails. Defaults to None until a connection is established.
+    :type _smtp_connection: Optional[smtplib.SMTP]
+    :ivar _imap_server: IMAP server address, provided during instantiation or
+        fetched from environment variables.
+    :type _imap_server: Optional[str]
+    :ivar _imap_port: IMAP server port, provided during instantiation or fetched
+        from environment variables.
+    :type _imap_port: Optional[int]
+    :ivar _smtp_port: SMTP server port, provided during instantiation or fetched
+        from environment variables. Defaults to 587 if not specified.
+    :type _smtp_port: Optional[int]
+    :ivar _username: Username used for authenticating with the mail servers.
+    :type _username: Optional[str]
+    :ivar _password: Password used for authenticating with the mail servers.
+    :type _password: Optional[str]
+    :ivar _inbox: Name of the currently selected inbox. Defaults to 'INBOX' or
+        can be modified using environment variables.
+    :type _inbox: Optional[str]
     """
     _connection = None  # Connection to the mail server
     _decoding_format = 'iso-8859-1'  # 'utf-8'
@@ -146,19 +217,32 @@ class Mailclient(Singleton):
     def __init__(self, imap_server: str = None, imap_port: int = None, smtp_port: int = None,
                  username: str = None, password: str = None, inbox: str = None, *args, **kwargs):
         """
-        Automatically connects to the mailclient, using the provided credentials,
-        once the class is instantiated.
+        Initialize the mail client with the provided server and credential details. The instance
+        can connect to the IMAP server, log in using the specified credentials, select the
+        desired inbox, and optionally connect to the SMTP server.
 
-        Parameters are optional and will be fetched from the environment variables if not specified.
-        If no inbox is provided, it will default to the 'INBOX'.
-        It also defines a custom logger for the class.
-
-        :param imap_server: The imap server to connect to.
-        :param imap_port: The port of the imap server.
-        :param smtp_port: The port of the smtp server.
-        :param username: The username/mail to connect to.
-        :param password: The user's password.
-        :param inbox: Inbox to connect to. Defaults to None.
+        :param imap_server: The IMAP server host. If not provided, the value is fetched from
+            the 'IMAP_HOST' environment variable.
+        :type imap_server: str, optional
+        :param imap_port: The port for the IMAP server. If not specified, it is retrieved
+            from the 'IMAP_PORT' environment variable.
+        :type imap_port: int, optional
+        :param smtp_port: The port for the SMTP server. Defaults to 587 if not provided,
+            or if the 'SMTP_PORT' environment variable is not set.
+        :type smtp_port: int, optional
+        :param username: The username for authentication with the IMAP server. If not provided,
+            it is fetched from the 'IMAP_USER' environment variable.
+        :type username: str, optional
+        :param password: The password for authentication with the IMAP server. If not provided,
+            it is fetched from the 'IMAP_PASSWORD' environment variable.
+        :type password: str, optional
+        :param inbox: The name of the inbox to be selected. Defaults to 'INBOX' if not
+            provided or if the 'INBOX' environment variable is not set.
+        :type inbox: str, optional
+        :param args: Additional positional arguments passed as is.
+        :type args: tuple
+        :param kwargs: Additional keyword arguments passed as is.
+        :type kwargs: dict
         """
         # Initialize instance attributes
         self._smtp_connection = None
@@ -224,8 +308,15 @@ class Mailclient(Singleton):
 
     def __del__(self):
         """
-        Destructor for the mailbox class.
-        Automatically closes the connection to the server when the class is destroyed.
+        Destroy the mail client instance by ensuring that any established
+        connections are properly closed before the object is garbage collected.
+
+        The destructor method is triggered automatically when the instance is
+        deleted. It ensures that open resources, such as connections to servers,
+        are properly handled and released to avoid resource leaks.
+
+        :return: None
+        :rtype: None
         """
         if self._connection:
             self.close()
@@ -236,22 +327,59 @@ class Mailclient(Singleton):
         log.debug('Mail client destroyed')
 
     def get_connection(self):
+        """
+        Retrieves the current connection instance that the object is utilizing.
+
+        This method provides access to the underlying connection object managed by
+        the enclosing class.
+
+        :return: The connection instance being used.
+        """
         return self._connection
 
     def get_inbox(self):
+        """
+        Retrieves the private `_inbox` attribute of the instance.
+
+        This method provides access to the `_inbox` attribute, which is
+        expected to store inbox-related data for the instance.
+
+        :return: The current value of the instance's `_inbox` attribute.
+        """
         return self._inbox
 
     def get__decoding_format(self):
+        """
+        Retrieves the decoding format used by the instance.
+
+        :return: The decoding format.
+        :rtype: str
+        """
         return self._decoding_format
 
     def set_decoding_format(self, decoding_format: str):
+        """
+        Updates the decoding format used by the instance.
+
+        This method allows the user to specify a new decoding format by
+        setting the corresponding attribute. The decoding format determines
+        how the instance processes and interprets data.
+
+        :param decoding_format: The new decoding format to be set.
+        :type decoding_format: str
+        """
         self._decoding_format = decoding_format
 
     def connect(self, imap_server: str, imap_port: int):
         """
-        Method to connect to the mailserver using the classes credentials.
-        It connects to the inbox attribute to connect to.
-        Defaults to None, which will connect to the default inbox.
+        Connects to the IMAP server using the provided server address and port. This method
+        initializes a connection to the IMAP server and logs its status. In case of any
+        exception during the connection process, an error is logged.
+
+        :param imap_server: The hostname or IP address of the IMAP server.
+        :type imap_server: str
+        :param imap_port: The port number to connect to the IMAP server.
+        :type imap_port: int
         """
         try:
             # Use the mock IMAP4_SSL class for testing
@@ -263,10 +391,17 @@ class Mailclient(Singleton):
 
     def login(self, username: str, password: str):
         """
-        Method to login to the mail server.
+        Logs into the connected mail server using the provided credentials.
 
-        :param username: The username to login with.
-        :param password: The password to login with.
+        This method attempts to log in to the mail server using a given username and
+        password. It is required that the mail server is successfully connected before
+        calling this method. If the connection is not established, the method will
+        log an error and will not proceed with the login operation.
+
+        :param username: The username required for authentication on the mail server.
+        :type username: str
+        :param password: The password associated with the provided username.
+        :type password: str
         """
         if not self._connection:
             log.error('Not connected to any mail server at the moment, cannot login!')
@@ -277,8 +412,12 @@ class Mailclient(Singleton):
 
     def close(self):
         """
-        Closes the mailclient and logs out of the server.
-        Sets the mail attribute to None.
+        Closes the connection to the mail server and cleans up the connection object.
+
+        This method ensures that the connection to the mail server is properly
+        terminated by logging out and setting the internal connection attribute
+        to None. It is important to call this method to release resources
+        associated with the mail server.
         """
         log.debug('Closing the connection to the mail server...')
 
@@ -289,10 +428,21 @@ class Mailclient(Singleton):
 
     def connect_smtp(self, smtp_server: str = None, smtp_port: int = None):
         """
-        Connect to SMTP server for sending emails.
+        Establishes an SMTP connection to the specified server and port. If server or
+        port is not provided, it falls back to the default server and port values.
+        The connection is secured using STARTTLS and authenticates with the provided
+        username and password.
 
-        :param smtp_server: SMTP server address (uses IMAP server if not provided)
-        :param smtp_port: SMTP port (uses stored port or defaults to 587)
+        :param smtp_server: The hostname of the SMTP server. Defaults to the configured
+            IMAP server if not specified.
+        :type smtp_server: str, optional
+        :param smtp_port: The port number of the SMTP server. Defaults to 587 if not
+            specified and if no alternative default is provided.
+        :type smtp_port: int, optional
+        :return: None
+        :rtype: None
+        :raises Exception: If there is an error connecting to or authenticating
+            with the SMTP server.
         """
         try:
             if not smtp_server:
@@ -312,7 +462,17 @@ class Mailclient(Singleton):
 
     def close_smtp(self):
         """
-        Close the SMTP connection.
+        Closes the currently active SMTP connection.
+
+        This method ensures that the SMTP connection is properly terminated. If the
+        connection exists, it attempts to execute the `quit` method to gracefully
+        close it. Errors during this process are logged, and the connection is
+        set to None in all cases. This is critical to prevent potential resource
+        leaks when dealing with SMTP communications.
+
+        :raises Exception: Any errors encountered during the closure of the SMTP
+            connection are caught and logged, though the process is designed to
+            continue with cleanup regardless of these errors.
         """
         if self._smtp_connection:
             try:
@@ -325,9 +485,12 @@ class Mailclient(Singleton):
 
     def select_inbox(self, inbox: str = None):
         """
-        Method to select an inbox.
+        Selects the inbox to interact with on the mail server. If no inbox is provided, it defaults to the
+        previously selected inbox stored in the instance or the default "INBOX". This method ensures that the
+        connection to the mail server exists before attempting to select an inbox.
 
-        :param inbox: The inbox to select.
+        :param inbox: The name of the inbox to be selected. Optional, defaults to None.
+        :type inbox: str
         """
         if not self._connection:
             log.error('Not connected to any mail server at the moment, cannot select inbox!')
@@ -348,14 +511,28 @@ class Mailclient(Singleton):
 
     def list_inboxes(self):
         """
-        Method to get a list of possible inboxes.
+        Lists all inboxes available for the current connection.
+
+        This function communicates with the email server through the
+        current connection and retrieves a list of inbox directories.
+
+        :return: A list of inboxes returned by the email server connection.
+        :rtype: list
         """
         log.debug('Listing inboxes...')
         return self._connection.list()[1]
 
     def list_mails(self):
         """
-        Method to list the mails in the selected inbox.
+        Lists all mails on the server for the connected user.
+
+        This method sends a search request to the server to retrieve all available
+        mails. The function uses the 'ALL' search criterion, which returns every mail
+        available in the user's mailbox. It logs both the request initiation and the
+        server's response status to provide clear traceability and debugging details.
+
+        :return: A server response containing mail data or relevant information.
+        :rtype: Any
         """
         log.debug('Listing mails...')
         status, response = self._connection.search(None, 'ALL')
@@ -364,11 +541,16 @@ class Mailclient(Singleton):
 
     def get_mails(self, excluded_ids: list[int] = None) -> pd.DataFrame:
         """
-        Method to list the mails in the selected inbox and return them as a pandas DataFrame.
-        Excludes the emails with IDs present in the excluded_ids list.
+        Fetches emails from the server, excluding those with IDs specified in the excluded_ids list. The
+        function processes email messages, extracts their metadata, and returns a summary of the emails
+        in a pandas DataFrame format. The metadata includes the email ID, subject, sender, date, and a
+        truncated snippet of the email body. Email bodies are parsed and decoded based on content type
+        (text or html). Exclusion of emails is optimized using a set for faster lookups.
 
-        :param excluded_ids: A list of email IDs to exclude from the result.
-        :return: A pandas DataFrame containing the emails.
+        :param excluded_ids: A list of email IDs to be excluded from processing. If None, no exclusion is applied.
+        :type excluded_ids: list[int] | None
+        :return: A pandas DataFrame containing the processed email metadata: ID, Subject, From, Date, and Body Snippet.
+        :rtype: pd.DataFrame
         """
         response = self.list_mails()
         email_ids = response[0].split()
@@ -440,11 +622,18 @@ class Mailclient(Singleton):
 
     def get_attachments(self, email_id, content_type: str | None = 'application/pdf') -> list[Document]:
         """
-        Method to get the attachments of an email.
+        Extract and return a list of attachments from a given email, based on the specified content type.
+        The method retrieves an email using its identifier, processes its content, and collects all
+        attachments matching the specified content type. If no content type is provided, all attachments
+        are retrieved. Attachments are returned as instances of classes `PDF` or `Document`.
 
-        :param email_id: The id of the email to get the attachments from.
-        :param content_type: The content type of the attachments to look for.
-        :return: A list of attachments or an empty list if no attachments are found.
+        :param email_id: The unique identifier of the email to extract attachments from.
+        :type email_id: str
+        :param content_type: The MIME type of attachments to filter. By default, it is set to
+                             'application/pdf'. If set to None, all content types are included.
+        :type content_type: str | None
+        :return: A list of attachments filtered and categorized as either `PDF` or `Document` objects.
+        :rtype: list[Document]
         """
         log.debug(f'Downloading attachments from email {email_id}')
         try:
@@ -523,17 +712,37 @@ class Mailclient(Singleton):
                    cc: Union[str, List[str]] = None, bcc: Union[str, List[str]] = None,
                    reply_to: str = None) -> bool:
         """
-        Send an email using SMTP.
+        Sends an email with optional text body, HTML body, attachments, CC, BCC, and reply-to address.
 
-        :param to_email: Recipient email address(es)
-        :param subject: Email subject
-        :param body: Plain text body (optional)
-        :param html_body: HTML body (optional)
-        :param attachments: Dictionary of {filename: file_bytes} (optional)
-        :param cc: CC recipients (optional)
-        :param bcc: BCC recipients (optional)
-        :param reply_to: Reply-to address (optional)
-        :return: True if email was sent successfully, False otherwise
+        This function facilitates sending an email using a configured SMTP connection. It supports
+        sending to multiple recipients, adding CC and BCC recipients, and attaching files. Both
+        plain text and HTML content can be included in the email. If the connection is not
+        established, it ensures the SMTP connection is created before sending the message.
+
+        Parameters should be correctly formatted to support optional features such as attachments
+        and carbon copy lists.
+
+        :param to_email: The primary recipient(s) of the email. Can be a single email address or a list
+            of addresses.
+        :type to_email: Union[str, List[str]]
+        :param subject: The subject line of the email.
+        :type subject: str
+        :param body: The plain text body of the email. Optional.
+        :type body: str
+        :param html_body: The HTML body of the email for rich formatting. Optional.
+        :type html_body: str
+        :param attachments: A dictionary of file names mapped to their binary content, for adding
+            file attachments. Optional.
+        :type attachments: Dict[str, bytes]
+        :param cc: Carbon copy recipient(s). Can be a single address or a list of addresses. Optional.
+        :type cc: Union[str, List[str]]
+        :param bcc: Blind carbon copy recipient(s). Can be a single address or a list of addresses.
+            Optional.
+        :type bcc: Union[str, List[str]]
+        :param reply_to: The reply-to address for responses to the email. Optional.
+        :type reply_to: str
+        :return: Returns True if the email was successfully sent, else False.
+        :rtype: bool
         """
         try:
             # Create message
@@ -610,15 +819,27 @@ class Mailclient(Singleton):
                                  attachments: Dict[str, bytes] = None,
                                  inline_images: Dict[str, str] = None) -> bool:
         """
-        Send an email using an HTML template.
+        Sends an email using a pre-defined HTML template while substituting variables, attaching files, and optionally adding inline images.
 
-        :param to_email: Recipient email address(es)
-        :param subject: Email subject
-        :param template_path: Path to HTML template file
-        :param template_vars: Dictionary of variables to replace in template
-        :param attachments: Dictionary of {filename: file_bytes} (optional)
-        :param inline_images: Dictionary of {cid: image_path} for inline images (optional)
-        :return: True if email was sent successfully, False otherwise
+        This method reads an email template from the file system, substitutes placeholders with the provided template variables, attaches files
+        to the email, and includes inline images if specified. It connects to an SMTP server if not already connected and sends the email to
+        the specified recipients. The function handles single or multiple recipients.
+
+        :param to_email: Recipient email address or a list of email addresses.
+        :type to_email: Union[str, List[str]
+        :param subject: Subject line of the email.
+        :type subject: str
+        :param template_path: File path to the email template.
+        :type template_path: str
+        :param template_vars: Dictionary of variables to substitute in the template, where keys correspond to placeholders in the template
+            and values are the replacement strings.
+        :type template_vars: Dict[str, str], optional
+        :param attachments: Dictionary of file names and their corresponding content in binary format (bytes) to be attached to the email.
+        :type attachments: Dict[str, bytes], optional
+        :param inline_images: Dictionary mapping content IDs (used in the email template) to the file paths of the inline images.
+        :type inline_images: Dict[str, str], optional
+        :return: Whether the email was successfully sent.
+        :rtype: bool
         """
         try:
             # Read template
@@ -686,15 +907,29 @@ class Mailclient(Singleton):
                             days_overdue: int = None, custom_message: str = None,
                             template_path: str = None) -> bool:
         """
-        Send a reminder email to a client about missing documents.
+        Sends a reminder email to a client about outstanding documents using a template.
 
-        :param to_email: Client email address
-        :param client_name: Client organization name
-        :param bafin_id: Client reference ID
-        :param days_overdue: Number of days overdue (optional)
-        :param custom_message: Custom message to include (optional)
-        :param template_path: Path to custom template file (optional)
-        :return: True if email was sent successfully, False otherwise
+        This method allows sending a customized reminder email about overdue documents
+        to a given email address. It uses template-based email generation, with optional
+        inputs such as days overdue, a custom message, and the path to the email template.
+        If no template path is provided, a default template path is used. The method also
+        checks for the existence of a logo file in the template directory and includes
+        it as an inline image if present.
+
+        :param to_email: Recipient's email address.
+        :type to_email: str
+        :param client_name: Name of the client.
+        :type client_name: str
+        :param bafin_id: Reference identifier for the client within the system.
+        :type bafin_id: str
+        :param days_overdue: Number of days the documents are overdue (optional).
+        :type days_overdue: int, optional
+        :param custom_message: Additional custom message to include in the email (optional).
+        :type custom_message: str, optional
+        :param template_path: Path to the email template file (optional).
+        :type template_path: str, optional
+        :return: Boolean indicating whether the email was successfully sent.
+        :rtype: bool
         """
         # Use provided template or default template path
         if not template_path:
@@ -738,14 +973,23 @@ class Mailclient(Singleton):
     def send_confirmation_email(self, to_email: str, client_name: str, bafin_id: str,
                                 case_id: int, template_path: str = None) -> bool:
         """
-        Send a confirmation email after documents have been received.
+        Sends a confirmation email using a specified or default HTML template. Also includes functionality
+        to handle missing templates by logging a warning and falling back to a basic template if necessary.
+        The email includes embedded variable content (e.g., client name, case ID) and may optionally attach
+        inline images such as a logo.
 
-        :param to_email: Client email address
-        :param client_name: Client institute name
-        :param bafin_id: Client BaFin ID
-        :param case_id: Audit case ID
-        :param template_path: Optional path to custom template
-        :return: True if email was sent successfully, False otherwise
+        :param to_email: Recipient email address.
+        :type to_email: str
+        :param client_name: Name of the client to personalize the email content.
+        :type client_name: str
+        :param bafin_id: A unique identifier related to BaFin (Federal Financial Supervisory Authority).
+        :type bafin_id: str
+        :param case_id: Numeric identifier for the case or reference.
+        :type case_id: int
+        :param template_path: Path to the email template file. Default template is used if not provided.
+        :type template_path: str, optional
+        :return: Whether the email was successfully sent.
+        :rtype: bool
         """
         # Use provided template or default template path
         if not template_path:
@@ -783,14 +1027,24 @@ class Mailclient(Singleton):
 
     def _send_basic_confirmation_email(self, to_email: str, client_name: str, bafin_id: str, case_id: int) -> bool:
         """
-        Send a basic confirmation email without a template file.
-        This is a fallback method when the template file is not found.
+        Send a basic confirmation email to confirm receipt of submitted documents.
 
-        :param to_email: Client email address
-        :param client_name: Client institute name
-        :param bafin_id: Client reference ID
-        :param case_id: Audit case ID
-        :return: True if email was sent successfully, False otherwise
+        This method prepares and sends a plain text email to the client, confirming the
+        receipt of documents and providing reference information about the submission.
+        The email includes details such as the client's name, BaFin ID, and the case ID
+        assigned to the submission. A generic automated message disclaimer is also
+        included for clarity.
+
+        :param to_email: The recipient's email address.
+        :type to_email: str
+        :param client_name: The name of the client whose documents are being confirmed.
+        :type client_name: str
+        :param bafin_id: A unique identifier (BaFin ID) associated with the client's submission.
+        :type bafin_id: str
+        :param case_id: An integer representing the case number assigned to the submission.
+        :type case_id: int
+        :return: A boolean indicating whether the email was sent successfully.
+        :rtype: bool
         """
         subject = f"Confirmation: Documents Received (Reference: {bafin_id})"
 
@@ -822,10 +1076,18 @@ class Mailclient(Singleton):
 
     def mark_email_as_read(self, email_id: str) -> bool:
         """
-        Mark an email as read.
+        Marks the specified email as read by adding the '\\Seen' flag to the email.
 
-        :param email_id: The ID of the email to mark as read
-        :return: True if successful, False otherwise
+        This method interacts with an email server connection object to mark an email
+        as read. The provided email identification is processed and converted to a
+        byte object if it is initially passed as a string. If the operation succeeds,
+        the function logs the success and returns True; otherwise, it logs an error
+        and returns False.
+
+        :param email_id: The unique identification of the email to mark as read.
+        :type email_id: str
+        :return: True if the email was successfully marked as read; False otherwise.
+        :rtype: bool
         """
         try:
             # Convert string ID to bytes if necessary
@@ -841,10 +1103,18 @@ class Mailclient(Singleton):
 
     def mark_email_as_answered(self, email_id: str) -> bool:
         """
-        Mark an email as answered/replied.
+        Marks an email as answered by updating its flags on the server.
 
-        :param email_id: The ID of the email to mark as answered
-        :return: True if successful, False otherwise
+        This method interacts with the email server to mark the specified email
+        as answered by adding the '\\Answered' flag to it. It logs the action
+        for auditing purposes and handles any errors that may occur during the
+        operation. An email ID is used as input for this operation, and a boolean
+        status is returned to indicate success or failure of the operation.
+
+        :param email_id: The unique identifier of the email to be marked as answered.
+        :type email_id: str
+        :return: True if the email was successfully marked as answered; otherwise, False.
+        :rtype: bool
         """
         try:
             # Convert string ID to bytes if necessary
@@ -861,10 +1131,14 @@ class Mailclient(Singleton):
     @staticmethod
     def get_template_directory():
         """
-        Get the default directory for email templates.
-        Templates are stored in the filesystem directory alongside certificate templates
+        Retrieves the directory path for email templates. This method constructs
+        the path by fetching the base filesystem directory from the `FILESYSTEM_PATH`
+        environment variable. If the environment variable is not set, it defaults
+        to `./.filesystem`. The function then appends the subdirectory
+        `email_templates` to this base path.
 
-        :return: Path to the template directory
+        :return: The full path to the email template directory.
+        :rtype: str
         """
         filesystem_path = os.getenv('FILESYSTEM_PATH', './.filesystem')
         return os.path.join(filesystem_path, 'email_templates')
