@@ -17,6 +17,8 @@ class PythonProjectCopier:
         'table_detection.py', # Example file at root that might also be a .py file
         'deployment/Dockerfile',
         'examples/db_init.py' # Files in subdirectories
+        'examples/email_templates/reminder_template.html',
+        'examples/email_templates/response_template.html',
         # Add any other files you want to copy (use relative paths)
     ]
 
