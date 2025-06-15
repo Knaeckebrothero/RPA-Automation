@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS client (
 CREATE TABLE IF NOT EXISTS audit_case (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     client_id INTEGER NOT NULL UNIQUE,
-    email_id INTEGER,  -- TODO: This attribute is depricated and should be removed at some point! 
+    email_id INTEGER,  -- TODO: This attribute is depricated and should be removed at some point!
     stage INTEGER NOT NULL DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -90,6 +90,18 @@ CREATE TABLE IF NOT EXISTS login_attempts (
     username_attempted TEXT
 );
 
+-- User-Client Access Control table
+CREATE TABLE IF NOT EXISTS user_client_access (
+    user_id INTEGER NOT NULL,
+    client_id INTEGER NOT NULL,
+    granted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    granted_by INTEGER,  -- Who granted this access
+    PRIMARY KEY (user_id, client_id),
+    FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE,
+    FOREIGN KEY (client_id) REFERENCES client(id) ON DELETE CASCADE,
+    FOREIGN KEY (granted_by) REFERENCES user(id)
+);
+
 -- Indexes for faster lookups
 CREATE INDEX IF NOT EXISTS idx_client_bafin_id ON client(bafin_id);
 CREATE INDEX IF NOT EXISTS idx_stage_client_id ON audit_case(client_id);
@@ -100,6 +112,8 @@ CREATE INDEX IF NOT EXISTS idx_document_hash ON document(document_hash);
 CREATE INDEX IF NOT EXISTS idx_session_key_session_key ON session_key(session_key);
 CREATE INDEX IF NOT EXISTS idx_user_role ON user(role);
 CREATE INDEX IF NOT EXISTS idx_login_attempts_ip_time ON login_attempts(ip_address, attempt_time);
+CREATE INDEX IF NOT EXISTS idx_user_client_access_user ON user_client_access(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_client_access_client ON user_client_access(client_id);
 
 -- Trigger to update the last_updated_at timestamp when a stage record is updated
 CREATE TRIGGER IF NOT EXISTS update_stage_last_updated

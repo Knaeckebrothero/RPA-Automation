@@ -5,8 +5,7 @@ import streamlit
 import logging
 
 # Custom imports
-#from workflow.security import logout
-#from cls.database import Database
+from workflow.access_control import AccessControl
 
 
 # Set up logging
@@ -20,17 +19,23 @@ def navbar(database=None) -> int:
     :return: The selected page number.
     """
     access_role = streamlit.session_state['user_role']
+    user_id = streamlit.session_state.get('user_id')
 
     # Initialize the page number if it does not exist
     if not 'page' in streamlit.session_state:
         if access_role in ['auditor', 'inspector']:
-            # Set the default page for auditor and inspector to the active cases page
-            page = 1
+            # Check if the user has any assigned cases
+            accessible_clients = AccessControl.get_accessible_clients(user_id, access_role)
+            if accessible_clients:
+                # Set the default page for auditor and inspector to the active cases page
+                page = 1
+            else:
+                # If no cases assigned, show home page
+                page = 0
         else:
             page = 0
     else:
         page = streamlit.session_state['page']
-        # TODO: Add logic to prevent the users from accessing the pages they are not allowed to
 
     # Set the sidebar to st for easier access and to make sure everything happens
     # inside the sidebar unless explicitly stated
@@ -41,25 +46,38 @@ def navbar(database=None) -> int:
     st.write('Please select an option from the list below.')
 
     # Buttons
-    #if access_role == 'admin':  # TODO: Move the logic to process mails to another place or restrict it to the admin
     if st.button('Home'):
-        log.debug('Fetch Documents button clicked')
+        log.debug('Home button clicked')
         page = 0
 
+    # Show Active Cases for all users
     if st.button('Active Cases'):
         log.debug('Active cases button clicked')
         page = 1
 
-    if access_role == 'admin':
+    # Show Settings only if user has access
+    if AccessControl.can_access_feature(access_role, 'settings'):
         if st.button('Settings'):
             log.debug('Settings button clicked')
             page = 2
 
-    # TODO: Move log display to another page or restrict it to only be visible to the admin
-    # if access_role in ['admin', 'inspector']:
+    # About page is available to all
     if st.button('About'):
         log.debug('About button clicked')
         page = 3
+
+    # Add a separator before user info and logout
+    st.markdown("---")
+
+    # Show user information
+    st.markdown("### User Info")
+    st.write(f"**User:** {streamlit.session_state.get('username', 'Unknown')}")
+    st.write(f"**Role:** {access_role.title()}")
+
+    # Show number of assigned clients for non-admin users
+    if access_role != 'admin':
+        accessible_clients = AccessControl.get_accessible_clients(user_id, access_role)
+        st.write(f"**Assigned Clients:** {len(accessible_clients)}")
 
     # Add a separator before the logout button
     st.markdown("---")
@@ -71,7 +89,6 @@ def navbar(database=None) -> int:
         # Import here to avoid circular imports
         from workflow.security import logout
         from cls.database import Database
-        # TODO: Why is this necessary?
 
         # Check if the database instance is provided, otherwise fetch the instance
         if database:
@@ -85,6 +102,7 @@ def navbar(database=None) -> int:
         streamlit.session_state['session_key'] = None
         streamlit.session_state['user_id'] = None
         streamlit.session_state['user_role'] = None
+        streamlit.session_state['username'] = None
 
         # Force reload to show login page
         streamlit.rerun()

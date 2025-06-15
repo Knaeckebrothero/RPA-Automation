@@ -5,6 +5,7 @@ import os
 import hashlib
 import secrets
 import logging
+import string
 from datetime import datetime, timedelta
 import streamlit as st
 from streamlit import runtime
@@ -387,3 +388,35 @@ def require_auth(database: Database = None, required_role=None) -> bool:
             return False
 
     return True
+
+
+def generate_secure_password(length: int = 12) -> str:
+    """
+    Generate a secure random password.
+
+    :param length: Length of the password (default: 12)
+    :return: A secure random password string
+    """
+    # Define character sets
+    lowercase = string.ascii_lowercase
+    uppercase = string.ascii_uppercase
+    digits = string.digits
+    special = "!@#$%^&*"
+
+    # Ensure password has at least one character from each set
+    password = [
+        secrets.choice(lowercase),
+        secrets.choice(uppercase),
+        secrets.choice(digits),
+        secrets.choice(special)
+    ]
+
+    # Fill the rest of the password length with random characters from all sets
+    all_characters = lowercase + uppercase + digits + special
+    for _ in range(length - 4):
+        password.append(secrets.choice(all_characters))
+
+    # Shuffle the password list to avoid predictable patterns
+    secrets.SystemRandom().shuffle(password)
+
+    return ''.join(password)
