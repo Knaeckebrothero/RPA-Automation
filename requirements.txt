@@ -11,7 +11,6 @@ docx2pdf==0.1.8
 reportlab==4.4.0
 openpyxl==3.1.2  # Required by pandas for Excel file support
 pillow==10.4.0  # Required by tesseract (allthough easyocr depends on it as well)
-beautifulsoup4==4.12.3
 pytesseract==0.3.13  # Tesseract OCR wrapper for Python
 easyocr==1.7.2
 

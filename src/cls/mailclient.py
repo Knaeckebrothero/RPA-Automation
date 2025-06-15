@@ -4,16 +4,18 @@ This module holds the mail.Client class.
 import os
 import logging
 import email
-from email.header import decode_header
-from bs4 import BeautifulSoup
+import re
+import smtplib
 import pandas as pd
+from email.header import decode_header
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
 from email.mime.base import MIMEBase
 from email import encoders
-import smtplib
 from typing import Dict, List, Union
+from html.parser import HTMLParser
+
 
 # Custom imports
 from cls.singleton import Singleton
@@ -48,14 +50,95 @@ else:
     from imaplib import IMAP4_SSL
 
 
-# TODO: Refactor this class to use pythons email library instead of BeautifulSoup
+class HTMLTextExtractor(HTMLParser):
+    """
+    Simple HTML parser to extract text content from HTML.
+    This replaces BeautifulSoup's get_text() functionality.
+    """
+    def __init__(self):
+        super().__init__()
+        self.text_parts = []
+        self.skip_data = 0
+
+    def handle_starttag(self, tag, attrs):
+        # Skip script and style content
+        if tag in ('script', 'style'):
+            self.skip_data += 1
+
+    def handle_endtag(self, tag):
+        if tag in ('script', 'style'):
+            self.skip_data -= 1
+        # Add newline for block elements
+        elif tag in ('p', 'div', 'br', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li'):
+            self.text_parts.append('\n')
+
+    def handle_data(self, data):
+        if self.skip_data == 0:
+            # Clean up whitespace
+            text = data.strip()
+            if text:
+                self.text_parts.append(text)
+                self.text_parts.append(' ')
+
+    def get_text(self):
+        # Join all text parts and clean up extra whitespace
+        text = ''.join(self.text_parts)
+        # Replace multiple spaces with single space
+        text = re.sub(r'\s+', ' ', text)
+        # Replace multiple newlines with double newline
+        text = re.sub(r'\n\s*\n', '\n\n', text)
+        return text.strip()
+
+    @classmethod
+    def extract_text_from_html(cls, html_content):
+        """
+        Extract plain text from HTML content.
+        This replaces BeautifulSoup's get_text() functionality.
+
+        :param html_content: HTML string
+        :return: Extracted text
+        """
+        parser = cls()
+        try:
+            parser.feed(html_content)
+            return parser.get_text()
+        except Exception as e:
+            log.warning(f"Error parsing HTML: {e}. Falling back to simple tag stripping.")
+            # Fallback: simple regex-based tag stripping
+            text = re.sub('<[^<]+?>', '', html_content)
+            return text.strip()
+
+
 class Mailclient(Singleton):
     """
-    This class is used to connect and interact with the mail server.
-    It uses the custom singleton class to ensure only one instance of the class is created.
+    Handles the functionality of connecting to an IMAP mail server, logging in, selecting
+    inboxes, and managing email messages. It also provides basic SMTP functionality for
+    sending emails.
 
-    The class uses the imaplib library to connect to the mail server and offers
-    a bunch of methods to interact with the mailbox.
+    The class is implemented as a singleton to ensure that only one instance is created,
+    allowing for the consistent management of mail server connections and credentials.
+    The class automatically fetches environment variables for missing parameters and logs
+    its operations. Proper management of server connections is ensured by using the connect,
+    login, and close methods.
+
+    :ivar _connection: Connection to the IMAP mail server.
+    :type _connection: IMAP4_SSL or None
+    :ivar _decoding_format: The decoding format used for emails (e.g., 'iso-8859-1').
+    :type _decoding_format: str
+    :ivar _imap_server: The IMAP server address for connection.
+    :type _imap_server: str
+    :ivar _imap_port: The port number of the IMAP server.
+    :type _imap_port: int
+    :ivar _smtp_port: The port number of the SMTP server.
+    :type _smtp_port: int
+    :ivar _username: The username/email address of the account.
+    :type _username: str
+    :ivar _password: The password of the user account.
+    :type _password: str
+    :ivar _inbox: The inbox selected for mail operations.
+    :type _inbox: str
+    :ivar _smtp_connection: Connection to the SMTP server for sending emails.
+    :type _smtp_connection: SMTP or None
     """
     _connection = None  # Connection to the mail server
     _decoding_format = 'iso-8859-1'  # 'utf-8'
@@ -329,10 +412,10 @@ class Mailclient(Singleton):
                                 body = part.get_payload(decode=True).decode(decoding_format)
                                 break
 
-                            # If the email part is html, use BeautifulSoup to extract text
+                            # If the email part is html, extract text using our HTML parser
                             elif part.get_content_type() == "text/html":
-                                body = BeautifulSoup(part.get_payload(decode=True).decode(decoding_format),
-                                                     'html.parser').get_text()
+                                html_content = part.get_payload(decode=True).decode(decoding_format)
+                                body = HTMLTextExtractor.extract_text_from_html(html_content)
                                 break
                     else:
                         # If the email is not multipart, extract the body
