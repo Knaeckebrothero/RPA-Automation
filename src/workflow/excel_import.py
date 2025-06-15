@@ -8,14 +8,14 @@ from io import BytesIO
 
 # Custom imports
 from cls.database import Database
-from workflow.access_control import AccessControl
+from cls.accesscontrol import AccessControl
 import workflow.security as sec
 
 
 # Set up logging
 log = logging.getLogger(__name__)
 
-
+# TODO: Move this functionality into the processing/files module!
 class ExcelImporter:
     """
     Handles importing audit initialization data from Excel files.

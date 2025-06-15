@@ -3,8 +3,7 @@ This module handles access control for the application, managing both role-based
 and resource-based permissions.
 """
 import logging
-from typing import List, Optional, Set
-from datetime import datetime
+from typing import List
 
 # Custom imports
 from cls.database import Database
@@ -21,12 +20,13 @@ class AccessControl:
     permissions (for client access).
     """
 
+    # TODO: Outsource this to a configuration file!
     # Define feature permissions by role
     FEATURE_PERMISSIONS = {
         'admin': {
             'settings', 'user_management', 'archive_cases', 'initialize_audit',
             'view_all_cases', 'edit_all_cases', 'generate_certificate',
-            'complete_process', 'view_logs'
+            'complete_process', 'view_logs', 'process_emails'
         },
         'inspector': {
             'view_assigned_cases', 'edit_assigned_cases', 'generate_certificate',

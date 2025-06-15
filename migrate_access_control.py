@@ -82,7 +82,7 @@ def migrate_database():
                             })
 
                     # Use AccessControl to grant access
-                    from src.workflow.access_control import AccessControl
+                    from cls.accesscontrol import AccessControl
                     results = AccessControl.bulk_grant_access(assignments, database=db)
 
                     log.info(f"Granted access: {results['success_count']} assignments created")
