@@ -29,14 +29,6 @@ def get_emails(excluded_ids: list[int] = None):
         return Mailclient.get_instance().get_mails()
 
 
-def check_for_documents():
-    """
-    Function to check if there are any documents already stored on the filesystem.
-    """
-    pass
-    # TODO: Implement this function to check if there are any documents already stored on the filesystem.
-
-
 def assess_emails(emails: pd.DataFrame):
     """
     Function to assess a set of mails and process them accordingly.
@@ -46,6 +38,7 @@ def assess_emails(emails: pd.DataFrame):
     log.info(f'Processing: {len(emails)} selected documents...')
     mailclient = Mailclient.get_instance()
     ocr_reader = create_ocr_reader(language='de')
+    db = Database.get_instance()
 
     # Iterate over the selected documents
     for email_list_email_id in emails:
@@ -84,6 +77,12 @@ def assess_emails(emails: pd.DataFrame):
                             case 1:  # Waiting for documents
                                 log.info(f'Document found in mail with email_id: {email_list_email_id} for'
                                          f' client_id: {attachment.client_id}.')
+
+                                # Send confirmation email to client
+                                email_sent = send_document_confirmation_email(attachment, db)
+                                if not email_sent:
+                                    log.warning("Failed to send confirmation email, but continuing with document processing")
+
                                 # Start the validation process
                                 process_audit_case(attachment)
 
@@ -113,6 +112,11 @@ def assess_emails(emails: pd.DataFrame):
 
                                 # Initialize the audit case
                                 attachment.initialize_audit_case(stage=2)
+
+                                # Send confirmation email to client
+                                email_sent = send_document_confirmation_email(attachment, db)
+                                if not email_sent:
+                                    log.warning("Failed to send confirmation email, but continuing with document processing")
 
                                 # Start the validation process
                                 process_audit_case(attachment)
@@ -210,7 +214,7 @@ def process_audit_case(document: PDF):
             match_percentage = (matches / total) * 100 if total > 0 else 0
             log.info(f"Document verification failed with only {match_percentage:.1f}% match ({matches}/{total} fields)",
                      audit_log=True, case_id=case_id)
-    
+
     # Process any pending log initializations
     from custom_logger import process_pending_log_initializations
     process_pending_log_initializations(db)
@@ -223,7 +227,7 @@ def fetch_new_emails(database: Database = Database.get_instance()) -> pd.DataFra
     :param database: The database instance to use (optional).
     :return: The new emails fetched from the mail client.
     """
-    # TODO: Make sure that a email is not marked as processed unless the process finished successfully 
+    # TODO: Make sure that a email is not marked as processed unless the process finished successfully
     #  (e.g. if the app crashes but the mail has already been marked "processed",
     #   then we might run into an issue with emails slipping through without processing!)
 
@@ -340,21 +344,21 @@ def get_client_info(audit_case_id: int, database: Database) -> dict | None:
     try:
         # Query to get client information
         result = database.query("""
-            SELECT 
-                c.id as client_id,
-                c.institute,
-                c.bafin_id,
-                c.address,
-                c.city,
-                a.created_at,
-                a.last_updated_at
-            FROM 
-                audit_case a
-            JOIN 
-                client c ON a.client_id = c.id
-            WHERE 
-                a.id = ?
-        """, (audit_case_id,))
+                                SELECT
+                                    c.id as client_id,
+                                    c.institute,
+                                    c.bafin_id,
+                                    c.address,
+                                    c.city,
+                                    a.created_at,
+                                    a.last_updated_at
+                                FROM
+                                    audit_case a
+                                        JOIN
+                                    client c ON a.client_id = c.id
+                                WHERE
+                                    a.id = ?
+                                """, (audit_case_id,))
 
         if not result or not result[0]:
             log.warning(f"No client information found for audit case {audit_case_id}")
@@ -392,17 +396,17 @@ def get_document_info(audit_case_id: int, database: Database) -> dict | None:
     try:
         # Query to get document information
         result = database.query("""
-            SELECT 
-                document_path,
-                document_filename
-            FROM 
-                document
-            WHERE 
-                audit_case_id = ?
-            ORDER BY 
-                processing_date DESC
-            LIMIT 1
-        """, (audit_case_id,))
+                                SELECT
+                                    document_path,
+                                    document_filename
+                                FROM
+                                    document
+                                WHERE
+                                    audit_case_id = ?
+                                ORDER BY
+                                    processing_date DESC
+                                LIMIT 1
+                                """, (audit_case_id,))
 
         if not result or not result[0]:
             log.warning(f"No document found for audit case {audit_case_id}")
@@ -443,15 +447,15 @@ def update_audit_case(audit_case_id: int, certificate_path: str, database: Datab
 
         # Update the audit case to set stage to 4 (process completion)
         database.query("""
-            UPDATE audit_case
-            SET 
-                stage = 4,
-                comments = CASE
-                    WHEN comments IS NULL THEN 'Certificate generated'
-                    ELSE comments || ' | Certificate generated'
-                END
-            WHERE id = ?
-        """, (audit_case_id,))
+                       UPDATE audit_case
+                       SET
+                           stage = 4,
+                           comments = CASE
+                                          WHEN comments IS NULL THEN 'Certificate generated'
+                                          ELSE comments || ' | Certificate generated'
+                               END
+                       WHERE id = ?
+                       """, (audit_case_id,))
 
         # TODO: Fix the display logic first before uncommenting this
         # Insert record in document table for the certificate
@@ -477,4 +481,85 @@ def update_audit_case(audit_case_id: int, certificate_path: str, database: Datab
 
     except Exception as e:
         log.error(f"Error updating database: {str(e)}")
+        return False
+
+
+def send_document_confirmation_email(document: PDF, db: Database) -> bool:
+    """
+    Send a confirmation email to the sender of the original email when their document has been received
+    and linked to their audit case.
+
+    :param document: The PDF document that was received
+    :param db: Database instance
+    :return: True if email was sent successfully, False otherwise
+    """
+    try:
+        # Get the sender's email from the document attributes (captured from the original email)
+        sender_email = document.get_attributes('sender')
+
+        if not sender_email:
+            log.error(f"No sender email found in document attributes for document {document.email_id}")
+            return False
+
+        # Extract just the email address from the sender field (format might be "Name <email@domain.com>")
+        import re
+        email_match = re.search(r'[\w\.-]+@[\w\.-]+', sender_email)
+        if email_match:
+            reply_to_email = email_match.group(0)
+        else:
+            log.error(f"Could not extract valid email address from sender: {sender_email}")
+            return False
+
+        # Get client information from database for the email content
+        client_info = db.query("""
+                               SELECT
+                                   c.institute,
+                                   c.bafin_id,
+                                   ac.id as case_id
+                               FROM
+                                   client c
+                                       JOIN
+                                   audit_case ac ON ac.client_id = c.id
+                               WHERE
+                                   c.id = ?
+                               """, (document.client_id,))
+
+        if not client_info or not client_info[0]:
+            log.error(f"Could not find client information for client_id: {document.client_id}")
+            return False
+
+        institute, bafin_id, case_id = client_info[0]
+
+        # Get mail client instance
+        mailclient = Mailclient.get_instance()
+
+        # Send confirmation email to the original sender
+        success = mailclient.send_confirmation_email(
+            to_email=reply_to_email,
+            client_name=institute,
+            bafin_id=str(bafin_id),
+            case_id=case_id
+        )
+
+        if success:
+            log.info(f"Confirmation email sent to {reply_to_email} (original sender) for case {case_id}")
+
+            # Log to audit log
+            log.info(
+                f"Confirmation email sent to {reply_to_email} for client {institute}",
+                audit_log=True,
+                case_id=case_id
+            )
+
+            # TODO: Consider marking the original email as answered
+            # if document.email_id:
+            #     mailclient.mark_email_as_answered(str(document.email_id))
+
+        else:
+            log.error(f"Failed to send confirmation email to {reply_to_email} for case {case_id}")
+
+        return success
+
+    except Exception as e:
+        log.error(f"Error sending confirmation email: {str(e)}")
         return False

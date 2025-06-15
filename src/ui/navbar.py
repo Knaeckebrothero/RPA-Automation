@@ -5,7 +5,7 @@ import streamlit
 import logging
 
 # Custom imports
-from workflow.access_control import AccessControl
+from cls.accesscontrol import AccessControl
 
 
 # Set up logging

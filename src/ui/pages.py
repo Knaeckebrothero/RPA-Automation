@@ -17,7 +17,7 @@ import ui.expander_stages as expander_stages
 import workflow.security as sec
 from cls.document import PDF
 from cls.config import ConfigHandler
-from workflow.access_control import AccessControl
+from cls.accesscontrol import AccessControl
 from workflow.excel_import import ExcelImporter
 
 
