@@ -1,3 +1,4 @@
+# TODO: Is this script still needed? Check if it can be removed!
 """
 Migration script to add access control tables to existing database.
 Run this script to update your database schema for the new access control features.

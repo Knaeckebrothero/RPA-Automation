@@ -14,11 +14,17 @@ class PythonProjectCopier:
         '.env.example',
         'README.md',
         '.devcontainer/devcontainer.json',
-        'table_detection.py', # Example file at root that might also be a .py file
-        'deployment/Dockerfile',
-        'examples/db_init.py' # Files in subdirectories
+        'table_detection.py',
+        'db_init.py',
+        'app_init.py',
+        'email_downloader.py',
         'examples/email_templates/reminder_template.html',
         'examples/email_templates/response_template.html',
+        'deployment/certificate.yml',
+        'deployment/deployment.yml',
+        'deployment/Dockerfile',
+        'deployment/secret.yml',
+
         # Add any other files you want to copy (use relative paths)
     ]
 
