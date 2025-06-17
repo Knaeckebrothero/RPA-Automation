@@ -1,0 +1,108 @@
+{
+  "p033": [
+    "(?i)(?:position|pos\\.?|punkt)?\\s*0*33\\b",
+    "(?i)provisions(?:ergebnis|ertrag|einnahme)",
+    "(?i)anlage\\s*SON0*1\\s*(?:position|pos\\.?|punkt)?\\s*0*33\\b"
+  ],
+  "p034": [
+    "(?i)(?:position|pos\\.?|punkt)?\\s*0*34\\b",
+    "(?i)nettoergebnis\\s*(?:des\\s*)?handels(?:bestandes)?\\s*(?:aus\\s*)?(?:geschäften\\s*(?:mit\\s*)?)?wertpapier",
+    "(?i)anlage\\s*SON0*1\\s*(?:position|pos\\.?|punkt)?\\s*0*34\\b"
+  ],
+
+  "p035": [
+    "(?i)(?:position|pos\\.?|punkt)?\\s*0*35\\b",
+    "(?i)nettoergebnis\\s*(?:des\\s*)?handels(?:bestandes)?\\s*(?:aus\\s*)?(?:geschäften\\s*(?:mit\\s*)?)?devisen",
+    "(?i)nettoergebnis\\s*(?:des\\s*)?handels(?:bestandes)?\\s*(?:aus\\s*)?(?:geschäften\\s*(?:mit\\s*)?)?edelmetall",
+    "(?i)anlage\\s*SON0*1\\s*(?:position|pos\\.?|punkt)?\\s*0*35\\b"
+  ],
+
+  "p036": [
+    "(?i)(?:position|pos\\.?|punkt)?\\s*0*36\\b",
+    "(?i)nettoergebnis\\s*(?:des\\s*)?handels(?:bestandes)?\\s*(?:aus\\s*)?(?:geschäften\\s*(?:mit\\s*)?)?derivat",
+    "(?i)anlage\\s*SON0*1\\s*(?:position|pos\\.?|punkt)?\\s*0*36\\b"
+  ],
+
+  "ab2s1n01": [
+    "(?i)(?:§|para(?:graph)?)\\s*16j\\s*abs\\.?\\s*2\\s*satz\\s*1\\s*nr\\.?\\s*1",
+    "(?i)nr\\.?\\s*1\\s*(?:FinDAG)",
+    "(?i)zahlungsverkehr",
+    "(?i)nettoertr(?:ä|ae)ge\\s*(?:aus\\s*(?:dem\\s*)?)?zahlungsverkehr"
+  ],
+
+  "ab2s1n02": [
+    "(?i)(?:§|para(?:graph)?)\\s*16j\\s*abs\\.?\\s*2\\s*satz\\s*1\\s*nr\\.?\\s*2",
+    "(?i)nr\\.?\\s*2\\s*(?:FinDAG)",
+    "(?i)(?:außen|aussen)handel(?:s)?(?:geschäft)?",
+    "(?i)nettoertr(?:ä|ae)ge\\s*(?:aus\\s*(?:dem\\s*)?)?(?:außen|aussen)handel(?:s)?(?:geschäft)?"
+  ],
+
+  "ab2s1n03": [
+    "(?i)(?:§|para(?:graph)?)\\s*16j\\s*abs\\.?\\s*2\\s*satz\\s*1\\s*nr\\.?\\s*3",
+    "(?i)nr\\.?\\s*3\\s*(?:FinDAG)",
+    "(?i)reisezahlungsmittel(?:geschäft)?",
+    "(?i)nettoertr(?:ä|ae)ge\\s*(?:aus\\s*(?:dem\\s*)?)?reisezahlungsmittel(?:geschäft)?"
+  ],
+
+  "ab2s1n04": [
+    "(?i)(?:§|para(?:graph)?)\\s*16j\\s*abs\\.?\\s*2\\s*satz\\s*1\\s*nr\\.?\\s*4",
+    "(?i)nr\\.?\\s*4\\s*(?:FinDAG)",
+    "(?i)treuhandkredit(?:e)?",
+    "(?i)verwaltungskredit(?:e)?",
+    "(?i)nettoertr(?:ä|ae)ge\\s*(?:für|aus)?\\s*(?:treuhandkredit(?:e)?|verwaltungskredit(?:e)?)"
+  ],
+
+  "ab2s1n05": [
+    "(?i)(?:§|para(?:graph)?)\\s*16j\\s*abs\\.?\\s*2\\s*satz\\s*1\\s*nr\\.?\\s*5",
+    "(?i)nr\\.?\\s*5\\s*(?:FinDAG)",
+    "(?i)vermittlung\\s*von\\s*kredit",
+    "(?i)vermittlung\\s*von\\s*(?:kredit|spar|bauspar|versicherung)(?:s)?(?:verträge|verträgen)?",
+    "(?i)nettoertr(?:ä|ae)ge\\s*(?:aus\\s*(?:der\\s*)?)?vermittlung\\s*von\\s*(?:kredit|spar|bauspar|versicherung)"
+  ],
+
+  "ab2s1n06": [
+    "(?i)(?:§|para(?:graph)?)\\s*16j\\s*abs\\.?\\s*2\\s*satz\\s*1\\s*nr\\.?\\s*6",
+    "(?i)nr\\.?\\s*6\\s*(?:FinDAG)",
+    "(?i)kreditbearbeitung",
+    "(?i)avalgeschäft",
+    "(?i)nettoertr(?:ä|ae)ge\\s*(?:aus\\s*(?:der\\s*)?)?(?:kreditbearbeitung|avalgeschäft)"
+  ],
+
+  "ab2s1n07": [
+    "(?i)(?:§|para(?:graph)?)\\s*16j\\s*abs\\.?\\s*2\\s*satz\\s*1\\s*nr\\.?\\s*7",
+    "(?i)nr\\.?\\s*7\\s*(?:FinDAG)",
+    "(?i)ausländisch(?:en)?\\s*tochterunternehmen",
+    "(?i)vergütungen\\s*(?:für|aus)\\s*einlagengeschäfte",
+    "(?i)nettoertr(?:ä|ae)ge\\s*(?:aus|von)\\s*(?:von)?\\s*ausländisch(?:en)?\\s*tochterunternehmen"
+  ],
+
+  "ab2s1n08": [
+    "(?i)(?:§|para(?:graph)?)\\s*16j\\s*abs\\.?\\s*2\\s*satz\\s*1\\s*nr\\.?\\s*8",
+    "(?i)nr\\.?\\s*8\\s*(?:FinDAG)",
+    "(?i)nachlassbearbeitung(?:en)?",
+    "(?i)nettoertr(?:ä|ae)ge\\s*(?:aus\\s*)?nachlassbearbeitung(?:en)?"
+  ],
+
+  "ab2s1n09": [
+    "(?i)(?:§|para(?:graph)?)\\s*16j\\s*abs\\.?\\s*2\\s*satz\\s*1\\s*nr\\.?\\s*9",
+    "(?i)nr\\.?\\s*9\\s*(?:FinDAG)",
+    "(?i)electronic\\s*banking(?:\\s*services)?",
+    "(?i)e-banking",
+    "(?i)online-?banking",
+    "(?i)nettoertr(?:ä|ae)ge\\s*(?:für|aus)?\\s*(?:electronic\\s*banking|e-banking|online-?banking)"
+  ],
+
+  "ab2s1n10": [
+    "(?i)(?:§|para(?:graph)?)\\s*16j\\s*abs\\.?\\s*2\\s*satz\\s*1\\s*nr\\.?\\s*10",
+    "(?i)nr\\.?\\s*10\\s*(?:FinDAG)",
+    "(?i)gutachter(?:tätigkeit(?:en)?)?",
+    "(?i)nettoertr(?:ä|ae)ge\\s*(?:aus\\s*)?gutachter(?:tätigkeit(?:en)?)?"
+  ],
+
+  "ab2s1n11": [
+    "(?i)(?:§|para(?:graph)?)\\s*16j\\s*abs\\.?\\s*2\\s*satz\\s*1\\s*nr\\.?\\s*11",
+    "(?i)nr\\.?\\s*11\\s*(?:FinDAG)",
+    "(?i)sonstige(?:n)?\\s*bearbeitungsentgelt(?:en)?",
+    "(?i)nettoertr(?:ä|ae)ge\\s*(?:aus\\s*)?sonstige(?:n)?\\s*bearbeitungsentgelt(?:en)?"
+  ]
+}

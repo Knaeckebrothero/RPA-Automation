@@ -2,7 +2,7 @@ import os
 import shutil
 from dotenv import load_dotenv
 from pathlib import Path
-#from collections import defaultdict # Needed for building the tree structure
+
 
 class PythonProjectCopier:
     # Files and paths to be copied (relative to repository root)
@@ -13,9 +13,12 @@ class PythonProjectCopier:
         'pyproject.toml',
         '.env.example',
         'README.md',
+        '.devcontainer/devcontainer.json',
         'table_detection.py', # Example file at root that might also be a .py file
-        'deployment/docker-compose.yml',
+        'deployment/Dockerfile',
         'examples/db_init.py' # Files in subdirectories
+        'examples/email_templates/reminder_template.html',
+        'examples/email_templates/response_template.html',
         # Add any other files you want to copy (use relative paths)
     ]
 

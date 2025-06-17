@@ -38,12 +38,25 @@ CREATE TABLE IF NOT EXISTS client (
 CREATE TABLE IF NOT EXISTS audit_case (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     client_id INTEGER NOT NULL UNIQUE,
-    email_id INTEGER,
+    email_id INTEGER,  -- TODO: This attribute is depricated and should be removed at some point!
     stage INTEGER NOT NULL DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     comments TEXT,
     FOREIGN KEY (client_id) REFERENCES client(id)
+);
+
+-- Document table
+CREATE TABLE IF NOT EXISTS document (
+    document_hash TEXT NOT NULL,
+    audit_case_id INTEGER NOT NULL,
+    email_id INTEGER,
+    document_filename TEXT,
+    document_path TEXT,
+    processed BOOLEAN DEFAULT FALSE,  -- This is unnecessary, we can just check if processing_date is not null
+    processing_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (document_hash, audit_case_id),
+    FOREIGN KEY (audit_case_id) REFERENCES audit_case(id) ON DELETE CASCADE
 );
 
 -- User table
@@ -52,7 +65,7 @@ CREATE TABLE IF NOT EXISTS user (
     username_email TEXT NOT NULL UNIQUE, -- Should be email
     password_hash TEXT NOT NULL,
     password_salt TEXT NOT NULL,
-    role TEXT NOT NULL UNIQUE,  -- 'admin' or 'auditor'
+    role TEXT NOT NULL,  -- 'admin', 'auditor' or 'inspector'
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -77,14 +90,30 @@ CREATE TABLE IF NOT EXISTS login_attempts (
     username_attempted TEXT
 );
 
+-- User-Client Access Control table
+CREATE TABLE IF NOT EXISTS user_client_access (
+    user_id INTEGER NOT NULL,
+    client_id INTEGER NOT NULL,
+    granted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    granted_by INTEGER,  -- Who granted this access
+    PRIMARY KEY (user_id, client_id),
+    FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE,
+    FOREIGN KEY (client_id) REFERENCES client(id) ON DELETE CASCADE,
+    FOREIGN KEY (granted_by) REFERENCES user(id)
+);
+
 -- Indexes for faster lookups
 CREATE INDEX IF NOT EXISTS idx_client_bafin_id ON client(bafin_id);
 CREATE INDEX IF NOT EXISTS idx_stage_client_id ON audit_case(client_id);
 CREATE INDEX IF NOT EXISTS idx_stage_email_id ON audit_case(email_id);
 CREATE INDEX IF NOT EXISTS idx_stage_created_at ON audit_case(created_at);
+CREATE INDEX IF NOT EXISTS idx_document_email_id ON document(email_id);
+CREATE INDEX IF NOT EXISTS idx_document_hash ON document(document_hash);
 CREATE INDEX IF NOT EXISTS idx_session_key_session_key ON session_key(session_key);
 CREATE INDEX IF NOT EXISTS idx_user_role ON user(role);
 CREATE INDEX IF NOT EXISTS idx_login_attempts_ip_time ON login_attempts(ip_address, attempt_time);
+CREATE INDEX IF NOT EXISTS idx_user_client_access_user ON user_client_access(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_client_access_client ON user_client_access(client_id);
 
 -- Trigger to update the last_updated_at timestamp when a stage record is updated
 CREATE TRIGGER IF NOT EXISTS update_stage_last_updated

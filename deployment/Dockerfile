@@ -37,9 +37,7 @@ RUN pip install --upgrade pip && \
 # Copy application files
 COPY src/ ./src/
 COPY examples/ ./examples/
-COPY .env.example ./.env
-COPY README.md ./
-COPY table_detection.py ./
+COPY example_mails/ ./example_mails/
 
 # Create necessary directories with appropriate permissions
 RUN mkdir -p ./.filesystem/downloads \
