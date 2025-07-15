@@ -69,7 +69,7 @@ jobs:
           DEV_MODE: true
           DB_PATH: test_db.sqlite
         run: |
-          pytest tests/unit/ -v --cov=src --cov-report=xml --cov-report=term-missing
+          pytest tests/unit/ -v --tb=long --cov=src --cov-report=xml --cov-report=term-missing --cov-report=html --junitxml=unit-test-results.xml
 
       - name: Run integration tests
         if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository }}
@@ -81,14 +81,18 @@ jobs:
           IMAP_USER: ${{ secrets.IMAP_USER }}
           IMAP_PASSWORD: ${{ secrets.IMAP_PASSWORD }}
         run: |
-          pytest tests/integration/ -v
+          pytest tests/integration/ -v --tb=long --junitxml=integration-test-results.xml
 
-      - name: Upload coverage reports
+      - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-report
-          path: coverage.xml
+          name: test-reports
+          path: |
+            coverage.xml
+            htmlcov/
+            unit-test-results.xml
+            integration-test-results.xml
 
       - name: Upload test database for debugging
         if: failure()
