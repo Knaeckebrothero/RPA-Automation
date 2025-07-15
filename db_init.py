@@ -42,8 +42,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Initialize the SQLite database.')
     parser.add_argument(
         '--db-path',
-        default='./.filesystem/database.db',
-        help='Path to the SQLite database file (default: ./.filesystem/database.db)'
+        default=os.environ.get('DB_PATH', './.filesystem/database.db'),
+        help='Path to the SQLite database file (default: DB_PATH env var or ./.filesystem/database.db)'
     )
     parser.add_argument(
         '--schema-path',
