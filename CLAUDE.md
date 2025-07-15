@@ -50,11 +50,8 @@ The workflow will automatically download example emails if credentials are provi
 
 ### Dependencies
 ```bash
-# Install main dependencies
+# Install all dependencies (includes testing)
 pip install -r requirements.txt
-
-# Install development dependencies (includes testing)
-pip install -r requirements-dev.txt
 ```
 
 ### Linting and Code Quality
@@ -62,6 +59,9 @@ pip install -r requirements-dev.txt
 # No linting tools are currently configured in requirements
 # Consider adding: pylint, black, isort, mypy for code quality
 ```
+
+### Important Notes on pytest
+Since pytest 7.0+, the `pytest-pythonpath` plugin is obsolete. The project uses the built-in `pythonpath` configuration in `pytest.ini` instead.
 
 ## Architecture Overview
 
