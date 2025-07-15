@@ -31,14 +31,15 @@ class Database(Singleton):
     :ivar cursor: Represents the SQLite database cursor object. Used for executing SQL queries.
     :type cursor: sqlite3.Cursor | None
     """
-    def __init__(self, db_path: str = "./.filesystem/database.db"):
+    def __init__(self, db_path: str = None):
         """
         Initializes and configures the database connection.
 
         This class is responsible for establishing a connection to the database
         specified by the provided file path. It sets up the connection and
         initializes the cursor to enable database operations. The default
-        database path is set to './.filesystem/database.db'.
+        database path is set to './.filesystem/database.db' or can be overridden
+        with the DB_PATH environment variable.
 
         .. note::
 
@@ -49,6 +50,8 @@ class Database(Singleton):
         :type db_path: str
         """
         log.debug("Initializing database connection...")
+        if db_path is None:
+            db_path = os.environ.get("DB_PATH", "./.filesystem/database.db")
         self._path = db_path
         self._conn = None
         self.cursor = None

@@ -32,13 +32,13 @@ jobs:
           pip install -r requirements.txt
           pip install pytest pytest-cov pytest-mock
 
-      - name: Set test environment
+      - name: Create test environment file
         run: |
-          echo "Setting test environment variables..."
-          echo "DEV_MODE=true" >> $GITHUB_ENV
-          echo "DB_PATH=test_db.sqlite" >> $GITHUB_ENV
-          echo "MOCK_EMAIL_DIR=example_mails/" >> $GITHUB_ENV
-          echo "LOG_LEVEL=WARNING" >> $GITHUB_ENV
+          cp .env.example .env.test
+          echo "DEV_MODE=true" >> .env.test
+          echo "DB_PATH=test_db.sqlite" >> .env.test
+          echo "MOCK_EMAIL_DIR=example_mails/" >> .env.test
+          echo "LOG_LEVEL=WARNING" >> .env.test
 
       - name: Initialize test database
         env:
@@ -85,14 +85,14 @@ jobs:
 
       - name: Upload coverage reports
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: coverage-report
           path: coverage.xml
 
       - name: Upload test database for debugging
         if: failure()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: test-database
           path: test_db.sqlite

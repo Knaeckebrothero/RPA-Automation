@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../s
 # Import after adding to path
 from cls.database import Database
 from cls.mailclient import MailClient
-from cls.singleton import SingletonMeta
+from cls.singleton import Singleton
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -38,11 +38,14 @@ def test_environment():
 @pytest.fixture(autouse=True)
 def reset_singletons():
     """Reset singleton instances before each test to ensure isolation."""
-    # Clear all singleton instances
-    SingletonMeta._instances = {}
+    # Clear singleton instances for each singleton class
+    Database._instance = None
+    MailClient._instance = None
+    # Reset any other singleton classes that might be added
     yield
     # Clear again after test
-    SingletonMeta._instances = {}
+    Database._instance = None
+    MailClient._instance = None
 
 
 @pytest.fixture(scope="function")
@@ -73,10 +76,9 @@ def clean_db(db):
         # Clear only transaction data, keep reference data
         conn.execute("DELETE FROM audit_case")
         conn.execute("DELETE FROM document")
-        conn.execute("DELETE FROM document_data")
-        conn.execute("DELETE FROM user_session")
-        # Reset audit trail except system entries
-        conn.execute("DELETE FROM audit_trail WHERE user_id != 0")
+        conn.execute("DELETE FROM session_key")
+        conn.execute("DELETE FROM login_attempts")
+        conn.execute("DELETE FROM user_client_access")
         conn.commit()
 
     return db
@@ -99,16 +101,16 @@ def sample_user(clean_db):
     """Create a test user."""
     conn = clean_db.get_connection()
     cursor = conn.execute(
-        """INSERT INTO user (username, password_hash, email, role, is_active)
-           VALUES (?, ?, ?, ?, ?)""",
-        ("test_user", "hashed_password", "test@example.com", "auditor", 1)
+        """INSERT INTO user (username_email, password_hash, password_salt, role)
+           VALUES (?, ?, ?, ?)""",
+        ("test@example.com", "hashed_password", "salt_value", "auditor")
     )
     user_id = cursor.lastrowid
     conn.commit()
 
     return {
         "id": user_id,
-        "username": "test_user",
+        "username_email": "test@example.com",
         "email": "test@example.com",
         "role": "auditor"
     }
@@ -120,13 +122,16 @@ def sample_client(clean_db):
     conn = clean_db.get_connection()
     cursor = conn.execute(
         """INSERT INTO client (
-            client_name, email, financial_year_start, financial_year_end,
-            revenue_value, expenditure_value, is_active
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            institute, bafin_id, email, address, city, contact_person, 
+            phone, fax, p033, p034, p035, p036, ab2s1n01, ab2s1n02, 
+            ab2s1n03, ab2s1n04, ab2s1n05, ab2s1n06, ab2s1n07, ab2s1n08, 
+            ab2s1n09, ab2s1n10, ab2s1n11, ratio
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
-            "Test Client Corp", "client@example.com",
-            "2024-01-01", "2024-12-31",
-            1000000.00, 800000.00, 1
+            "Test Client Corp", 12345, "client@example.com", "123 Test St", 
+            "Test City", "John Doe", "555-1234", "555-5678", 
+            1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 
+            10000, 11000, 12000, 13000, 14000, 15000, 1.5
         )
     )
     client_id = cursor.lastrowid
@@ -134,7 +139,8 @@ def sample_client(clean_db):
 
     return {
         "id": client_id,
-        "name": "Test Client Corp",
+        "institute": "Test Client Corp",
+        "bafin_id": 12345,
         "email": "client@example.com"
     }
 
@@ -145,9 +151,9 @@ def sample_audit_case(clean_db, sample_client, sample_user):
     conn = clean_db.get_connection()
     cursor = conn.execute(
         """INSERT INTO audit_case (
-            client_id, stage, assigned_to, created_by, reminder_sent
-        ) VALUES (?, ?, ?, ?, ?)""",
-        (sample_client["id"], 1, sample_user["id"], sample_user["id"], 0)
+            client_id, stage, comments
+        ) VALUES (?, ?, ?)""",
+        (sample_client["id"], 1, "Test audit case")
     )
     case_id = cursor.lastrowid
     conn.commit()
@@ -155,8 +161,7 @@ def sample_audit_case(clean_db, sample_client, sample_user):
     return {
         "id": case_id,
         "client_id": sample_client["id"],
-        "stage": 1,
-        "assigned_to": sample_user["id"]
+        "stage": 1
     }
 
 
