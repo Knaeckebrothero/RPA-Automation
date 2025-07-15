@@ -9,6 +9,9 @@ src/config.cfg
 .env
 .venv
 
+# Claude
+.claude/
+
 # Yaml
 *.yaml
 

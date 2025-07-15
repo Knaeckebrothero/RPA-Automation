@@ -35,6 +35,19 @@ pytest tests/unit/cls/test_database.py
 pytest -v tests/unit/cls/test_database.py::TestDatabase::test_database_initialization
 ```
 
+### GitHub Actions Testing
+The repository includes automated testing via GitHub Actions that runs on push/PR to `main` and `develop` branches.
+
+**Optional GitHub Secrets for enhanced testing:**
+If you want to test with real email data, add these secrets to your GitHub repository:
+- `IMAP_HOST`: Your email server host
+- `IMAP_PORT`: Email server port (usually 993)
+- `IMAP_USER`: Your email username
+- `IMAP_PASSWORD`: Your email password (use app password for Gmail)
+- `INBOX`: Your inbox name
+
+The workflow will automatically download example emails if credentials are provided, otherwise it uses mock data.
+
 ### Dependencies
 ```bash
 # Install main dependencies
@@ -42,6 +55,12 @@ pip install -r requirements.txt
 
 # Install development dependencies (includes testing)
 pip install -r requirements-dev.txt
+```
+
+### Linting and Code Quality
+```bash
+# No linting tools are currently configured in requirements
+# Consider adding: pylint, black, isort, mypy for code quality
 ```
 
 ## Architecture Overview
@@ -134,3 +153,5 @@ src/
 - Docker deployment configuration in `deployment/` directory
 - OCR requires Tesseract system installation for full functionality
 - Email processing supports both live IMAP and mock data for development
+- The `.gitignore` file excludes runtime data, logs, and local configuration files
+- When running tests in CI/CD, the workflow handles database initialization automatically
