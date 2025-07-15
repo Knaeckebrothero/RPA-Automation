@@ -44,6 +44,54 @@ jobs:
         pip install -r requirements.txt
         pip install -r requirements-dev.txt
     
+    - name: Set up test environment
+      run: |
+        # Create test environment file with GitHub secrets (if available) or test values
+        cat > .env << EOF
+        DEV_MODE=true
+        LOG_LEVEL_CONSOLE=30
+        LOG_LEVEL_FILE=30
+        LOG_PATH=./.filesystem/logs/
+        FILESYSTEM_PATH=./.filesystem/
+        CERTIFICATE_TEMPLATE_PATH=./.filesystem/certificate_template.docx
+        CERTIFICATE_TOS_PATH=./.filesystem/terms_conditions.pdf
+        OCR_USE_GPU=false
+        IMAP_HOST=${IMAP_HOST:-test.mail.server.com}
+        IMAP_PORT=${IMAP_PORT:-993}
+        IMAP_USER=${IMAP_USER:-test_user}
+        IMAP_PASSWORD=${IMAP_PASSWORD:-test_password}
+        INBOX=${INBOX:-test_inbox}
+        EXAMPLE_MAIL_PATH=./example_mails/
+        EOF
+        
+        # Initialize the application using the existing script
+        python app_init.py --skip-db-init
+        
+        # Initialize the database using the existing script
+        python db_init.py
+        
+        echo "Application initialized successfully using existing scripts"
+      env:
+        IMAP_HOST: ${{ secrets.IMAP_HOST }}
+        IMAP_PORT: ${{ secrets.IMAP_PORT }}
+        IMAP_USER: ${{ secrets.IMAP_USER }}
+        IMAP_PASSWORD: ${{ secrets.IMAP_PASSWORD }}
+        INBOX: ${{ secrets.INBOX }}
+    
+    - name: Download example emails (if credentials available)
+      if: ${{ secrets.IMAP_HOST && secrets.IMAP_USER && secrets.IMAP_PASSWORD }}
+      run: |
+        echo "Downloading example emails for testing..."
+        python email_downloader.py --num-emails 10 --output-dir ./example_mails/
+        echo "Downloaded example emails successfully"
+      env:
+        IMAP_HOST: ${{ secrets.IMAP_HOST }}
+        IMAP_PORT: ${{ secrets.IMAP_PORT }}
+        IMAP_USER: ${{ secrets.IMAP_USER }}
+        IMAP_PASSWORD: ${{ secrets.IMAP_PASSWORD }}
+        INBOX: ${{ secrets.INBOX }}
+      continue-on-error: true
+    
     - name: Run tests with pytest
       run: |
         export PYTHONPATH="${PYTHONPATH}:${PWD}/src"
