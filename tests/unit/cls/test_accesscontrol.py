@@ -4,7 +4,6 @@ Unit tests for the AccessControl class.
 This module contains tests for the AccessControl class functionality, including
 role-based permissions, client access management, and error handling.
 """
-import pytest
 from unittest.mock import patch, MagicMock
 
 from cls.accesscontrol import AccessControl

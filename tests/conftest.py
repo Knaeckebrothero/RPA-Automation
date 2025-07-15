@@ -5,8 +5,6 @@ This file contains fixtures that can be used across multiple test files.
 """
 import os
 import pytest
-import sqlite3
-import base64
 import numpy as np
 from unittest.mock import MagicMock, patch
 
