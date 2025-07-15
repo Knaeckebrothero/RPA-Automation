@@ -78,12 +78,15 @@ jobs:
         IMAP_PASSWORD: ${{ secrets.IMAP_PASSWORD }}
         INBOX: ${{ secrets.INBOX }}
     
-    - name: Download example emails (if credentials available)
-      if: ${{ secrets.IMAP_HOST }}
+    - name: Download example emails
       run: |
-        echo "Downloading example emails for testing..."
-        python email_downloader.py --num-emails 10 --output-dir ./example_mails/
-        echo "Downloaded example emails successfully"
+        if [ "$IMAP_HOST" != "test.mail.server.com" ] && [ "$IMAP_USER" != "test_user" ]; then
+          echo "Real email credentials detected, downloading example emails..."
+          python email_downloader.py --num-emails 10 --output-dir ./example_mails/
+          echo "Downloaded example emails successfully"
+        else
+          echo "Using test/mock credentials, skipping email download"
+        fi
       env:
         IMAP_HOST: ${{ secrets.IMAP_HOST }}
         IMAP_PORT: ${{ secrets.IMAP_PORT }}
