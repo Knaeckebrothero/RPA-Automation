@@ -18,8 +18,8 @@ from html.parser import HTMLParser
 
 
 # Custom imports
-from cls.singleton import Singleton
-from cls.document import Document, PDF
+from .singleton import Singleton
+from .document import Document, PDF
 
 
 # Set up logging

@@ -6,7 +6,7 @@ import logging
 from typing import List
 
 # Custom imports
-from cls.database import Database
+from .database import Database
 
 
 # Set up logging

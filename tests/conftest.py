@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../s
 
 # Import after adding to path
 from cls.database import Database
-from cls.mailclient import MailClient
+from cls.mailclient import Mailclient
 from cls.singleton import Singleton
 
 
@@ -40,12 +40,12 @@ def reset_singletons():
     """Reset singleton instances before each test to ensure isolation."""
     # Clear singleton instances for each singleton class
     Database._instance = None
-    MailClient._instance = None
+    Mailclient._instance = None
     # Reset any other singleton classes that might be added
     yield
     # Clear again after test
     Database._instance = None
-    MailClient._instance = None
+    Mailclient._instance = None
 
 
 @pytest.fixture(scope="function")
@@ -91,7 +91,7 @@ def mock_email_client():
     The mock client expects emails in pickle format (test_mail_*.pickle)
     in the MOCK_EMAIL_DIR directory, which is created by email_downloader.py.
     """
-    client = MailClient.get_instance()
+    client = Mailclient.get_instance()
     # In DEV_MODE, this should automatically use mock_imaplib
     return client
 

@@ -7,7 +7,7 @@ import logging
 import pandas as pd
 
 # Custom imports
-from cls.singleton import Singleton
+from .singleton import Singleton
 
 
 # Set up logging

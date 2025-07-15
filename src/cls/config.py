@@ -6,7 +6,7 @@ import configparser
 import logging
 
 # Custom imports
-from cls.singleton import Singleton
+from .singleton import Singleton
 
 
 # Set up logging

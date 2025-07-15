@@ -14,7 +14,7 @@ import pandas as pd
 import processing.detect as dtct
 from processing.ocr import ocr_cell, create_ocr_reader
 from processing.files import get_images_from_pdf
-from cls.database import Database
+from .database import Database
 
 
 # Set up logging

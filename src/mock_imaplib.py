@@ -211,12 +211,12 @@ class MockIMAP4_SSL():
             else:
                 message_id_str = message_id
 
-            if not "EXAMPLE_MAIL_PATH" in os.environ:
+            if not "MOCK_EMAIL_DIR" in os.environ:
                 from dotenv import load_dotenv
                 load_dotenv()
 
             # Load the saved response
-            with open(f"{os.getenv('EXAMPLE_MAIL_PATH')}/test_mail_{message_id_str}.pickle", 'rb') as f:
+            with open(f"{os.getenv('MOCK_EMAIL_DIR', 'example_mails/')}/test_mail_{message_id_str}.pickle", 'rb') as f:
                 msg_data = pickle.load(f)
 
             return 'OK', msg_data
