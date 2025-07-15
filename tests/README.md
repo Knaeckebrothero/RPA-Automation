@@ -1,66 +1,43 @@
-# Unit Testing Guide for RPA-Document-Fetcher
+# Testing Guide for RPA-Document-Fetcher
 
-This guide outlines a comprehensive approach to implementing unit tests for the RPA-Document-Fetcher application to achieve 70% code coverage.
+This guide provides comprehensive information on testing the RPA-Document-Fetcher application. It is intended for developers who are new to the project and need to understand how to run, write, and maintain tests.
 
-## Table of Contents
-1. [Introduction](#introduction)
-2. [Testing Framework](#testing-framework)
-3. [Test Directory Structure](#test-directory-structure)
-4. [Components to Test](#components-to-test)
-5. [Testing Strategy](#testing-strategy)
-6. [Example Test Implementations](#example-test-implementations)
-7. [Coverage Measurement](#coverage-measurement)
-8. [Continuous Integration](#continuous-integration)
+## Quick Start
 
-## Introduction
+To run all tests immediately:
 
-The RPA-Document-Fetcher application currently lacks unit tests. This guide provides a roadmap for implementing tests to achieve 70% code coverage, focusing on the most critical components of the application.
-
-## Testing Framework
-
-### Recommended Tools
-- **pytest**: Primary testing framework
-- **pytest-cov**: For measuring code coverage
-- **pytest-mock**: For mocking dependencies
-- **pytest-env**: For environment variable management during tests
-
-### Installation
-Add these dependencies to a new `requirements-dev.txt` file:
-
-```
-pytest==7.4.0
-pytest-cov==4.1.0
-pytest-mock==3.11.1
-pytest-env==1.0.1
-```
-
-Install with:
 ```bash
+# Install test dependencies
 pip install -r requirements-dev.txt
+
+# Run all tests
+pytest
+
+# Run tests with coverage
+pytest --cov=src tests/
 ```
 
-## Test Directory Structure
+## Test Organization
 
-Create the following directory structure for tests:
+Tests are organized in the following directory structure:
 
 ```
 tests/
 ├── conftest.py                  # Shared fixtures
-├── unit/
+├── README.md                    # This guide
+├── unit/                        # Unit tests
 │   ├── cls/                     # Tests for cls module
-│   │   ├── test_database.py
-│   │   ├── test_document.py
-│   │   ├── test_mailclient.py
-│   │   └── test_singleton.py
+│   │   ├── test_database.py     # Database class tests
+│   │   ├── test_document.py     # Document class tests
+│   │   └── ...
 │   ├── processing/              # Tests for processing module
 │   │   ├── test_detect.py
 │   │   ├── test_files.py
 │   │   └── test_ocr.py
 │   ├── ui/                      # Tests for ui module
-│   │   ├── test_expander_stages.py
 │   │   ├── test_navbar.py
 │   │   ├── test_pages.py
-│   │   └── test_visuals.py
+│   │   └── ...
 │   └── workflow/                # Tests for workflow module
 │       ├── test_audit.py
 │       ├── test_excel_import.py
@@ -70,280 +47,499 @@ tests/
     └── test_email_processing.py
 ```
 
-## Components to Test
+- **Unit Tests**: Test individual components in isolation
+- **Integration Tests**: Test the interaction between components
 
-To achieve 70% code coverage, focus on testing these key components:
+## Running Tests
 
-### High Priority (Core Functionality)
-1. **Database Operations** (`cls/database.py`)
-   - Connection management
-   - Query execution
-   - Data retrieval methods
+### Running All Tests
 
-2. **Document Processing** (`cls/document.py`)
-   - Document class functionality
-   - PDF class functionality
-   - Document attribute management
+```bash
+pytest
+```
 
-3. **Email Client** (`cls/mailclient.py`)
-   - Email retrieval
-   - Attachment handling
-   - Email sending
+### Running Tests by Category
 
-4. **Processing Modules**
-   - OCR functionality (`processing/ocr.py`)
-   - File operations (`processing/files.py`)
-   - Detection algorithms (`processing/detect.py`)
+```bash
+# Run all unit tests
+pytest tests/unit/
 
-### Medium Priority
-1. **Workflow Management**
-   - Audit workflows (`workflow/audit.py`)
-   - Security and authentication (`workflow/security.py`)
-   - Excel import functionality (`workflow/excel_import.py`)
+# Run all integration tests
+pytest tests/integration/
 
-2. **Singleton Pattern** (`cls/singleton.py`)
-   - Instance management
-   - Inheritance behavior
+# Run tests for a specific module
+pytest tests/unit/cls/
+pytest tests/unit/processing/
+pytest tests/unit/ui/
+pytest tests/unit/workflow/
+```
 
-### Lower Priority (UI Components)
-1. **UI Components**
-   - Navigation (`ui/navbar.py`)
-   - Page rendering (`ui/pages.py`)
-   - Visual components (`ui/visuals.py`)
-   - Expander stages (`ui/expander_stages.py`)
+### Running Specific Test Files
 
-## Testing Strategy
+```bash
+# Run tests in a specific file
+pytest tests/unit/cls/test_database.py
 
-### 1. Unit Testing Approach
+# Run a specific test class
+pytest tests/unit/cls/test_database.py::TestDatabase
 
-#### Mocking External Dependencies
-- Use `pytest-mock` to mock database connections, file operations, and external APIs
-- Create fixture files for test data
-- Use environment variables to control test behavior
+# Run a specific test method
+pytest tests/unit/cls/test_database.py::TestDatabase::test_database_initialization
+```
 
-#### Test Isolation
-- Each test should be independent and not rely on the state from other tests
-- Use fixtures to set up and tear down test environments
+### Running Tests with Coverage
 
-### 2. Test Categories
+```bash
+# Generate coverage report for all tests
+pytest --cov=src tests/
 
-#### Functional Tests
-- Test that functions return expected results for given inputs
-- Verify error handling and edge cases
+# Generate detailed HTML coverage report
+pytest --cov=src --cov-report=html tests/
 
-#### Behavioral Tests
-- Test that components interact correctly
-- Verify that side effects occur as expected
+# Generate coverage for a specific module
+pytest --cov=src.cls tests/unit/cls/
+```
 
-#### Regression Tests
-- Test specific bug fixes to prevent regressions
+### Running Tests with Verbose Output
 
-### 3. Testing Priorities
+```bash
+pytest -v
+```
 
-1. **First Phase**: Core functionality (Database, Document, Mailclient)
-2. **Second Phase**: Processing modules and Workflow components
-3. **Third Phase**: UI components and integration tests
+### Running Tests with Print Statements
 
-## Example Test Implementations
+```bash
+pytest -s
+```
 
-### Example 1: Testing Database Connection
+## Writing New Tests
+
+### Basic Test Structure
+
+Tests in this project follow the pytest framework. Here's a basic structure for a test file:
 
 ```python
-# tests/unit/cls/test_database.py
+"""
+Unit tests for the [Component] class.
+
+This module contains tests for the [Component] class functionality.
+"""
 import pytest
-import sqlite3
 from unittest.mock import patch, MagicMock
-from cls.database import Database
 
+from module.path import Component
+
+class TestComponent:
+    """Test suite for the Component class."""
+
+    def test_component_initialization(self):
+        """Test that Component initializes correctly."""
+        component = Component()
+        assert component.attribute == expected_value
+
+    @patch('external.dependency')
+    def test_component_method(self, mock_dependency):
+        """Test a method that has external dependencies."""
+        mock_dependency.return_value = mock_value
+
+        component = Component()
+        result = component.method()
+
+        assert result == expected_result
+        mock_dependency.assert_called_once_with(expected_args)
+```
+
+### Using Fixtures
+
+Fixtures are a powerful feature of pytest that allow you to set up preconditions for your tests:
+
+```python
 @pytest.fixture
-def mock_sqlite_connection():
-    """Mock SQLite connection for testing."""
-    conn = MagicMock()
-    cursor = MagicMock()
-    conn.cursor.return_value = cursor
-    return conn, cursor
+def sample_component():
+    """Create a sample component for testing."""
+    return Component(param1="value1", param2="value2")
 
-def test_database_initialization():
-    """Test that Database initializes with correct default path."""
-    db = Database()
-    assert db._db_path.endswith('database.db')
-    assert db._connection is None
+def test_component_method(sample_component):
+    """Test using the fixture."""
+    result = sample_component.method()
+    assert result == expected_result
+```
 
-@patch('sqlite3.connect')
-def test_database_connect(mock_connect, mock_sqlite_connection):
-    """Test database connection."""
-    conn, cursor = mock_sqlite_connection
-    mock_connect.return_value = conn
-    
-    db = Database()
-    db.connect()
-    
-    mock_connect.assert_called_once()
-    assert db._connection is not None
+### Testing Different Types of Components
 
+#### Testing Database Operations
+
+```python
 @patch('sqlite3.connect')
 def test_database_query(mock_connect, mock_sqlite_connection):
     """Test database query execution."""
     conn, cursor = mock_sqlite_connection
     mock_connect.return_value = conn
     cursor.fetchall.return_value = [('result1',), ('result2',)]
-    
+
     db = Database()
     result = db.query("SELECT * FROM test_table")
-    
+
     cursor.execute.assert_called_once_with("SELECT * FROM test_table", None)
     assert len(result) == 2
     assert result[0][0] == 'result1'
 ```
 
-### Example 2: Testing Document Class
+#### Testing UI Components
 
 ```python
-# tests/unit/cls/test_document.py
-import pytest
-import os
-import json
-from unittest.mock import patch, mock_open
-from cls.document import Document
+@patch('streamlit.sidebar')
+def test_navbar_render(mock_sidebar):
+    """Test navbar rendering."""
+    navbar = Navbar()
+    navbar.render()
 
-@pytest.fixture
-def sample_document():
-    """Create a sample document for testing."""
-    content = b'Sample document content'
-    attributes = {'name': 'test_doc', 'type': 'text'}
-    return Document(content=content, attributes=attributes)
-
-def test_document_initialization(sample_document):
-    """Test document initialization with attributes."""
-    assert sample_document.get_content() == b'Sample document content'
-    assert sample_document.get_attributes('name') == 'test_doc'
-    assert sample_document.get_attributes('type') == 'text'
-
-def test_document_add_attributes(sample_document):
-    """Test adding attributes to a document."""
-    sample_document.add_attributes({'size': 100, 'author': 'Test Author'})
-    assert sample_document.get_attributes('size') == 100
-    assert sample_document.get_attributes('author') == 'Test Author'
-    assert sample_document.get_attributes('name') == 'test_doc'  # Original attribute preserved
-
-@patch('builtins.open', new_callable=mock_open)
-def test_document_save_to_file(mock_file, sample_document):
-    """Test saving document to a file."""
-    sample_document.save_to_file('test_path.txt')
-    mock_file.assert_called_once_with('test_path.txt', 'wb')
-    mock_file().write.assert_called_once_with(b'Sample document content')
+    # Verify that the sidebar methods were called
+    mock_sidebar.title.assert_called_once_with("Navigation")
+    assert mock_sidebar.button.call_count >= 1
 ```
 
-### Example 3: Testing Mailclient
+#### Testing Document Processing
 
 ```python
-# tests/unit/cls/test_mailclient.py
-import pytest
-from unittest.mock import patch, MagicMock
-from cls.mailclient import Mailclient, HTMLTextExtractor
+def test_document_processing(sample_document_content, sample_document_attributes):
+    """Test document processing."""
+    document = Document(content=sample_document_content, attributes=sample_document_attributes)
+    result = document.process()
+
+    assert result is True
+    assert document.get_attributes('processed') is True
+```
+
+### Testing Error Handling
+
+```python
+def test_error_handling():
+    """Test that errors are handled correctly."""
+    component = Component()
+
+    with pytest.raises(ValueError) as excinfo:
+        component.method_that_raises_error()
+
+    assert "Expected error message" in str(excinfo.value)
+```
+
+## Test Fixtures
+
+The project uses a variety of fixtures defined in `conftest.py` to simplify test setup. Here are some of the most useful fixtures:
+
+### Database Fixtures
+
+```python
+@pytest.fixture
+def mock_sqlite_connection():
+    """
+    Create a mock SQLite connection and cursor for database testing.
+
+    Returns:
+        tuple: (mock_connection, mock_cursor)
+    """
+    conn = MagicMock()
+    cursor = MagicMock()
+    conn.cursor.return_value = cursor
+    return conn, cursor
 
 @pytest.fixture
-def mock_imap():
-    """Mock IMAP connection for testing."""
+def mock_database():
+    """
+    Create a mock Database instance for testing.
+
+    Returns:
+        MagicMock: Mock Database instance
+    """
+    with patch('cls.database.Database') as mock_db_class:
+        db_instance = MagicMock()
+        mock_db_class.return_value = db_instance
+        db_instance.get_instance.return_value = db_instance
+
+        # Set up common query responses
+        db_instance.query.side_effect = lambda query, params=None: {
+            "SELECT id FROM client WHERE bafin_id = ?": [(1,)] if params and params[0] == 12345 else [],
+            "SELECT stage FROM audit_case WHERE client_id = ?": [(1,)] if params and params[0] == 1 else [],
+            "SELECT id FROM audit_case WHERE client_id = ?": [(123,)] if params and params[0] == 1 else [],
+            "SELECT document_path FROM document WHERE document_hash = ? AND audit_case_id = ?": [] 
+        }.get(query, [])
+
+        yield db_instance
+```
+
+### Document Fixtures
+
+```python
+@pytest.fixture
+def sample_document_content():
+    """
+    Provide sample document content for testing.
+
+    Returns:
+        bytes: Sample document content
+    """
+    return b'Sample document content for testing'
+
+@pytest.fixture
+def sample_document_attributes():
+    """
+    Provide sample document attributes for testing.
+
+    Returns:
+        dict: Sample document attributes
+    """
+    return {
+        'name': 'test_document.pdf',
+        'type': 'application/pdf',
+        'size': 1024,
+        'created_at': '2023-01-01T12:00:00',
+        'author': 'Test Author'
+    }
+
+@pytest.fixture
+def sample_pdf_content():
+    """
+    Provide sample PDF content for testing.
+
+    Returns:
+        bytes: Sample PDF content with PDF header
+    """
+    return b'%PDF-1.5\nSample PDF content for testing'
+```
+
+### Processing Fixtures
+
+```python
+@pytest.fixture
+def mock_ocr_reader():
+    """
+    Create a mock OCR reader for testing.
+
+    Returns:
+        MagicMock: Mock OCR reader
+    """
+    mock = MagicMock()
+    mock.readtext.return_value = [
+        ([[0, 0], [100, 0], [100, 30], [0, 30]], "Sample OCR Text", 0.95)
+    ]
+    return mock
+
+@pytest.fixture
+def mock_detect_module():
+    """
+    Create a mock detect module for testing.
+
+    Returns:
+        MagicMock: Mock detect module
+    """
+    with patch('processing.detect.normalize_image_resolution', return_value=np.zeros((100, 100, 3), dtype=np.uint8)), \
+         patch('processing.detect.tables', return_value=[np.array([[[0, 0]], [[100, 0]], [[100, 30]], [[0, 30]]])]), \
+         patch('processing.detect.rows', return_value=[(0, 30)]), \
+         patch('processing.detect.cells', return_value=[(0, 100)]), \
+         patch('processing.detect.bafin_id', return_value=12345):
+        yield
+```
+
+### Email Fixtures
+
+```python
+@pytest.fixture
+def mock_imap_connection():
+    """
+    Create a mock IMAP connection for email testing.
+
+    Returns:
+        MagicMock: Mock IMAP connection
+    """
     mock = MagicMock()
     mock.login.return_value = ('OK', [b'Login successful'])
     mock.select.return_value = ('OK', [b'1'])
+    mock.search.return_value = ('OK', [b'1 2 3'])
+    mock.fetch.return_value = ('OK', [(b'1', b'EMAIL_DATA')])
     return mock
-
-@patch('cls.mailclient.IMAP4_SSL')
-def test_mailclient_connect(mock_imap_class, mock_imap):
-    """Test mailclient connection."""
-    mock_imap_class.return_value = mock_imap
-    
-    client = Mailclient(imap_server='test.server.com', imap_port=993, 
-                        username='test@example.com', password='password')
-    client.connect('test.server.com', 993)
-    
-    mock_imap_class.assert_called_once_with('test.server.com', 993)
-    assert client._connection is not None
-
-@patch('cls.mailclient.IMAP4_SSL')
-def test_mailclient_login(mock_imap_class, mock_imap):
-    """Test mailclient login."""
-    mock_imap_class.return_value = mock_imap
-    
-    client = Mailclient(imap_server='test.server.com', imap_port=993)
-    client.connect('test.server.com', 993)
-    result = client.login('test@example.com', 'password')
-    
-    mock_imap.login.assert_called_once_with('test@example.com', 'password')
-    assert result == ('OK', [b'Login successful'])
-
-def test_html_text_extractor():
-    """Test HTML text extraction."""
-    html = "<html><body><p>Test paragraph</p><div>Test div</div></body></html>"
-    extractor = HTMLTextExtractor()
-    text = extractor.extract_text_from_html(html)
-    assert "Test paragraph" in text
-    assert "Test div" in text
 ```
 
-## Coverage Measurement
+## Best Practices
 
-### Running Tests with Coverage
+### Test Isolation
 
-Use pytest-cov to measure code coverage:
+Each test should be independent and not rely on the state from other tests. Use fixtures to set up and tear down test environments.
 
-```bash
-pytest --cov=src tests/
+```python
+# Good: Test is isolated and uses fixtures
+def test_isolated_example(mock_database):
+    # Test uses a fresh mock_database for each test
+    result = process_data(mock_database)
+    assert result is True
+
+# Bad: Test depends on global state
+global_db = None
+
+def setup_module():
+    global global_db
+    global_db = Database()
+
+def test_non_isolated_example():
+    # Test depends on global_db being set up correctly
+    result = process_data(global_db)
+    assert result is True
 ```
 
-For a detailed HTML report:
+### Mocking External Dependencies
 
-```bash
-pytest --cov=src --cov-report=html tests/
+Use `pytest-mock` to mock database connections, file operations, and external APIs:
+
+```python
+@patch('requests.get')
+def test_api_call(mock_get):
+    mock_get.return_value.status_code = 200
+    mock_get.return_value.json.return_value = {'key': 'value'}
+
+    result = call_api()
+
+    assert result == {'key': 'value'}
+    mock_get.assert_called_once_with('https://api.example.com/endpoint')
 ```
 
-### Coverage Targets
+### Test Naming Conventions
 
-To achieve 70% overall coverage:
-- Aim for 80-90% coverage of core components (database.py, document.py, mailclient.py)
-- Aim for 70-80% coverage of processing modules
-- Aim for 50-60% coverage of workflow modules
-- Aim for 40-50% coverage of UI components
+- Test files should be named `test_*.py`
+- Test classes should be named `Test*`
+- Test methods should be named `test_*`
+- Test method names should clearly describe what is being tested
 
-## Continuous Integration
+```python
+# Good: Clear test names
+def test_database_connection_succeeds():
+    # Test code
 
-### GitHub Actions Configuration
+def test_database_connection_fails_with_invalid_credentials():
+    # Test code
 
-Create a GitHub Actions workflow to run tests automatically:
+# Bad: Unclear test names
+def test_db_conn():
+    # Test code
 
-```yaml
-# .github/workflows/tests.yml
-name: Run Tests
-
-on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main, develop ]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install -r requirements-dev.txt
-    - name: Run tests
-      run: |
-        pytest --cov=src tests/
-    - name: Upload coverage report
-      uses: codecov/codecov-action@v3
+def test_db_conn_2():
+    # Test code
 ```
+
+### Comprehensive Testing
+
+Tests should cover:
+
+1. **Normal Operation**: Test that functions work correctly with valid inputs
+2. **Edge Cases**: Test boundary conditions and special cases
+3. **Error Handling**: Test that errors are handled correctly
+
+```python
+# Testing normal operation
+def test_divide_normal():
+    assert divide(10, 2) == 5
+
+# Testing edge cases
+def test_divide_edge_cases():
+    assert divide(0, 5) == 0
+    assert divide(-10, 2) == -5
+    assert divide(10, -2) == -5
+
+# Testing error handling
+def test_divide_by_zero():
+    with pytest.raises(ValueError) as excinfo:
+        divide(10, 0)
+    assert "Cannot divide by zero" in str(excinfo.value)
+```
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+#### Tests Failing Due to Import Errors
+
+**Issue**: `ModuleNotFoundError: No module named 'module_name'`
+
+**Solution**: 
+- Ensure that the project root is in your Python path
+- Check that you've installed all required dependencies
+- Make sure you're running tests from the project root
+
+```python
+# Add this to conftest.py if not already present
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+```
+
+#### Tests Failing Due to Missing Fixtures
+
+**Issue**: `fixture 'fixture_name' not found`
+
+**Solution**:
+- Check that the fixture is defined in `conftest.py` or in the test file
+- Ensure that the fixture name is spelled correctly
+- Make sure the fixture is accessible to the test (in the same file or in conftest.py)
+
+#### Tests Failing Due to Mocking Issues
+
+**Issue**: `AssertionError: Expected 'mock_method' to have been called once. Called 0 times.`
+
+**Solution**:
+- Check that you're mocking the correct path
+- Ensure that the mock is set up before the code under test is executed
+- Verify that the code under test is actually calling the method you're mocking
+
+```python
+# Correct way to mock a method
+@patch('module.Class.method')  # Use the full import path
+def test_example(mock_method):
+    # Test code that calls module.Class.method
+    mock_method.assert_called_once()
+
+# Incorrect way to mock a method
+@patch('Class.method')  # Incomplete path
+def test_example(mock_method):
+    # This won't work if the code imports from module.Class
+    mock_method.assert_called_once()
+```
+
+#### Tests Running Slowly
+
+**Issue**: Tests take a long time to run
+
+**Solution**:
+- Use mocks to avoid actual network calls, database operations, or file I/O
+- Run only the tests you need using pytest's filtering options
+- Use pytest-xdist to run tests in parallel: `pytest -n auto`
+
+#### Tests Failing Intermittently
+
+**Issue**: Tests sometimes pass and sometimes fail
+
+**Solution**:
+- Check for race conditions or timing issues
+- Ensure tests are properly isolated and don't depend on each other
+- Look for external dependencies that might be unreliable
+- Add more logging to identify the issue: `pytest -v --log-cli-level=DEBUG`
+
+### Getting Help
+
+If you're still having trouble with tests, you can:
+
+1. Check the pytest documentation: https://docs.pytest.org/
+2. Look at existing test files for examples
+3. Ask for help from other team members
+4. Add detailed logging to your tests to understand what's happening
 
 ## Conclusion
 
-Implementing this testing strategy will provide a solid foundation for ensuring the reliability and maintainability of the RPA-Document-Fetcher application. By focusing on the core components first and gradually expanding test coverage, the team can achieve the 70% code coverage goal while maximizing the value of the testing effort.
+Testing is a critical part of maintaining the RPA-Document-Fetcher application. By following the guidelines in this document, you can write effective tests that help ensure the reliability and maintainability of the codebase.
+
+Remember that tests should be:
+- Fast
+- Independent
+- Repeatable
+- Self-validating
+- Thorough
+
+Happy testing!

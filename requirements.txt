@@ -13,6 +13,7 @@ openpyxl==3.1.2  # Required by pandas for Excel file support
 pillow==10.4.0  # Required by tesseract (allthough easyocr depends on it as well)
 pytesseract==0.3.13  # Tesseract OCR wrapper for Python
 easyocr==1.7.2
+pytest==8.4.1
 
 # Torch is recommended to use a gpu to speed up the ocr
 # pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
