@@ -1,9 +1,11 @@
+name: Build and Validate
+
 on:
   push:
-    branches: [ "main", "*", "*/*" ]
+    branches: [ "main", "develop" ]
   pull_request:
     types: [opened, synchronize, reopened]
-    branches: [ "main", "*", "*/*" ]
+    branches: [ "main", "develop" ]
 
 permissions:
   contents: read
@@ -13,7 +15,23 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - name: Build
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
       run: |
-        echo "Add your build steps here"
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Check Python syntax
+      run: |
+        python -m py_compile src/**/*.py
+    
+    - name: Validate configuration files
+      run: |
+        python -c "import json; json.load(open('src/regex_patterns.json'))"
+        echo "Configuration files validated successfully"
