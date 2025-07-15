@@ -131,8 +131,8 @@ def home(mailclient: Mailclient = None, database: Database = Database.get_instan
     display_df.columns = [_('Case ID'), _('BaFin ID'), _('Institute'), _('Stage'), _('Created'), _('Last Updated')]
 
     # Format dates
-    display_df['Created'] = display_df['Created'].dt.strftime('%d.%m.%Y')
-    display_df['Last Updated'] = display_df['Last Updated'].dt.strftime('%d.%m.%Y %H:%M')
+    display_df[_('Created')] = display_df[_('Created')].dt.strftime('%d.%m.%Y')
+    display_df[_('Last Updated')] = display_df[_('Last Updated')].dt.strftime('%d.%m.%Y %H:%M')
 
     # Add stage badges
     display_df['Stage'] = active_cases_df['stage'].apply(
