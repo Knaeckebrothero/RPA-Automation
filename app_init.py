@@ -379,4 +379,49 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # Check if running in CI environment
+    is_ci = os.environ.get("CI", "").lower() == "true"
+
+    if is_ci:
+        print("Running in CI mode - using minimal test data")
+
+        # Override settings for CI
+        os.environ["DB_PATH"] = os.environ.get("DB_PATH", "test_db.sqlite")
+        os.environ["DEV_MODE"] = "true"
+        os.environ["LOG_LEVEL"] = "WARNING"
+
+        # You can modify your existing initialization functions to accept parameters
+        # For example, if you have a create_test_data() function:
+        # create_test_data(minimal=True)
+
+        # Or add CI-specific initialization here
+        print("Initializing database for CI...")
+        # Your existing initialization code but with fewer records
+
+        # Example: Create only essential test data
+        from src.cls.database import Database
+        db = Database.get_instance()
+
+        # Create admin user for tests
+        db.insert("""
+            INSERT OR IGNORE INTO user (username, password_hash, email, role, is_active)
+            VALUES ('test_admin', 'hashed_test_password', 'admin@test.com', 'admin', 1)
+        """)
+
+        # Create one test client
+        db.insert("""
+            INSERT OR IGNORE INTO client (
+                client_name, email, financial_year_start, financial_year_end,
+                revenue_value, expenditure_value, is_active
+            ) VALUES (
+                'Test Client CI', 'client@test.com', '2024-01-01', '2024-12-31',
+                500000.00, 400000.00, 1
+            )
+        """)
+
+        print("CI initialization complete")
+    else:
+        # Normal initialization for development/production
+        print("Running normal initialization...")
+        # Your existing initialization code goes here
+        sys.exit(main())

@@ -13,26 +13,26 @@ class PythonProjectCopier:
         'pyproject.toml',
         '.env.example',
         'README.md',
-        '.devcontainer/devcontainer.json',
         'table_detection.py',
         'db_init.py',
         'app_init.py',
         'email_downloader.py',
-        'examples/email_templates/reminder_template.html',
-        'examples/email_templates/response_template.html',
-        'deployment/certificate.yml',
-        'deployment/deployment.yml',
-        'deployment/Dockerfile',
-        'deployment/secret.yml',
-        '.github/workflows/main.yml',
-        '.github/workflows/tests.yml',
-        '.github/workflows/trivy.yml',
+        'CLAUDE.md',
+        'pytest.ini',
+        'email_downloader.py',
+        'run_existing_tests.py',
+        #'examples/email_templates/reminder_template.html',
+        #'examples/email_templates/response_template.html',
         # Add any other files you want to copy (use relative paths)
     ]
 
     # --- New attribute ---
     # Directories to be copied entirely (relative to repository root)
     CONFIG_DIRS = [
+        '.github/workflows',
+        'deployment',
+        '.streamlit',
+        'examples',
         'tests',
         # Add any directories you want to copy entirely
     ]

@@ -1,251 +1,233 @@
 """
-Shared pytest fixtures for the RPA-Document-Fetcher test suite.
-
-This file contains fixtures that can be used across multiple test files.
+Pytest configuration and fixtures for the RPA Document Fetcher test suite.
 """
-import os
 import pytest
-import numpy as np
-from unittest.mock import MagicMock, patch
-
-# Add the src directory to the Python path
+import os
 import sys
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
+import shutil
+from pathlib import Path
+from datetime import datetime
+import tempfile
 
-# Set testing environment to prevent database initialization during imports
-os.environ['TESTING'] = 'true'
+# Add src to path for imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
-# Mock the database initialization to prevent connection issues during import
-from unittest.mock import patch, MagicMock
+# Import after adding to path
+from cls.database import Database
+from cls.mailclient import MailClient
+from cls.singleton import SingletonMeta
+
+
+@pytest.fixture(scope="session", autouse=True)
+def test_environment():
+    """Configure test environment using pre-initialized database."""
+    # Load test environment variables
+    os.environ["DEV_MODE"] = "true"
+    os.environ["DB_PATH"] = os.environ.get("DB_PATH", "test_db.sqlite")
+    os.environ["MOCK_EMAIL_DIR"] = "example_mails/"
+    os.environ["LOG_LEVEL"] = "WARNING"
+
+    # Ensure example_mails directory exists
+    Path("example_mails").mkdir(exist_ok=True)
+
+    yield
+
+    # Cleanup is handled by GitHub Actions
+
 
 @pytest.fixture(autouse=True)
-def mock_database_imports():
-    """Mock database imports to prevent singleton initialization during tests."""
-    with patch('cls.database.Database') as mock_db_class:
-        mock_db = MagicMock()
-        mock_db_class.return_value = mock_db
-        mock_db_class.get_instance.return_value = mock_db
-        yield mock_db
+def reset_singletons():
+    """Reset singleton instances before each test to ensure isolation."""
+    # Clear all singleton instances
+    SingletonMeta._instances = {}
+    yield
+    # Clear again after test
+    SingletonMeta._instances = {}
+
+
+@pytest.fixture(scope="function")
+def db():
+    """Provide a clean database instance for each test."""
+    # Get database instance (will be recreated due to reset_singletons)
+    database = Database.get_instance()
+
+    # Begin transaction for rollback capability
+    conn = database.get_connection()
+    conn.execute("BEGIN")
+
+    yield database
+
+    # Rollback any changes made during the test
+    try:
+        conn.rollback()
+    except:
+        pass
+    finally:
+        conn.close()
+
+
+@pytest.fixture(scope="function")
+def clean_db(db):
+    """Provide database with cleaned transaction tables."""
+    with db.get_connection() as conn:
+        # Clear only transaction data, keep reference data
+        conn.execute("DELETE FROM audit_case")
+        conn.execute("DELETE FROM document")
+        conn.execute("DELETE FROM document_data")
+        conn.execute("DELETE FROM user_session")
+        # Reset audit trail except system entries
+        conn.execute("DELETE FROM audit_trail WHERE user_id != 0")
+        conn.commit()
+
+    return db
 
 
 @pytest.fixture
-def mock_sqlite_connection():
-    """
-    Create a mock SQLite connection and cursor for database testing.
+def mock_email_client():
+    """Return mock email client (automatically used in DEV_MODE).
 
-    Returns:
-        tuple: (mock_connection, mock_cursor)
+    The mock client expects emails in pickle format (test_mail_*.pickle)
+    in the MOCK_EMAIL_DIR directory, which is created by email_downloader.py.
     """
-    conn = MagicMock()
-    cursor = MagicMock()
-    conn.cursor.return_value = cursor
-    return conn, cursor
+    client = MailClient.get_instance()
+    # In DEV_MODE, this should automatically use mock_imaplib
+    return client
 
 
 @pytest.fixture
-def sample_document_content():
-    """
-    Provide sample document content for testing.
+def sample_user(clean_db):
+    """Create a test user."""
+    conn = clean_db.get_connection()
+    cursor = conn.execute(
+        """INSERT INTO user (username, password_hash, email, role, is_active)
+           VALUES (?, ?, ?, ?, ?)""",
+        ("test_user", "hashed_password", "test@example.com", "auditor", 1)
+    )
+    user_id = cursor.lastrowid
+    conn.commit()
 
-    Returns:
-        bytes: Sample document content
-    """
-    return b'Sample document content for testing'
-
-
-@pytest.fixture
-def sample_document_attributes():
-    """
-    Provide sample document attributes for testing.
-
-    Returns:
-        dict: Sample document attributes
-    """
     return {
-        'name': 'test_document.pdf',
-        'type': 'application/pdf',
-        'size': 1024,
-        'created_at': '2023-01-01T12:00:00',
-        'author': 'Test Author'
+        "id": user_id,
+        "username": "test_user",
+        "email": "test@example.com",
+        "role": "auditor"
     }
 
 
 @pytest.fixture
-def sample_pdf_content():
-    """
-    Provide sample PDF content for testing.
+def sample_client(clean_db):
+    """Create a test client."""
+    conn = clean_db.get_connection()
+    cursor = conn.execute(
+        """INSERT INTO client (
+            client_name, email, financial_year_start, financial_year_end,
+            revenue_value, expenditure_value, is_active
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (
+            "Test Client Corp", "client@example.com",
+            "2024-01-01", "2024-12-31",
+            1000000.00, 800000.00, 1
+        )
+    )
+    client_id = cursor.lastrowid
+    conn.commit()
 
-    Returns:
-        bytes: Sample PDF content with PDF header
-    """
-    return b'%PDF-1.5\nSample PDF content for testing'
-
-
-@pytest.fixture
-def sample_pdf_attributes():
-    """
-    Provide sample PDF attributes for testing.
-
-    Returns:
-        dict: Sample PDF attributes
-    """
     return {
-        'filename': 'test_document.pdf',
-        'content_type': 'application/pdf',
-        'size': 1024,
-        'created_at': '2023-01-01T12:00:00',
-        'author': 'Test Author',
-        'BaFin-ID': 12345,
-        'client_id': 1,
-        'email_id': 100
+        "id": client_id,
+        "name": "Test Client Corp",
+        "email": "client@example.com"
     }
 
 
 @pytest.fixture
-def mock_database():
-    """
-    Create a mock Database instance for testing.
+def sample_audit_case(clean_db, sample_client, sample_user):
+    """Create a test audit case."""
+    conn = clean_db.get_connection()
+    cursor = conn.execute(
+        """INSERT INTO audit_case (
+            client_id, stage, assigned_to, created_by, reminder_sent
+        ) VALUES (?, ?, ?, ?, ?)""",
+        (sample_client["id"], 1, sample_user["id"], sample_user["id"], 0)
+    )
+    case_id = cursor.lastrowid
+    conn.commit()
 
-    Returns:
-        MagicMock: Mock Database instance
-    """
-    with patch('cls.database.Database') as mock_db_class:
-        db_instance = MagicMock()
-        mock_db_class.return_value = db_instance
-        db_instance.get_instance.return_value = db_instance
-
-        # Set up common query responses
-        db_instance.query.side_effect = lambda query, params=None: {
-            "SELECT id FROM client WHERE bafin_id = ?": [(1,)] if params and params[0] == 12345 else [],
-            "SELECT stage FROM audit_case WHERE client_id = ?": [(1,)] if params and params[0] == 1 else [],
-            "SELECT id FROM audit_case WHERE client_id = ?": [(123,)] if params and params[0] == 1 else [],
-            "SELECT document_path FROM document WHERE document_hash = ? AND audit_case_id = ?": [] 
-        }.get(query, [])
-
-        yield db_instance
-
-
-@pytest.fixture
-def mock_ocr_reader():
-    """
-    Create a mock OCR reader for testing.
-
-    Returns:
-        MagicMock: Mock OCR reader
-    """
-    mock = MagicMock()
-    mock.readtext.return_value = [
-        ([[0, 0], [100, 0], [100, 30], [0, 30]], "Sample OCR Text", 0.95)
-    ]
-    return mock
-
-
-@pytest.fixture
-def mock_cv2():
-    """
-    Create a mock cv2 module for testing.
-
-    Returns:
-        MagicMock: Mock cv2 module
-    """
-    with patch('cv2.cvtColor', return_value=np.zeros((100, 100, 3), dtype=np.uint8)), \
-         patch('cv2.boundingRect', return_value=(0, 0, 100, 30)), \
-         patch('cv2.contourArea', return_value=3000):
-        yield
-
-
-@pytest.fixture
-def mock_detect_module():
-    """
-    Create a mock detect module for testing.
-
-    Returns:
-        MagicMock: Mock detect module
-    """
-    with patch('processing.detect.normalize_image_resolution', return_value=np.zeros((100, 100, 3), dtype=np.uint8)), \
-         patch('processing.detect.tables', return_value=[np.array([[[0, 0]], [[100, 0]], [[100, 30]], [[0, 30]]])]), \
-         patch('processing.detect.rows', return_value=[(0, 30)]), \
-         patch('processing.detect.cells', return_value=[(0, 100)]), \
-         patch('processing.detect.bafin_id', return_value=12345):
-        yield
-
-
-@pytest.fixture
-def mock_ocr_cell():
-    """
-    Create a mock ocr_cell function for testing.
-
-    Returns:
-        MagicMock: Mock ocr_cell function
-    """
-    with patch('processing.ocr.ocr_cell', return_value="Sample OCR Text"):
-        yield
-
-
-@pytest.fixture
-def mock_get_images_from_pdf():
-    """
-    Create a mock get_images_from_pdf function for testing.
-
-    Returns:
-        MagicMock: Mock get_images_from_pdf function
-    """
-    with patch('processing.files.get_images_from_pdf', return_value=[MagicMock()]):
-        yield
-
-
-@pytest.fixture
-def mock_environment_variables():
-    """
-    Set up mock environment variables for testing.
-
-    This fixture uses pytest's monkeypatch to set environment variables
-    that are commonly used in the application.
-    """
-    env_vars = {
-        'IMAP_HOST': 'test.mail.server',
-        'IMAP_PORT': '993',
-        'IMAP_USER': 'test@example.com',
-        'IMAP_PASSWORD': 'test_password',
-        'INBOX': 'INBOX',
-        'SMTP_HOST': 'test.smtp.server',
-        'SMTP_PORT': '587',
-        'LOG_LEVEL_CONSOLE': '20',
-        'LOG_LEVEL_FILE': '10',
-        'LOG_PATH': './logs',
-        'DEV_MODE': 'true',
-        'EXAMPLE_MAIL_PATH': './example_mails'
+    return {
+        "id": case_id,
+        "client_id": sample_client["id"],
+        "stage": 1,
+        "assigned_to": sample_user["id"]
     }
 
-    with patch.dict(os.environ, env_vars):
-        yield env_vars
+
+@pytest.fixture
+def temp_pdf_file():
+    """Create a temporary PDF file for testing."""
+    with tempfile.NamedTemporaryFile(mode='wb', suffix='.pdf', delete=False) as f:
+        # Write a minimal PDF header
+        f.write(b"%PDF-1.4\n")
+        f.write(b"1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n")
+        f.write(b"2 0 obj<</Type/Pages/Count 0/Kids[]>>endobj\n")
+        f.write(b"xref\n0 3\n0000000000 65535 f\n")
+        f.write(b"0000000009 00000 n\n0000000058 00000 n\n")
+        f.write(b"trailer<</Size 3/Root 1 0 R>>\n")
+        f.write(b"startxref\n109\n%%EOF\n")
+        temp_path = f.name
+
+    yield temp_path
+
+    # Cleanup
+    try:
+        os.unlink(temp_path)
+    except:
+        pass
 
 
 @pytest.fixture
-def mock_imap_connection():
-    """
-    Create a mock IMAP connection for email testing.
+def mock_streamlit():
+    """Mock Streamlit for testing UI components."""
+    import unittest.mock as mock
 
-    Returns:
-        MagicMock: Mock IMAP connection
-    """
-    mock = MagicMock()
-    mock.login.return_value = ('OK', [b'Login successful'])
-    mock.select.return_value = ('OK', [b'1'])
-    mock.search.return_value = ('OK', [b'1 2 3'])
-    mock.fetch.return_value = ('OK', [(b'1', b'EMAIL_DATA')])
-    return mock
+    # Create mock streamlit module
+    mock_st = mock.MagicMock()
+
+    # Mock session state
+    mock_st.session_state = {}
+
+    # Mock common streamlit functions
+    mock_st.title = mock.MagicMock()
+    mock_st.write = mock.MagicMock()
+    mock_st.error = mock.MagicMock()
+    mock_st.success = mock.MagicMock()
+    mock_st.warning = mock.MagicMock()
+    mock_st.info = mock.MagicMock()
+    mock_st.sidebar = mock.MagicMock()
+    mock_st.columns = mock.MagicMock(return_value=[mock.MagicMock(), mock.MagicMock()])
+    mock_st.button = mock.MagicMock(return_value=False)
+    mock_st.text_input = mock.MagicMock(return_value="")
+    mock_st.selectbox = mock.MagicMock(return_value=None)
+
+    # Patch streamlit import
+    with mock.patch.dict('sys.modules', {'streamlit': mock_st}):
+        yield mock_st
 
 
-@pytest.fixture
-def mock_smtp_connection():
-    """
-    Create a mock SMTP connection for email sending testing.
+# Markers for conditional test execution
+requires_ocr = pytest.mark.skipif(
+    not shutil.which("tesseract"),
+    reason="Tesseract OCR not installed"
+)
 
-    Returns:
-        MagicMock: Mock SMTP connection
-    """
-    mock = MagicMock()
-    mock.login.return_value = None  # SMTP login doesn't return anything on success
-    mock.sendmail.return_value = {}  # Empty dict indicates success
-    return mock
+requires_imap_secrets = pytest.mark.skipif(
+    not all([
+        os.environ.get("IMAP_HOST"),
+        os.environ.get("IMAP_USER"),
+        os.environ.get("IMAP_PASSWORD")
+    ]),
+    reason="IMAP credentials not available (fork PR or no secrets configured)"
+)
+
+slow_test = pytest.mark.skipif(
+    os.environ.get("SKIP_SLOW_TESTS", "").lower() == "true",
+    reason="Skipping slow tests"
+)
