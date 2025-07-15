@@ -79,7 +79,7 @@ jobs:
         INBOX: ${{ secrets.INBOX }}
     
     - name: Download example emails (if credentials available)
-      if: ${{ secrets.IMAP_HOST && secrets.IMAP_USER && secrets.IMAP_PASSWORD }}
+      if: ${{ secrets.IMAP_HOST != '' && secrets.IMAP_USER != '' && secrets.IMAP_PASSWORD != '' }}
       run: |
         echo "Downloading example emails for testing..."
         python email_downloader.py --num-emails 10 --output-dir ./example_mails/
