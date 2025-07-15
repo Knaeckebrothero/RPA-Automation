@@ -35,8 +35,8 @@ def parse_args():
     # Database arguments (passing through to db_init.py)
     parser.add_argument(
         '--db-path',
-        default='./.filesystem/database.db',
-        help='Path to the SQLite database file (default: ./.filesystem/database.db)'
+        default=os.environ.get('DB_PATH', './.filesystem/database.db'),
+        help='Path to the SQLite database file (default: DB_PATH env var or ./.filesystem/database.db)'
     )
     parser.add_argument(
         '--schema-path',
@@ -399,23 +399,27 @@ if __name__ == "__main__":
         # Your existing initialization code but with fewer records
 
         # Example: Create only essential test data
-        from src.cls.database import Database
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+        from cls.database import Database
         db = Database.get_instance()
 
         # Create admin user for tests
         db.insert("""
-            INSERT OR IGNORE INTO user (username, password_hash, email, role, is_active)
-            VALUES ('test_admin', 'hashed_test_password', 'admin@test.com', 'admin', 1)
+            INSERT OR IGNORE INTO user (username_email, password_hash, password_salt, role)
+            VALUES ('test_admin@test.com', 'hashed_test_password', 'test_salt', 'admin')
         """)
 
         # Create one test client
         db.insert("""
             INSERT OR IGNORE INTO client (
-                client_name, email, financial_year_start, financial_year_end,
-                revenue_value, expenditure_value, is_active
+                institute, bafin_id, email, address, city, contact_person,
+                phone, fax, p033, p034, p035, p036, ab2s1n01, ab2s1n02,
+                ab2s1n03, ab2s1n04, ab2s1n05, ab2s1n06, ab2s1n07, ab2s1n08,
+                ab2s1n09, ab2s1n10, ab2s1n11, ratio
             ) VALUES (
-                'Test Client CI', 'client@test.com', '2024-01-01', '2024-12-31',
-                500000.00, 400000.00, 1
+                'Test Client CI', 99999, 'client@test.com', '123 Test St', 'Test City',
+                'Test Person', '555-1234', '555-5678', 1000, 2000, 3000, 4000,
+                5000, 6000, 7000, 8000, 9000, 10000, 11000, 12000, 13000, 14000, 15000, 1.5
             )
         """)
 
