@@ -46,12 +46,13 @@ jobs:
     
     - name: Run tests with pytest
       run: |
-        pytest -v --cov=src --cov-report=xml --cov-report=html --cov-report=term tests/
+        export PYTHONPATH="${PYTHONPATH}:${PWD}/src"
+        cd src && python -m pytest -v --cov=. --cov-report=xml --cov-report=html --cov-report=term --tb=short ../tests/
     
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v4
       with:
-        file: ./coverage.xml
+        file: ./src/coverage.xml
         flags: unittests
         name: codecov-umbrella
         fail_ci_if_error: false
@@ -61,14 +62,14 @@ jobs:
       if: always()
       with:
         name: coverage-report-${{ matrix.python-version }}
-        path: htmlcov/
+        path: src/htmlcov/
         retention-days: 7
     
     - name: Display coverage summary
       run: |
         echo "## Test Coverage Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        python -c "
+        cd src && python -c "
         import xml.etree.ElementTree as ET
         tree = ET.parse('coverage.xml')
         root = tree.getroot()

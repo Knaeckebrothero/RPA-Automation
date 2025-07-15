@@ -521,4 +521,3 @@ class TestMailclient:
         
         # Verify that store was called with the correct flags
         mock_imap.store.assert_called_once_with('1', '+FLAGS', '\\Answered')
-"""

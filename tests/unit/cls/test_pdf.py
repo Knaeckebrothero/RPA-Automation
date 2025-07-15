@@ -607,4 +607,3 @@ class TestPDF:
         assert pdf._audit_values["matched_required_fields"] == 13
         assert pdf._audit_values["total_required_fields"] == 15
         assert pdf._audit_values["mismatched_fields"] == 2
-"""
