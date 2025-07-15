@@ -148,6 +148,22 @@ class Database(Singleton):
             log.error(f"Error verifying tables: {e}")
             raise
 
+    def get_connection(self) -> sqlite3.Connection:
+        """
+        Returns the current database connection object.
+
+        This method provides access to the underlying SQLite connection object,
+        which can be used for advanced database operations that require direct
+        access to the connection.
+
+        :return: The SQLite database connection object.
+        :rtype: sqlite3.Connection
+        :raises RuntimeError: If no database connection is established.
+        """
+        if self._conn is None:
+            raise RuntimeError("No database connection established")
+        return self._conn
+
     def query(self, query: str, params=None) -> list[tuple] | list | None:
         """
         Executes the provided SQL query using the cursor associated with the database

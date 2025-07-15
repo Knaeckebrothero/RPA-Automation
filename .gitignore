@@ -17,6 +17,8 @@ src/config.cfg
 
 # SQLite database files
 *.db
+*.sqlite
+test_db.sqlite
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -9,10 +9,12 @@ from pathlib import Path
 from datetime import datetime
 import tempfile
 
-# Add src to path for imports
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
+# Add src to path for imports (fallback if pytest's pythonpath doesn't work)
+src_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../src'))
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
 
-# Import after adding to path
+# Import after ensuring path
 from cls.database import Database
 from cls.mailclient import Mailclient
 from cls.singleton import Singleton
@@ -236,3 +238,88 @@ slow_test = pytest.mark.skipif(
     os.environ.get("SKIP_SLOW_TESTS", "").lower() == "true",
     reason="Skipping slow tests"
 )
+
+
+@pytest.fixture
+def mock_sqlite_connection():
+    """Provide a mock SQLite connection and cursor for database tests."""
+    import unittest.mock as mock
+    
+    # Create mock connection and cursor
+    mock_cursor = mock.MagicMock()
+    mock_connection = mock.MagicMock()
+    
+    # Configure cursor behavior
+    # Default to returning required tables for _verify_tables check
+    mock_cursor.fetchall.return_value = [
+        ('client',), ('audit_case',), ('user',), 
+        ('session_key',), ('user_client_access',)
+    ]
+    mock_cursor.fetchone.return_value = None
+    mock_cursor.lastrowid = 1
+    mock_cursor.rowcount = 0
+    
+    # Configure connection behavior
+    mock_connection.cursor.return_value = mock_cursor
+    mock_connection.execute.return_value = mock_cursor
+    
+    return mock_connection, mock_cursor
+
+
+@pytest.fixture
+def sample_document_content():
+    """Provide sample document content for testing."""
+    return b"This is sample document content for testing purposes."
+
+
+@pytest.fixture
+def sample_document_attributes():
+    """Provide sample document attributes for testing."""
+    return {
+        'name': 'test_document.pdf',
+        'type': 'application/pdf',
+        'size': 1024,
+        'created_at': '2023-01-01T12:00:00',
+        'author': 'Test Author',
+        'pages': 10
+    }
+
+
+@pytest.fixture
+def mock_ocr_reader():
+    """Provide a mock OCR reader for testing."""
+    import unittest.mock as mock
+    
+    mock_reader = mock.MagicMock()
+    
+    # Configure default OCR behavior
+    # The result format is: (bounding_box, text, confidence)
+    mock_reader.readtext.return_value = [
+        ([10, 20, 100, 40], "Sample OCR Text", 0.95)
+    ]
+    
+    return mock_reader
+
+
+@pytest.fixture
+def sample_pdf_content():
+    """Provide sample PDF content for testing."""
+    # Minimal valid PDF content
+    return b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/Resources<</Font<</F1<</Type/Font/Subtype/Type1/BaseFont/Times-Roman>>>>>>>/MediaBox[0 0 612 792]/Contents 4 0 R>>endobj\n4 0 obj<</Length 44>>stream\nBT /F1 12 Tf 100 700 Td (Hello World) Tj ET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f\n0000000009 00000 n\n0000000058 00000 n\n0000000115 00000 n\n0000000262 00000 n\ntrailer<</Size 5/Root 1 0 R>>startxref\n344\n%%EOF"
+
+
+@pytest.fixture
+def sample_pdf_attributes():
+    """Provide sample PDF attributes for testing."""
+    return {
+        'name': 'test_document.pdf',
+        'type': 'application/pdf',
+        'size': 1024,
+        'created_at': '2023-01-01T12:00:00',
+        'author': 'Test Author',
+        'pages': 1,
+        'hash': 'test_hash_value',
+        'email_id': 'test_email_123',
+        'client_id': 1,
+        'BaFin-ID': 12345
+    }

@@ -31,7 +31,7 @@ class TestPDF:
         assert pdf.email_id == sample_pdf_attributes['email_id']
         assert pdf.client_id == sample_pdf_attributes['client_id']
         assert pdf.bafin_id == sample_pdf_attributes['BaFin-ID']
-        assert pdf._document_hash is not None
+        assert pdf.document_hash is not None
         assert pdf._audit_values is None
         assert pdf._signature_page_index is None
 

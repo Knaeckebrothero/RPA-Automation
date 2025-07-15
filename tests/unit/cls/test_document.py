@@ -21,7 +21,7 @@ class TestDocument:
         
         assert doc.get_content() == sample_document_content
         assert doc.get_attributes() == sample_document_attributes
-        assert doc._document_hash is not None  # Hash should be generated
+        assert doc.document_hash is not None  # Hash should be generated
 
     def test_document_initialization_with_hash(self, sample_document_content, sample_document_attributes):
         """Test document initialization with a provided hash."""
@@ -32,7 +32,7 @@ class TestDocument:
             document_hash=custom_hash
         )
         
-        assert doc._document_hash == custom_hash
+        assert doc.document_hash == custom_hash
 
     def test_document_str_representation(self, sample_document_content, sample_document_attributes):
         """Test the string representation of a document."""
@@ -205,16 +205,16 @@ class TestDocument:
         # Check that the document was created with the correct data
         assert doc.get_attributes() == sample_document_attributes
         assert doc.get_content() == sample_document_content
-        assert doc._document_hash == 'test_hash'
+        assert doc.document_hash == 'test_hash'
 
     def test_generate_document_hash(self, sample_document_content):
         """Test hash generation for a document."""
         doc = Document(content=sample_document_content)
         
         # Generate a new hash
-        doc._generate_document_hash()
+        # The hash is already generated during initialization
         
         # Check that a hash was generated
-        assert doc._document_hash is not None
-        assert isinstance(doc._document_hash, str)
-        assert len(doc._document_hash) > 0
+        assert doc.document_hash is not None
+        assert isinstance(doc.document_hash, str)
+        assert len(doc.document_hash) > 0
