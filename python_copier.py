@@ -24,8 +24,17 @@ class PythonProjectCopier:
         'deployment/deployment.yml',
         'deployment/Dockerfile',
         'deployment/secret.yml',
-
+        '.github/workflows/main.yml',
+        '.github/workflows/tests.yml',
+        '.github/workflows/trivy.yml',
         # Add any other files you want to copy (use relative paths)
+    ]
+
+    # --- New attribute ---
+    # Directories to be copied entirely (relative to repository root)
+    CONFIG_DIRS = [
+        'tests',
+        # Add any directories you want to copy entirely
     ]
 
     # File extensions to copy from the project
@@ -33,6 +42,18 @@ class PythonProjectCopier:
 
     # Directories to exclude
     EXCLUDE_DIRS = {'.git', '.venv', 'venv', '__pycache__', '.idea', '.pytest_cache', 'logs'}
+
+    # Specific files to exclude (even if they match extension criteria)
+    # These files will be skipped during copying, regardless of their extension
+    EXCLUDE_FILES = {
+        '.env',                  # Environment variables (may contain secrets)
+        'local_settings.py',     # Local configuration
+        'secrets.py',            # Secrets file
+        'config_local.py',       # Local config
+        '.DS_Store',             # macOS system file
+        'Thumbs.db',             # Windows system file
+        # Add any other specific files you want to exclude
+    }
 
     # --- New attribute ---
     STRUCTURE_FILENAME = "original_project_structure.txt"
@@ -48,6 +69,7 @@ class PythonProjectCopier:
 
         self.dest_path = Path(dest_path).resolve()
         self.copied_files_relative_paths = set() # Use a set to avoid duplicates automatically
+        self.excluded_files_count = 0  # Track number of excluded files
 
     def copy_project(self):
         """
@@ -58,12 +80,16 @@ class PythonProjectCopier:
 
         # Reset collected paths for this run
         self.copied_files_relative_paths = set()
+        self.excluded_files_count = 0
 
         # Create destination directory if it doesn't exist
         self.dest_path.mkdir(parents=True, exist_ok=True)
 
         # Copy configuration files
         self._copy_config_files()
+
+        # --- New: Copy files from specified directories ---
+        self._copy_config_dirs_files()
 
         # Copy Python source files from the specified src_path
         self._copy_source_files()
@@ -73,42 +99,82 @@ class PythonProjectCopier:
 
         print(f"\nProject copy completed! Files are in: {self.dest_path}")
         print(f"Original structure explanation saved to: {self.dest_path / self.STRUCTURE_FILENAME}")
+        if self.excluded_files_count > 0:
+            print(f"Note: {self.excluded_files_count} files were excluded based on EXCLUDE_FILES list")
+
+    def _copy_file_with_flattened_name(self, source_file: Path):
+        """
+        Copies a file to the destination, creating a unique flat name.
+        Checks for excluded and already copied files.
+        Returns True if copied, False otherwise.
+        """
+        # Check if the file is in the exclude list by name
+        if source_file.name in self.EXCLUDE_FILES:
+            print(f"Skipping excluded file: {source_file.relative_to(self.repo_root)}")
+            self.excluded_files_count += 1
+            return False
+
+        rel_path_from_repo = source_file.relative_to(self.repo_root)
+        rel_path_str = str(rel_path_from_repo)
+
+        if rel_path_str in self.copied_files_relative_paths:
+            # Already copied, probably from CONFIG_FILES and now found again in source scan
+            return False
+
+        # Create a unique filename by joining the relative path parts
+        unique_filename_base = "_".join(rel_path_from_repo.parts).replace(rel_path_from_repo.suffix, '')
+        unique_filename = unique_filename_base + rel_path_from_repo.suffix
+        dest_file = self.dest_path / unique_filename
+
+        print(f"Copying '{rel_path_from_repo}' to '{unique_filename}'")
+        try:
+            shutil.copy2(source_file, dest_file)
+            self.copied_files_relative_paths.add(rel_path_str)
+            return True
+        except Exception as e:
+            print(f"Error copying {source_file} to {dest_file}: {e}")
+            return False
 
     def _copy_config_files(self):
         """
         Copy files specified in CONFIG_FILES from anywhere in the repository.
-        Paths in CONFIG_FILES should be relative to the repository root.
         """
         print("\n--- Copying specified files ---")
         copied_count = 0
         for config_file_rel_str in self.CONFIG_FILES:
-            config_file_rel = Path(config_file_rel_str)
-            source_file = self.repo_root / config_file_rel
+            source_file = self.repo_root / config_file_rel_str
 
             if source_file.exists() and source_file.is_file():
-                # Create a flattened filename for the destination
-                # Use '_' instead of '.' for joining parts to avoid confusion with extension
-                flat_filename_parts = list(config_file_rel.parts)
-                # Keep the original suffix
-                original_suffix = config_file_rel.suffix
-                flat_filename_base = "_".join(flat_filename_parts).replace(original_suffix, '')
-                flat_filename = flat_filename_base + original_suffix
-
-                dest_file = self.dest_path / flat_filename
-
-                print(f"Copying '{config_file_rel_str}' to '{flat_filename}'")
-                try:
-                    shutil.copy2(source_file, dest_file)
-                    # Store the relative path from the repo root
-                    self.copied_files_relative_paths.add(config_file_rel_str)
+                if self._copy_file_with_flattened_name(source_file):
                     copied_count += 1
-                except Exception as e:
-                    print(f"Error copying {source_file} to {dest_file}: {e}")
-
             else:
                 print(f"Warning: File not found or is not a file: {config_file_rel_str} (looked in {source_file})")
         print(f"Finished copying specified files. Copied {copied_count} file(s).")
 
+    # --- New Method ---
+    def _copy_config_dirs_files(self):
+        """
+        Copy all files from directories specified in CONFIG_DIRS.
+        """
+        print("\n--- Copying files from specified directories ---")
+        copied_count = 0
+        for dir_str in self.CONFIG_DIRS:
+            source_dir = self.repo_root / dir_str
+            if not source_dir.is_dir():
+                print(f"Warning: Directory not found, skipping: {dir_str}")
+                continue
+
+            print(f"Processing directory: {dir_str}")
+            for root, dirs, files in os.walk(source_dir):
+                # Exclude sub-directories
+                dirs[:] = [d for d in dirs if d not in self.EXCLUDE_DIRS]
+
+                for file in files:
+                    file_path = Path(root) / file
+                    if self._copy_file_with_flattened_name(file_path):
+                        copied_count += 1
+
+        print(f"Finished copying from specified directories. Copied {copied_count} file(s).")
 
     def _copy_source_files(self):
         """
@@ -147,23 +213,8 @@ class PythonProjectCopier:
                     continue
 
                 if file_path.suffix in self.CODE_EXTENSIONS:
-                    # Create a unique filename by joining the relative path parts (relative to source_path)
-                    rel_path_from_src = file_path.relative_to(self.source_path)
-
-                    # Use '_' instead of '.' for joining parts
-                    unique_filename_base = "_".join(rel_path_from_src.parts).replace(rel_path_from_src.suffix, '')
-                    unique_filename = unique_filename_base + rel_path_from_src.suffix
-
-                    dest_file = self.dest_path / unique_filename
-
-                    print(f"Copying '{rel_path_from_src}' to '{unique_filename}'")
-                    try:
-                        shutil.copy2(file_path, dest_file)
-                        # Store the relative path from the repo root
-                        self.copied_files_relative_paths.add(str(file_path.relative_to(self.repo_root)))
-                        copied_count +=1
-                    except Exception as e:
-                        print(f"Error copying {file_path} to {dest_file}: {e}")
+                    if self._copy_file_with_flattened_name(file_path):
+                        copied_count += 1
 
         print(f"Finished copying source files. Copied {copied_count} file(s).")
 
