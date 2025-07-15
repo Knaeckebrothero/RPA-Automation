@@ -40,7 +40,20 @@ class Document:
     :ivar document_hash: A unique hash value representing the document's content.
     :type document_hash: str
     """
-    _db = Database.get_instance()
+    _db = None
+
+    @classmethod
+    def _get_db(cls):
+        """Lazily initialize the database connection."""
+        if cls._db is None:
+            import os
+            if os.environ.get('TESTING') == 'true':
+                # During testing, return a mock database
+                from unittest.mock import MagicMock
+                cls._db = MagicMock()
+            else:
+                cls._db = Database.get_instance()
+        return cls._db
 
     def __init__(self, content: bytes, attributes: dict = None, content_path: str = None, document_hash: str = None):
         """
@@ -731,11 +744,11 @@ class PDF(Document):
         :rtype: int | None
         """
         log.debug(f'Initializing audit case for document: {self.email_id}')
-        client_id = self._db.query("SELECT id FROM client WHERE bafin_id = ? ", (self.bafin_id,))
+        client_id = self._get_db().query("SELECT id FROM client WHERE bafin_id = ? ", (self.bafin_id,))
 
         # Insert the audit case into the database if a matching client is found
         if client_id:
-            inserted_id = self._db.insert(
+            inserted_id = self._get_db().insert(
                 f"""
                 INSERT INTO audit_case (client_id, email_id, stage)
                 VALUES (?, ?, ?)
@@ -774,7 +787,7 @@ class PDF(Document):
         log.debug(f"Starting value comparison for document with BaFin ID: {self.bafin_id}")
 
         # Fetch client data from database
-        client_data = self._db.query(f"""
+        client_data = self._get_db().query(f"""
         SELECT 
             id,
             p033, p034, p035, p036,
@@ -890,7 +903,7 @@ class PDF(Document):
 
         if bafin_id:
             # Check if the bafin id matches a client in the database
-            result = self._db.query("SELECT id FROM client WHERE bafin_id = ?", (bafin_id,))
+            result = self._get_db().query("SELECT id FROM client WHERE bafin_id = ?", (bafin_id,))
             if result:
                 log.info(f"Client with BaFin ID {bafin_id} found in database")
 
@@ -930,7 +943,7 @@ class PDF(Document):
 
         # Check if the client id is not None
         if client_id:
-            stage = self._db.query("SELECT stage FROM audit_case WHERE client_id = ?", (client_id,))
+            stage = self._get_db().query("SELECT stage FROM audit_case WHERE client_id = ?", (client_id,))
             if stage:
                 return stage[0][0]
             else:
@@ -963,7 +976,7 @@ class PDF(Document):
         # Check if the client id is not None
         if self.client_id:
             log.debug(f"Getting audit case id for client id: {self.client_id}")
-            audit_case_id = self._db.query("SELECT id FROM audit_case WHERE client_id = ?", (self.client_id,))
+            audit_case_id = self._get_db().query("SELECT id FROM audit_case WHERE client_id = ?", (self.client_id,))
 
             if audit_case_id:
                 log.debug(f"Audit case id: {audit_case_id[0][0]} found for client id: {self.client_id}")
@@ -1002,7 +1015,7 @@ class PDF(Document):
                     return False
             
             # Check if this document already exists for this audit case
-            existing_doc_path = self._db.query(
+            existing_doc_path = self._get_db().query(
                 "SELECT document_path FROM document WHERE document_hash = ? AND audit_case_id = ?",
                 (self.document_hash, audit_case_id)
             )
@@ -1033,7 +1046,7 @@ class PDF(Document):
                 return False
             
             # If file saved successfully, create database entry
-            self._db.insert(
+            self._get_db().insert(
                 """
                 INSERT INTO document 
                 (document_hash, audit_case_id, email_id, document_filename, document_path, processed) 
@@ -1204,7 +1217,7 @@ class PDF(Document):
 
         # Get BaFin ID if not already set
         if not self.bafin_id and self.client_id:
-            bafin_id_result = self._db.query("SELECT bafin_id FROM client WHERE id = ?", (self.client_id,))
+            bafin_id_result = self._get_db().query("SELECT bafin_id FROM client WHERE id = ?", (self.client_id,))
             if bafin_id_result:
                 self.bafin_id = bafin_id_result[0][0]
                 log.debug(f"Retrieved BaFin ID {self.bafin_id} for client {self.client_id}")
@@ -1215,7 +1228,7 @@ class PDF(Document):
             return pd.DataFrame(columns=["Key figure", "Database value", "Document value", "Match status"])
 
         # Fetch client data from database
-        client_data = self._db.query(f"""
+        client_data = self._get_db().query(f"""
         SELECT 
             id,
             p033, p034, p035, p036,

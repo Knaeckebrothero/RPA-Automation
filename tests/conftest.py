@@ -12,6 +12,21 @@ from unittest.mock import MagicMock, patch
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
+# Set testing environment to prevent database initialization during imports
+os.environ['TESTING'] = 'true'
+
+# Mock the database initialization to prevent connection issues during import
+from unittest.mock import patch, MagicMock
+
+@pytest.fixture(autouse=True)
+def mock_database_imports():
+    """Mock database imports to prevent singleton initialization during tests."""
+    with patch('cls.database.Database') as mock_db_class:
+        mock_db = MagicMock()
+        mock_db_class.return_value = mock_db
+        mock_db_class.get_instance.return_value = mock_db
+        yield mock_db
+
 
 @pytest.fixture
 def mock_sqlite_connection():

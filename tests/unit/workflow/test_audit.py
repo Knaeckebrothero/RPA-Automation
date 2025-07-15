@@ -8,7 +8,7 @@ from unittest.mock import patch, MagicMock
 import pandas as pd
 import os
 
-from src.workflow.audit import (
+from workflow.audit import (
     get_emails, assess_emails, process_audit_case, fetch_new_emails,
     generate_certificate, get_client_info, get_document_info,
     update_audit_case, send_document_confirmation_email

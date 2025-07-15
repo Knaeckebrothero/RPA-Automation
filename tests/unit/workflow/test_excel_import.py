@@ -9,7 +9,7 @@ from unittest.mock import patch, MagicMock, mock_open
 import pandas as pd
 from io import BytesIO
 
-from src.workflow.excel_import import ExcelImporter
+from workflow.excel_import import ExcelImporter
 
 
 class TestExcelImporter:
