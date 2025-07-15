@@ -19,6 +19,7 @@ from cls.document import PDF
 from cls.config import ConfigHandler
 from cls.accesscontrol import AccessControl
 from workflow.excel_import import ExcelImporter
+from ui.translations import translate as _
 
 
 # Set up logging
@@ -40,8 +41,8 @@ def home(mailclient: Mailclient = None, database: Database = Database.get_instan
     log.debug('Rendering home page')
 
     # Page title and description
-    st.header('Document Fetcher')
-    st.write('Welcome to the Document Fetcher application!')
+    st.header(_('Document Fetcher'))
+    st.write(_('Welcome to the Document Fetcher application!'))
 
     # Get user's accessible clients
     user_id = st.session_state.get('user_id')
@@ -64,24 +65,24 @@ def home(mailclient: Mailclient = None, database: Database = Database.get_instan
     # Display a table on the left
     with column_right:
         if emails.empty:
-            st.warning("No new emails to process.")
+            st.warning(_("No new emails to process."))
             return
 
         # Only show email processing buttons for admin and inspector roles
         if AccessControl.can_access_feature(user_role, 'process_emails'):
             # Display a multiselect box to select documents to process
-            docs_to_process = st.multiselect('Select documents to process', emails['ID'])
+            docs_to_process = st.multiselect(_('Select documents to process'), emails['ID'])
 
             # Process only the selected documents
-            if st.button('Process selected documents'):
-                with st.spinner(f'Processing mails'):
+            if st.button(_('Process selected documents')):
+                with st.spinner(_('Processing mails')):
                     auditflow.assess_emails(docs_to_process)
 
                 # Rerun the app to update the display
                 st.rerun()
 
             # Process all the documents
-            if st.button('Process all documents'):
+            if st.button(_('Process all documents')):
                 # Check if the mailclient instance is provided, otherwise fetch the instance
                 if not mailclient:
                     mailclient = Mailclient.get_instance()
@@ -97,10 +98,10 @@ def home(mailclient: Mailclient = None, database: Database = Database.get_instan
 
                 # If no mails are in the database, fetch all mails
                 if len(already_processed_mails) > 0:
-                    with st.spinner(f'Processing mails'):
+                    with st.spinner(_('Processing mails')):
                         auditflow.assess_emails(mailclient.get_mails(excluded_ids=already_processed_mails)['ID'])
                 else:
-                    with st.spinner(f'Processing mails'):
+                    with st.spinner(_('Processing mails')):
                         auditflow.assess_emails(emails['ID'])
 
                 # Rerun the app to update the display
@@ -117,17 +118,17 @@ def home(mailclient: Mailclient = None, database: Database = Database.get_instan
 
     if active_cases_df.empty:
         if user_role == 'admin':
-            st.info("No active audit cases found. All cases have been completed and archived.")
+            st.info(_("No active audit cases found. All cases have been completed and archived."))
         else:
-            st.info("You have no active audit cases assigned to you.")
+            st.info(_("You have no active audit cases assigned to you."))
         return
 
     # Display a table of all active cases
-    st.subheader("Active Cases")
+    st.subheader(_("Active Cases"))
 
     # Create a more user-friendly display table
     display_df = active_cases_df[['case_id', 'bafin_id', 'institute', 'stage', 'created_at', 'last_updated_at']].copy()
-    display_df.columns = ['Case ID', 'BaFin ID', 'Institute', 'Stage', 'Created', 'Last Updated']
+    display_df.columns = [_('Case ID'), _('BaFin ID'), _('Institute'), _('Stage'), _('Created'), _('Last Updated')]
 
     # Format dates
     display_df['Created'] = display_df['Created'].dt.strftime('%d.%m.%Y')
@@ -142,7 +143,7 @@ def home(mailclient: Mailclient = None, database: Database = Database.get_instan
     st.write(display_df.to_html(escape=False, index=False), unsafe_allow_html=True)
 
     # Add a button to refresh the data
-    if st.button("Refresh Cases"):
+    if st.button(_("Refresh Cases")):
         st.cache_data.clear()
         st.rerun()
 
@@ -172,13 +173,13 @@ def active_cases(database: Database = Database.get_instance()):
         active_cases_df = database.get_active_client_cases(client_ids=accessible_clients)
 
     # Page title and description
-    st.header('Active Cases')
+    st.header(_('Active Cases'))
 
     if active_cases_df.empty:
         if user_role == 'admin':
-            st.info("No active audit cases found. All cases have been completed and archived.")
+            st.info(_("No active audit cases found. All cases have been completed and archived."))
         else:
-            st.info("You have no active audit cases assigned to you.")
+            st.info(_("You have no active audit cases assigned to you."))
         return
 
     # Setup session state for selected case if not already initialized
@@ -190,13 +191,13 @@ def active_cases(database: Database = Database.get_instance()):
 
     # Display a selectbox to select a case
     selected_option = st.selectbox(
-        'Select a case to view details',
+        _('Select a case to view details'),
         case_options,
         key='case_selector'
     )
 
     # Create tabs for different views
-    tab1, tab2 = st.tabs(["Case Details", "Document Values"])
+    tab1, tab2 = st.tabs([_("Case Details"), _("Document Values")])
 
     with tab1:
         if selected_option:
@@ -209,12 +210,12 @@ def active_cases(database: Database = Database.get_instance()):
 
             # Verify user has access to this case
             if not AccessControl.can_access_client(user_id, selected_case['client_id'], user_role, database):
-                st.error("You don't have access to view this case.")
+                st.error(_("You don't have access to view this case."))
                 return
 
             # Display case information
             st.markdown(
-                f"**Case {selected_case['case_id']} Stage:** {visuals.stage_badge(selected_case['stage'])}",
+                f"**{_('Case')} {selected_case['case_id']} {_('Stage')}:** {visuals.stage_badge(selected_case['stage'])}",
                 unsafe_allow_html=True
             )
 
@@ -240,44 +241,44 @@ def active_cases(database: Database = Database.get_instance()):
 
             # Case details column
             with col1:
-                st.subheader("Case Details")
-                st.markdown(f"**Created:** {selected_case['created_at'].strftime('%Y-%m-%d')}")
-                st.markdown(f"**Last Updated:** {selected_case['last_updated_at'].strftime('%Y-%m-%d %H:%M')}")
+                st.subheader(_("Case Details"))
+                st.markdown(f"**{_('Created')}:** {selected_case['created_at'].strftime('%Y-%m-%d')}")
+                st.markdown(f"**{_('Last Updated')}:** {selected_case['last_updated_at'].strftime('%Y-%m-%d %H:%M')}")
 
                 # Comments section with editing capability
-                st.subheader("Comments")
+                st.subheader(_("Comments"))
                 current_comments = selected_case['comments'] if pd.notna(selected_case['comments']) else ""
-                new_comments = st.text_area("Edit Comments", value=current_comments, height=143)
+                new_comments = st.text_area(_("Edit Comments"), value=current_comments, height=143)
 
                 if new_comments != current_comments:
-                    if st.button("Save Comments"):
+                    if st.button(_("Save Comments")):
                         # Update comments in database
                         database.insert(f"""
                             UPDATE audit_case 
                             SET comments = ? 
                             WHERE id = ?
                         """, (new_comments, case_id))
-                        st.success("Comments updated successfully!")
+                        st.success(_("Comments updated successfully!"))
                         # Clear cache and refresh
                         st.cache_data.clear()
                         st.rerun()
 
             # Client details column
             with col2:
-                st.subheader("Client Information")
-                st.markdown(f"**Institute:** {selected_case['institute']}")
-                st.markdown(f"**BaFin ID:** {selected_case['bafin_id']}")
-                st.markdown(f"**Address:** {selected_case['address']}")
-                st.markdown(f"**City:** {selected_case['city']}")
-                st.markdown(f"**Contact Person:** {selected_case['contact_person']}")
-                st.markdown(f"**Phone:** {selected_case['phone']}")
-                st.markdown(f"**Fax:** {selected_case['fax']}")
-                st.markdown(f"**Email:** {selected_case['email']}")
+                st.subheader(_("Client Information"))
+                st.markdown(f"**{_('Institute')}:** {selected_case['institute']}")
+                st.markdown(f"**{_('BaFin ID')}:** {selected_case['bafin_id']}")
+                st.markdown(f"**{_('Address')}:** {selected_case['address']}")
+                st.markdown(f"**{_('City')}:** {selected_case['city']}")
+                st.markdown(f"**{_('Contact Person')}:** {selected_case['contact_person']}")
+                st.markdown(f"**{_('Phone')}:** {selected_case['phone']}")
+                st.markdown(f"**{_('Fax')}:** {selected_case['fax']}")
+                st.markdown(f"**{_('Email')}:** {selected_case['email']}")
 
     with tab2:
         if selected_option and st.session_state['selected_case_id']:
             case_id = st.session_state['selected_case_id']
-            
+
             # Get document details for the selected case
             document_data = database.query("""
                 SELECT document_path, document_hash 
@@ -286,20 +287,20 @@ def active_cases(database: Database = Database.get_instance()):
                 ORDER BY processing_date DESC 
                 LIMIT 1
             """, (case_id,))  # TODO: Do we still need the document_hash?
-            
+
             if not document_data:
-                st.warning("No document found for this audit case.")
+                st.warning(_("No document found for this audit case."))
                 return
-                
+
             # Create two columns - one for PDF display, one for editing values
             col1, col2 = st.columns([6, 3])
 
             # Load the document with audit values
             document_path = document_data[0][0]
             doc = PDF.from_json(document_path)
-            
+
             with col1:
-                st.subheader("Document Preview")
+                st.subheader(_("Document Preview"))
                 # Display PDF using iframe
                 if document_path and os.path.exists(document_path):
                     # Create a base64 representation of the PDF
@@ -309,107 +310,107 @@ def active_cases(database: Database = Database.get_instance()):
                     pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="1600px" type="application/pdf"></iframe>'
                     st.markdown(pdf_display, unsafe_allow_html=True)
                 else:
-                    st.error("PDF file not found.")
+                    st.error(_("PDF file not found."))
 
             with col2:
-                st.subheader("Edit Extracted Values")
-                
+                st.subheader(_("Edit Extracted Values"))
+
                 if not hasattr(doc, '_audit_values') or not doc._audit_values:
-                    st.warning("No audit values found for this document.")
+                    st.warning(_("No audit values found for this document."))
                     return
-                
-                st.markdown("### Extracted Values")
-                st.markdown("Edit the values extracted from the document:")
-                
+
+                st.markdown(f"### {_('Extracted Values')}")
+                st.markdown(_("Edit the values extracted from the document:"))
+
                 # Create a form for editing the values
                 with st.form("edit_audit_values"):
                     edited_values = {}
-                    
+
                     # Group values by type
                     positions = {}
                     findag_entries = {}
-                    
+
                     # Organize values into categories for better display
                     for key, value in doc._audit_values.items():
                         # Skip metadata keys
                         if key.startswith('raw_') or key.startswith('key_') or key.startswith('error_'):
                             continue
-                            
+
                         # Display position values
                         if key.startswith('p0'):
                             positions[key] = value
                         # Display FinDAG values
                         elif key.startswith('ab2s1n'):
                             findag_entries[key] = value
-                    
+
                     # Position values section
                     if positions:
-                        st.markdown("#### SONO-1 Positions")
+                        st.markdown(f"#### {_('SONO-1 Positions')}")
                         for key, value in positions.items():
                             position_number = key[1:]  # Extract the position number
-                            original_key = doc._audit_values.get(f"key_{key}", "Unknown")
-                            
+                            original_key = doc._audit_values.get(f"key_{key}", _("Unknown"))
+
                             # Add tooltip with original extracted text field name
-                            help_text = f"Original field: {original_key}"
-                            
+                            help_text = f"{_('Original field')}: {original_key}"
+
                             # Edit field with label showing position number
                             edited_value = st.number_input(
-                                f"Position {position_number}", 
+                                f"{_('Position')} {position_number}", 
                                 value=value,
                                 help=help_text
                             )
                             edited_values[key] = edited_value
-                    
+
                     # FinDAG values section
                     if findag_entries:
-                        st.markdown("#### FinDAG § 16j Abs. 2 Satz 1")
-                        
+                        st.markdown(f"#### {_('FinDAG § 16j Abs. 2 Satz 1')}")
+
                         # Sort keys numerically by extracting the number portion
                         sorted_keys = sorted(findag_entries.keys(), 
                                              key=lambda k: int(k[-2:]))  # Sort by the last two digits
-                        
+
                         for key in sorted_keys:
                             value = findag_entries[key]
                             # Extract the number (e.g., "01" from "ab2s1n01")
                             number = key[-2:]
-                            original_key = doc._audit_values.get(f"key_{key}", "Unknown")
-                            
+                            original_key = doc._audit_values.get(f"key_{key}", _("Unknown"))
+
                             # Add tooltip with original extracted text field name
-                            help_text = f"Original field: {original_key}"
-                            
+                            help_text = f"{_('Original field')}: {original_key}"
+
                             # Edit field with label showing FinDAG reference
                             edited_value = st.number_input(
-                                f"Nr. {number.lstrip('0')}", 
+                                f"{_('Nr.')} {number.lstrip('0')}", 
                                 value=value,
                                 help=help_text
                             )
                             edited_values[key] = edited_value
-                    
+
                     # Submit button
-                    submitted = st.form_submit_button("Save Changes")
-                    
+                    submitted = st.form_submit_button(_("Save Changes"))
+
                     if submitted:
                         # Update the audit values in the document
                         for key, value in edited_values.items():
                             doc._audit_values[key] = value
                             # TODO: Implement a get method for the audit values!
-                        
+
                         # Save the document back to the database
                         doc.save_to_json()
-                        st.success("Audit values updated successfully!")
-                        
+                        st.success(_("Audit values updated successfully!"))
+
                 # Display original text extraction for reference
-                with st.expander("Show original extracted field names"):
-                    st.markdown("### Original Field Names")
-                    st.markdown("These are the original fields from which values were extracted:")
-                    
+                with st.expander(_("Show original extracted field names")):
+                    st.markdown(f"### {_('Original Field Names')}")
+                    st.markdown(_("These are the original fields from which values were extracted:"))
+
                     for key in doc._audit_values:
                         if key.startswith('key_'):
                             field_key = key[4:]  # Remove the 'key_' prefix
                             if field_key in doc._audit_values:
                                 st.markdown(f"**{field_key}**: {doc._audit_values[key]}")
         else:
-            st.info("Please select a case to edit document values.")
+            st.info(_("Please select a case to edit document values."))
 
 
 def settings(database: Database = Database().get_instance()):
@@ -425,34 +426,34 @@ def settings(database: Database = Database().get_instance()):
     # Check if user has access to settings
     user_role = st.session_state.get('user_role', 'auditor')
     if not AccessControl.can_access_feature(user_role, 'settings'):
-        st.error("You don't have permission to access settings.")
+        st.error(_("You don't have permission to access settings."))
         return
 
     # Page title and description
-    st.header('Settings')
-    st.write('Configure the application settings below.')
+    st.header(_('Settings'))
+    st.write(_('Configure the application settings below.'))
 
     # Split the page into tabs
-    tabs = ["Application Settings", "Audit Settings", "User Management"]
+    tabs = [_("Application Settings"), _("Audit Settings"), _("User Management")]
     if AccessControl.can_access_feature(user_role, 'user_management'):
-        tabs.append("Access Control")
+        tabs.append(_("Access Control"))
 
     tab_objects = st.tabs(tabs)
 
     # Application Settings tab
     with tab_objects[0]:
-        st.subheader("Application Settings")
+        st.subheader(_("Application Settings"))
 
         # Certificate Template Settings
-        with st.expander("Certificate Template Settings", expanded=True):
-            st.write("Configure the template used for generating certificates.")
+        with st.expander(_("Certificate Template Settings"), expanded=True):
+            st.write(_("Configure the template used for generating certificates."))
 
             # Get current template path
             template_path = os.getenv('CERTIFICATE_TEMPLATE_PATH', './.filesystem/certificate_template.docx')
 
             # Upload new template
-            st.markdown("#### Upload New Template")
-            st.write("""
+            st.markdown(f"#### {_('Upload New Template')}")
+            st.write(_("""
             Upload a new Word document (.docx) template for certificates. The template should contain the following placeholders:
             - [DATE] - Current date
             - [YEAR] - Current year
@@ -462,72 +463,72 @@ def settings(database: Database = Database().get_instance()):
             - [INSTITUTE_CITY] - Client city
             - [FISCAL_YEAR_END] - End of fiscal year
             - [VALIDATION_DATE] - Validation date
-            """)
+            """))
 
-            uploaded_template = st.file_uploader("Upload template file", type="docx", key="template_uploader")
+            uploaded_template = st.file_uploader(_("Upload template file"), type="docx", key="template_uploader")
 
             if uploaded_template is not None:
                 # Save the uploaded template
                 with open(template_path, "wb") as f:
                     f.write(uploaded_template.getvalue())
 
-                st.success(f"Template updated successfully: {os.path.basename(template_path)}")
+                st.success(f"{_('Template updated successfully')}: {os.path.basename(template_path)}")
 
             # Display current template info
-            st.markdown("#### Current Template")
+            st.markdown(f"#### {_('Current Template')}")
             if os.path.exists(template_path):
-                st.success(f"Template is configured: {os.path.basename(template_path)}")
+                st.success(f"{_('Template is configured')}: {os.path.basename(template_path)}")
 
                 # Option to download current template
                 with open(template_path, "rb") as file:
                     st.download_button(
-                        label="Download Current Template",
+                        label=_("Download Current Template"),
                         data=file,
                         file_name=os.path.basename(template_path),
                         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                     )
             else:
-                st.warning(f"Template file not found at {template_path}")
+                st.warning(f"{_('Template file not found at')} {template_path}")
 
         # Terms and Conditions Settings
-        with st.expander("Terms and Conditions Settings", expanded=True):
-            st.write("Configure the Terms and Conditions PDF used for generating certificates.")
+        with st.expander(_("Terms and Conditions Settings"), expanded=True):
+            st.write(_("Configure the Terms and Conditions PDF used for generating certificates."))
 
             # Get current terms and conditions path
             terms_path = os.getenv('CERTIFICATE_TOS_PATH', './.filesystem/terms_conditions.pdf')
 
             # Upload new terms and conditions PDF
-            st.markdown("#### Upload New Terms and Conditions PDF")
-            st.write("Upload a new PDF document (.pdf) for the terms and conditions.")
+            st.markdown(f"#### {_('Upload New Terms and Conditions PDF')}")
+            st.write(_("Upload a new PDF document (.pdf) for the terms and conditions."))
 
-            uploaded_terms_pdf = st.file_uploader("Upload Terms and Conditions PDF", type="pdf", key="terms_uploader")
+            uploaded_terms_pdf = st.file_uploader(_("Upload Terms and Conditions PDF"), type="pdf", key="terms_uploader")
 
             if uploaded_terms_pdf is not None:
                 # Save the uploaded terms and conditions PDF
                 with open(terms_path, "wb") as f:
                     f.write(uploaded_terms_pdf.getvalue())
 
-                st.success(f"Terms and Conditions PDF updated successfully: {os.path.basename(terms_path)}")
+                st.success(f"{_('Terms and Conditions PDF updated successfully')}: {os.path.basename(terms_path)}")
 
             # Display current terms and conditions info
-            st.markdown("#### Current Terms and Conditions PDF")
+            st.markdown(f"#### {_('Current Terms and Conditions PDF')}")
             if os.path.exists(terms_path):
-                st.success(f"Terms and Conditions PDF is configured: {os.path.basename(terms_path)}")
+                st.success(f"{_('Terms and Conditions PDF is configured')}: {os.path.basename(terms_path)}")
 
                 # Option to download current terms and conditions PDF
                 with open(terms_path, "rb") as file:
                     st.download_button(
-                        label="Download Current Terms and Conditions PDF",
+                        label=_("Download Current Terms and Conditions PDF"),
                         data=file,
                         file_name=os.path.basename(terms_path),
                         mime="application/pdf"
                     )
             else:
-                st.warning(f"Terms and Conditions PDF file not found at {terms_path}")
+                st.warning(f"{_('Terms and Conditions PDF file not found at')} {terms_path}")
 
         # Archive File Name Settings
-        with st.expander("Archive Settings", expanded=True):
-            st.write("Configure the naming convention for archive zip files.")
+        with st.expander(_("Archive Settings"), expanded=True):
+            st.write(_("Configure the naming convention for archive zip files."))
 
             # Get the config handler instance
             config = ConfigHandler.get_instance()
@@ -538,22 +539,22 @@ def settings(database: Database = Database().get_instance()):
 
             # Input for archive file prefix
             new_prefix = st.text_input(
-                "Archive File Prefix",
+                _("Archive File Prefix"),
                 value=current_prefix,
-                help="This prefix will be used for naming archive zip files. The final format will be: prefix_YYYY-MM-DD.zip"
+                help=_("This prefix will be used for naming archive zip files. The final format will be: prefix_YYYY-MM-DD.zip")
             )
 
             # Display preview of the file name
             current_date = datetime.datetime.now().strftime("%Y-%m-%d")
-            st.write(f"Preview: `{new_prefix}_{current_date}.zip`")
+            st.write(f"{_('Preview')}: `{new_prefix}_{current_date}.zip`")
 
-            if st.button("Save Archive Settings"):
+            if st.button(_("Save Archive Settings")):
                 # Save the prefix to the config
                 config.set("APP_SETTINGS", "archive_file_prefix", new_prefix)
-                st.success("Archive file prefix updated successfully!")
+                st.success(_("Archive file prefix updated successfully!"))
 
         # Application log settings
-        with st.expander("Application Logs", expanded=False):
+        with st.expander(_("Application Logs"), expanded=False):
             log_path = os.path.join(os.getenv('LOG_PATH', ''), 'application.log')
             if os.path.exists(log_path):
                 try:
@@ -566,7 +567,7 @@ def settings(database: Database = Database().get_instance()):
                         last_lines = list(last_lines)
 
                     # Add a slider to control how many lines to display
-                    num_lines = st.slider('Number of log lines to display',
+                    num_lines = st.slider(_('Number of log lines to display'),
                                           min_value=10,
                                           max_value=len(last_lines),
                                           value=min(100, len(last_lines)),
@@ -578,57 +579,57 @@ def settings(database: Database = Database().get_instance()):
                     # Join the lines into a single string
                     log_content = ''.join(displayed_lines)
 
-                    st.subheader(f'Application Logs (Last {num_lines} of {len(last_lines)} lines)')
+                    st.subheader(f'{_("Application Logs")} ({_("Last")} {num_lines} {_("of")} {len(last_lines)} {_("lines")})')
                     st.code(log_content)
                 except Exception as e:
-                    st.error(f"Error reading log file: {str(e)}")
+                    st.error(f"{_('Error reading log file')}: {str(e)}")
             else:
-                st.warning(f"Log file not found at {log_path}")
+                st.warning(f"{_('Log file not found at')} {log_path}")
 
     # Audit Settings tab
     with tab_objects[1]:
-        st.subheader("Audit Process")
+        st.subheader(_("Audit Process"))
 
         # Updated Excel Import Section in settings() function from ui/pages.py
         # This replaces the Excel Import Section within the Audit Settings tab
 
         # Excel Import Section
-        with st.expander("Initialize Audit Season from Excel", expanded=False):
-            st.write("""
+        with st.expander(_("Initialize Audit Season from Excel"), expanded=False):
+            st.write(_("""
             Upload an Excel file to initialize the audit season. The file should contain:
             - **Bank ID**: BaFin ID of the institution (required)
             - **Inspector 1**: Name or email of the first inspector
             - **Inspector 2**: Name or email of the second inspector
             - **Auditor**: Name or email of the auditor
-            
+
             Additional columns like Nr, Name, PLZ, City or Comment will be ignored.
-            
+
             **Note:** If users don't exist in the system, they will be created automatically with:
             - Username generated from their name (all spaces removed, lowercase) + @example.com
             - Secure random password
             - Appropriate role (inspector/auditor)
-            """)
+            """))
 
-            uploaded_file = st.file_uploader("Choose Excel file", type=['xlsx', 'xls'])
+            uploaded_file = st.file_uploader(_("Choose Excel file"), type=['xlsx', 'xls'])
 
             if uploaded_file is not None:
                 # Validate file structure
                 is_valid, issues = ExcelImporter.validate_excel_structure(uploaded_file)
 
                 if not is_valid:
-                    st.error("Excel file validation failed")
+                    st.error(_("Excel file validation failed"))
                     for issue in issues:
                         st.error(f"• {issue}")
                 else:
-                    st.success("Excel file structure is valid!")
+                    st.success(_("Excel file structure is valid!"))
 
                     # Show preview
                     df_preview = pd.read_excel(uploaded_file)
-                    st.write("Preview (first 5 rows):")
+                    st.write(_("Preview (first 5 rows):"))
                     st.dataframe(df_preview.head())
 
                     # Import button
-                    if st.button("Import Audit Season Data"):
+                    if st.button(_("Import Audit Season Data")):
                         # Reset file pointer
                         uploaded_file.seek(0)
 
@@ -641,18 +642,18 @@ def settings(database: Database = Database().get_instance()):
 
                         # Show results
                         if results['success']:
-                            st.success(f"Import completed successfully! {results['success_count']} rows processed.")
+                            st.success(f"{_('Import completed successfully!')} {results['success_count']} {_('rows processed.')}")
                         else:
-                            st.error("Import completed with errors.")
+                            st.error(_("Import completed with errors."))
 
                         # Show created users if any
                         if results['created_users']:
-                            st.info(f"Created {results['total_created_users']} new users:")
+                            st.info(f"{_('Created')} {results['total_created_users']} {_('new users:')}")
 
                             # Create a dataframe for better display
                             created_users_df = pd.DataFrame(results['created_users'])
                             created_users_df = created_users_df[['name', 'username', 'password', 'role', 'row']]
-                            created_users_df.columns = ['Name', 'Username', 'Password', 'Role', 'Excel Row']
+                            created_users_df.columns = [_('Name'), _('Username'), _('Password'), _('Role'), _('Excel Row')]
 
                             # Display the created users
                             st.dataframe(created_users_df, use_container_width=True)
@@ -660,43 +661,43 @@ def settings(database: Database = Database().get_instance()):
                             # Add download button for created users
                             csv = created_users_df.to_csv(index=False)
                             st.download_button(
-                                label="Download Created Users (CSV)",
+                                label=_("Download Created Users (CSV)"),
                                 data=csv,
                                 file_name="created_users.csv",
                                 mime="text/csv"
                             )
 
-                            st.warning("""
+                            st.warning(_("""
                             ⚠️ **Important**: Please save these credentials securely!
                             - The passwords shown above are temporary and should be communicated to users securely
                             - Users should be instructed to change their passwords on first login
                             - These passwords will not be shown again
-                            """)
+                            """))
 
                         # Show errors
                         if results['errors']:
-                            st.error("Errors:")
+                            st.error(_("Errors:"))
                             for error in results['errors']:
                                 st.error(f"• {error}")
 
                         # Show warnings
                         if results['warnings']:
-                            st.warning("Warnings:")
+                            st.warning(_("Warnings:"))
                             for warning in results['warnings']:
                                 st.warning(f"• {warning}")
 
-        with st.expander("Initialize Annual Audit Process", expanded=True):
+        with st.expander(_("Initialize Annual Audit Process"), expanded=True):
             # Initialize Annual Audit Process code...
-            st.write("""
+            st.write(_("""
             This will create a new audit case (stage 1) for every client in the database 
             that doesn't already have an active case. Use this to start the annual audit process.
-            """)
+            """))
 
             # Add a confirmation checkbox for safety
-            confirm_init = st.checkbox("I understand this will create new audit cases for all clients")
+            confirm_init = st.checkbox(_("I understand this will create new audit cases for all clients"))
 
-            if st.button("Initialize Audit Cases", disabled=not confirm_init):
-                with st.spinner("Creating audit cases..."):
+            if st.button(_("Initialize Audit Cases"), disabled=not confirm_init):
+                with st.spinner(_("Creating audit cases...")):
                     # Find clients without active audit cases
                     clients_without_cases = database.query("""
                                                      SELECT id
@@ -707,7 +708,7 @@ def settings(database: Database = Database().get_instance()):
                                                      """)
 
                     if not clients_without_cases:
-                        st.warning("All clients already have active audit cases.")
+                        st.warning(_("All clients already have active audit cases."))
                     else:
                         # Create a new audit case for each client
                         created_count = 0
@@ -719,18 +720,18 @@ def settings(database: Database = Database().get_instance()):
                             created_count += 1
 
                         # Success message
-                        st.success(f"Successfully created {created_count} new audit cases.")
+                        st.success(f"{_('Successfully created')} {created_count} {_('new audit cases.')}")
 
                         # Log the action
                         log.info(f"Created {created_count} new audit cases for annual audit process")
 
         # Archive cases section
-        with st.expander("Archive Completed Cases", expanded=True):
+        with st.expander(_("Archive Completed Cases"), expanded=True):
             st.write(
-                """
+                _("""
                 This will archive all audit cases that are in stage 4 (Process Completion).
                 Archived cases will no longer appear in the active cases view.
-                """
+                """)
             )
 
             # Get case statistics
@@ -747,29 +748,29 @@ def settings(database: Database = Database().get_instance()):
                 stage_stats[stage] = count
 
             # Display statistics
-            st.write("Current audit case statistics:")
+            st.write(_("Current audit case statistics:"))
             col1, col2, col3, col4 = st.columns(4)
 
             with col1:
-                st.metric("Stage 1", stage_stats[1], help="Waiting for documents")
+                st.metric(_("Stage 1"), stage_stats[1], help=_("Waiting for documents"))
             with col2:
-                st.metric("Stage 2", stage_stats[2], help="Data verification")
+                st.metric(_("Stage 2"), stage_stats[2], help=_("Data verification"))
             with col3:
-                st.metric("Stage 3", stage_stats[3], help="Certification")
+                st.metric(_("Stage 3"), stage_stats[3], help=_("Certification"))
             with col4:
-                st.metric("Stage 4", stage_stats[4], help="Process completion")
+                st.metric(_("Stage 4"), stage_stats[4], help=_("Process completion"))
 
             # Warning if there are cases not in stage 4
             not_completed = stage_stats[1] + stage_stats[2] + stage_stats[3]
             if not_completed > 0:
                 st.warning(
-                    f"⚠️ There are still {not_completed} active cases that are not ready for archiving (stages 1-3).")
+                    f"⚠️ {_('There are still')} {not_completed} {_('active cases that are not ready for archiving (stages 1-3).')}")
 
             # Add a confirmation checkbox for safety
-            confirm_archive = st.checkbox("I understand this will archive all cases in stage 4")
+            confirm_archive = st.checkbox(_("I understand this will archive all cases in stage 4"))
 
-            if st.button("Archive Completed Cases", disabled=not confirm_archive):
-                with st.spinner("Archiving completed cases..."):
+            if st.button(_("Archive Completed Cases"), disabled=not confirm_archive):
+                with st.spinner(_("Archiving completed cases...")):
                     # Count cases to be archived
                     cases_to_archive = database.query("""
                                                 SELECT COUNT(*)
@@ -778,7 +779,7 @@ def settings(database: Database = Database().get_instance()):
                                                 """)[0][0]
 
                     if cases_to_archive == 0:
-                        st.info("No completed cases to archive.")
+                        st.info(_("No completed cases to archive."))
                     else:
                         # Get archive file prefix from config
                         default_prefix = "audit_archive"
@@ -803,7 +804,7 @@ def settings(database: Database = Database().get_instance()):
                         """.format(archive_filename))
 
                         # Success message
-                        st.success(f"Successfully archived {cases_to_archive} completed cases as {archive_filename}.")
+                        st.success(f"{_('Successfully archived')} {cases_to_archive} {_('completed cases as')} {archive_filename}.")
 
                         # Log the action
                         log.info(f"Archived {cases_to_archive} completed cases as {archive_filename}")
@@ -814,7 +815,7 @@ def settings(database: Database = Database().get_instance()):
     # TODO: Break these down into their own functions for better organization
     # User Management tab
     with tab_objects[2]:
-        st.subheader("User Management")
+        st.subheader(_("User Management"))
 
         # Check if the database instance is provided, otherwise fetch the instance
         if database:
@@ -830,32 +831,32 @@ def settings(database: Database = Database().get_instance()):
                               """)
 
         if not users_data:
-            st.warning("No users found in the database.")
+            st.warning(_("No users found in the database."))
         else:
             # Convert to DataFrame for easier display
-            users_df = pd.DataFrame(users_data, columns=['ID', 'Username', 'Role', 'Created At'])
-            users_df['Created At'] = pd.to_datetime(users_df['Created At']).dt.strftime('%Y-%m-%d %H:%M')
+            users_df = pd.DataFrame(users_data, columns=['ID', _('Username'), _('Role'), _('Created At')])
+            users_df[_('Created At')] = pd.to_datetime(users_df[_('Created At')]).dt.strftime('%Y-%m-%d %H:%M')
 
             # 1. Display table of current users
-            st.markdown("### Current Users")
-            st.dataframe(users_df[['Username', 'Role', 'Created At']], hide_index=True)
+            st.markdown(f"### {_('Current Users')}")
+            st.dataframe(users_df[[_('Username'), _('Role'), _('Created At')]], hide_index=True)
 
             # 2. User deletion section
-            st.markdown("### Delete User")
+            st.markdown(f"### {_('Delete User')}")
 
             # Create a dropdown to select user to delete
-            user_options = [(row['ID'], row['Username']) for _, row in users_df.iterrows()]
+            user_options = [(row['ID'], row[_('Username')]) for _, row in users_df.iterrows()]
             selected_user_id = st.selectbox(
-                "Select a user to delete",
+                _("Select a user to delete"),
                 options=[user_id for user_id, _ in user_options],
                 format_func=lambda x: next((username for user_id, username in user_options if user_id == x), ""),
                 index=None
             )
 
-            if st.button("Delete Selected User", disabled=selected_user_id is None):
+            if st.button(_("Delete Selected User"), disabled=selected_user_id is None):
                 # Check if trying to delete yourself
                 if selected_user_id == st.session_state.get('user_id'):
-                    st.error("You cannot delete your own account.")
+                    st.error(_("You cannot delete your own account."))
                 else:
                     # Delete the user
                     try:
@@ -865,26 +866,26 @@ def settings(database: Database = Database().get_instance()):
                                  FROM user
                                  WHERE id = ?
                                  """, (selected_user_id,))
-                        st.success("User deleted successfully.")
+                        st.success(_("User deleted successfully."))
 
                         # Force refresh
                         st.rerun()
                     except Exception as e:
-                        st.error(f"Error deleting user: {str(e)}")
+                        st.error(f"{_('Error deleting user:')}: {str(e)}")
 
         # 3. User creation form
-        st.markdown("### Create New User")
+        st.markdown(f"### {_('Create New User')}")
 
         with st.form("create_user_form"):
-            new_username = st.text_input("Email/Username", placeholder="user@example.com")
-            new_password = st.text_input("Password", type="password")
-            new_role = st.selectbox("Role", options=["admin", "auditor", "inspector"])
+            new_username = st.text_input(_("Email/Username"), placeholder="user@example.com")
+            new_password = st.text_input(_("Password"), type="password")
+            new_role = st.selectbox(_("Role"), options=["admin", "auditor", "inspector"])
 
-            submit_button = st.form_submit_button("Create User")
+            submit_button = st.form_submit_button(_("Create User"))
 
             if submit_button:
                 if not new_username or not new_password:
-                    st.error("Please enter both username and password.")
+                    st.error(_("Please enter both username and password."))
                 else:
                     # Check if user already exists
                     existing_user = db.query("""
@@ -894,7 +895,7 @@ def settings(database: Database = Database().get_instance()):
                                              """, (new_username,))
 
                     if existing_user:
-                        st.error("A user with that username already exists.")
+                        st.error(_("A user with that username already exists."))
                     else:
                         try:
                             # Import the security module to create password hash
@@ -909,19 +910,19 @@ def settings(database: Database = Database().get_instance()):
                                       VALUES (?, ?, ?, ?)
                                       """, (new_username, password_hash, password_salt, new_role))
 
-                            st.success(f"User '{new_username}' with role '{new_role}' created successfully.")
+                            st.success(f"{_('User')} '{new_username}' {_('with role')} '{_(new_role)}' {_('created successfully.')}")
                             # Force refresh
                             st.rerun()
                         except Exception as e:
-                            st.error(f"Error creating user: {str(e)}")
+                            st.error(f"{_('Error creating user:')}: {str(e)}")
 
     # Access Control tab (displayed only if user has access)
     if AccessControl.can_access_feature(user_role, 'user_management'):
         with tab_objects[-1]:
-            st.subheader("Access Control Management")
+            st.subheader(_("Access Control Management"))
 
             # User access management
-            st.markdown("### User Client Access")
+            st.markdown(f"### {_('User Client Access')}")
 
             # Select a user to manage
             users_data = database.query("""
@@ -932,9 +933,9 @@ def settings(database: Database = Database().get_instance()):
                                         """)
 
             if users_data:
-                user_options = [(row[0], f"{row[1]} ({row[2]})") for row in users_data]
+                user_options = [(row[0], f"{row[1]} ({_(row[2])})") for row in users_data]
                 selected_user_id = st.selectbox(
-                    "Select user to manage access",
+                    _("Select user to manage access"),
                     options=[uid for uid, _ in user_options],
                     format_func=lambda x: next((label for uid, label in user_options if uid == x), ""),
                     index=None
@@ -942,7 +943,7 @@ def settings(database: Database = Database().get_instance()):
 
                 if selected_user_id:
                     # Show current access
-                    st.markdown("#### Current Access")
+                    st.markdown(f"#### {_('Current Access')}")
                     current_access = AccessControl.get_user_client_access(selected_user_id, database)
 
                     if current_access:
@@ -950,25 +951,25 @@ def settings(database: Database = Database().get_instance()):
                         st.dataframe(access_df[['institute', 'bafin_id', 'granted_at']], use_container_width=True)
 
                         # Revoke access
-                        st.markdown("#### Revoke Access")
+                        st.markdown(f"#### {_('Revoke Access')}")
                         client_to_revoke = st.selectbox(
-                            "Select client to revoke access",
+                            _("Select client to revoke access"),
                             options=[acc['client_id'] for acc in current_access],
                             format_func=lambda x: next((acc['institute'] for acc in current_access if acc['client_id'] == x), ""),
                             index=None
                         )
 
-                        if client_to_revoke and st.button("Revoke Access"):
+                        if client_to_revoke and st.button(_("Revoke Access")):
                             if AccessControl.revoke_client_access(selected_user_id, client_to_revoke, database):
-                                st.success("Access revoked successfully!")
+                                st.success(_("Access revoked successfully!"))
                                 st.rerun()
                             else:
-                                st.error("Failed to revoke access.")
+                                st.error(_("Failed to revoke access."))
                     else:
-                        st.info("This user has no client access assigned.")
+                        st.info(_("This user has no client access assigned."))
 
                     # Grant new access
-                    st.markdown("#### Grant New Access")
+                    st.markdown(f"#### {_('Grant New Access')}")
 
                     # Get clients the user doesn't have access to
                     current_client_ids = [acc['client_id'] for acc in current_access]
@@ -983,25 +984,25 @@ def settings(database: Database = Database().get_instance()):
                     if available_clients:
                         client_options = [(row[0], f"{row[1]} (BaFin: {row[2]})") for row in available_clients]
                         client_to_grant = st.selectbox(
-                            "Select client to grant access",
+                            _("Select client to grant access"),
                             options=[cid for cid, _ in client_options],
                             format_func=lambda x: next((label for cid, label in client_options if cid == x), ""),
                             index=None
                         )
 
-                        if client_to_grant and st.button("Grant Access"):
+                        if client_to_grant and st.button(_("Grant Access")):
                             if AccessControl.grant_client_access(
                                     selected_user_id,
                                     client_to_grant,
                                     st.session_state['user_id'],
                                     database
                             ):
-                                st.success("Access granted successfully!")
+                                st.success(_("Access granted successfully!"))
                                 st.rerun()
                             else:
-                                st.error("Failed to grant access.")
+                                st.error(_("Failed to grant access."))
                     else:
-                        st.info("User already has access to all clients.")
+                        st.info(_("User already has access to all clients."))
 
 
 def about():
@@ -1019,8 +1020,8 @@ def about():
                   lines from the end of the log file.
     :type deque: collections.deque
     """
-    st.header('About')
-    st.write('FinDAG Document Processing Application')
+    st.header(_('About'))
+    st.write(_('FinDAG Document Processing Application'))
 
     # Display log file with configurable number of lines
     log_path = os.path.join(os.getenv('LOG_PATH', ''), 'application.log')
@@ -1035,7 +1036,7 @@ def about():
                 last_lines = list(last_lines)
 
             # Add a slider to control how many lines to display
-            num_lines = st.slider('Number of log lines to display',
+            num_lines = st.slider(_('Number of log lines to display'),
                                   min_value=10,
                                   max_value=len(last_lines),
                                   value=min(100, len(last_lines)),
@@ -1047,27 +1048,27 @@ def about():
             # Join the lines into a single string
             log_content = ''.join(displayed_lines)
 
-            st.subheader(f'Application Logs (Last {num_lines} of {len(last_lines)} lines)')
+            st.subheader(f'{_("Application Logs")} ({_("Last")} {num_lines} {_("of")} {len(last_lines)} {_("lines")})')
             st.code(log_content)
         except Exception as e:
-            st.error(f"Error reading log file: {str(e)}")
+            st.error(f"{_('Error reading log file')}: {str(e)}")
     else:
-        st.warning(f"Log file not found at {log_path}")
+        st.warning(f"{_('Log file not found at')} {log_path}")
 
     # Bug report section
-    st.subheader('Report an Issue')
-    st.write('If you encounter any problems with the application, please describe the issue below:')
+    st.subheader(_('Report an Issue'))
+    st.write(_('If you encounter any problems with the application, please describe the issue below:'))
 
-    issue_description = st.text_area('Issue Description', height=100)
+    issue_description = st.text_area(_('Issue Description'), height=100)
     # steps_to_reproduce = st.text_area('Steps to Reproduce', height=100)
 
-    if st.button('Submit Issue Report'):
+    if st.button(_('Submit Issue Report')):
         if issue_description:
             # Here you would implement the logic to save or send the bug report
             # For now, just show a success message
-            st.success('Thank you for your report! The issue has been logged.')
+            st.success(_('Thank you for your report! The issue has been logged.'))
         else:
-            st.warning('Please provide a description of the issue.')
+            st.warning(_('Please provide a description of the issue.'))
 
 
 def login(database: Database = None) -> bool:
@@ -1084,8 +1085,8 @@ def login(database: Database = None) -> bool:
 
     :raises Exception: If there is an error during the login process, such as database connection issues
     """
-    st.title("Document Fetcher - Login")
-    st.markdown("Please enter your credentials to access the application.")
+    st.title(_("Document Fetcher - Login"))
+    st.markdown(_("Please enter your credentials to access the application."))
 
     # Get client IP as early as possible
     client_ip = sec.get_client_ip()
@@ -1096,14 +1097,14 @@ def login(database: Database = None) -> bool:
     with col1:
         # Create a form for better UX
         with st.form("login_form"):
-            username = st.text_input("Username").strip()
-            password = st.text_input("Password", type="password").strip()
-            submit = st.form_submit_button("Login")
+            username = st.text_input(_("Username")).strip()
+            password = st.text_input(_("Password"), type="password").strip()
+            submit = st.form_submit_button(_("Login"))
 
         if submit:
             if not username or not password:
                 log.warning(f"Login attempt with empty credentials from IP: {client_ip}")
-                st.error("Please enter both username and password")
+                st.error(_("Please enter both username and password"))
                 return False
 
             # Check if the database instance is provided, otherwise fetch the instance
@@ -1115,7 +1116,7 @@ def login(database: Database = None) -> bool:
             # Check for too many failed attempts from this IP
             if sec.check_login_attempts(client_ip, db):
                 log.warning(f"Too many failed login attempts from IP: {client_ip}")
-                st.error("Too many failed login attempts. Please try again later.")
+                st.error(_("Too many failed login attempts. Please try again later."))
                 return False
 
             # Query for user with the given username
@@ -1130,7 +1131,7 @@ def login(database: Database = None) -> bool:
             if not user_data:
                 log.warning(f"Failed login attempt for username: {username} from IP: {client_ip}")
                 sec.record_failed_attempt(client_ip, username, db)
-                st.error("Invalid username or password")
+                st.error(_("Invalid username or password"))
                 return False
 
             user_id, password_hash, password_salt, role = user_data[0]
@@ -1139,14 +1140,14 @@ def login(database: Database = None) -> bool:
             if not sec.verify_password(password_hash, password_salt, password):
                 log.warning(f"Failed login attempt for user: {user_id} from IP: {client_ip}")
                 sec.record_failed_attempt(client_ip, username, db)
-                st.error("Invalid username or password")
+                st.error(_("Invalid username or password"))
                 return False
 
             # Create a new session
             session_key = sec.create_session(user_id, db)
             if not session_key:
                 log.error(f"Failed to create session for user: {user_id} from IP: {client_ip}")
-                st.error("Failed to create session")
+                st.error(_("Failed to create session"))
                 return False
 
             # Store session information in session state
@@ -1160,25 +1161,25 @@ def login(database: Database = None) -> bool:
             log.info(f"Successful login for user: {user_id} ({username}) from IP: {client_ip}")
             sec.record_successful_login(client_ip, user_id, db)
 
-            st.success(f"Welcome, {username}!")
+            st.success(f"{_('Welcome,')}: {username}!")
             return True
 
     # Display demo accounts for testing
     with col2:
-        st.markdown("""
+        st.markdown(_("""
         ### Demo Accounts
-        
+
         **Admin User**  
         Username: admin@example.com  
         Password: admin123
-        
+
         **Inspector User**  
         Username: inspector@example.com  
         Password: inspector123 
-        
+
         **Auditor User**  
         Username: auditor@example.com  
         Password: auditor123 
-        """)
+        """))
 
     return False

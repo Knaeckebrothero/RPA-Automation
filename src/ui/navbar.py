@@ -6,6 +6,7 @@ import logging
 
 # Custom imports
 from cls.accesscontrol import AccessControl
+from ui.translations import translate as _
 
 
 # Set up logging
@@ -49,27 +50,27 @@ def navbar(database=None) -> int:
     st = streamlit.sidebar
 
     # Description
-    st.title('Navigation')
-    st.write('Please select an option from the list below.')
+    st.title(_('Navigation'))
+    st.write(_('Please select an option from the list below.'))
 
     # Buttons
-    if st.button('Home'):
+    if st.button(_('Home')):
         log.debug('Home button clicked')
         page = 0
 
     # Show Active Cases for all users
-    if st.button('Active Cases'):
+    if st.button(_('Active Cases')):
         log.debug('Active cases button clicked')
         page = 1
 
     # Show Settings only if user has access
     if AccessControl.can_access_feature(access_role, 'settings'):
-        if st.button('Settings'):
+        if st.button(_('Settings')):
             log.debug('Settings button clicked')
             page = 2
 
     # About page is available to all
-    if st.button('About'):
+    if st.button(_('About')):
         log.debug('About button clicked')
         page = 3
 
@@ -77,20 +78,20 @@ def navbar(database=None) -> int:
     st.markdown("---")
 
     # Show user information
-    st.markdown("### User Info")
-    st.write(f"**User:** {streamlit.session_state.get('username', 'Unknown')}")
-    st.write(f"**Role:** {access_role.title()}")
+    st.markdown(f"### {_('User Info')}")
+    st.write(f"**{_('User')}:** {streamlit.session_state.get('username', _('Unknown'))}")
+    st.write(f"**{_('Role')}:** {_(access_role).title()}")
 
     # Show number of assigned clients for non-admin users
     if access_role != 'admin':
         accessible_clients = AccessControl.get_accessible_clients(user_id, access_role)
-        st.write(f"**Assigned Clients:** {len(accessible_clients)}")
+        st.write(f"**{_('Assigned Clients')}:** {len(accessible_clients)}")
 
     # Add a separator before the logout button
     st.markdown("---")
 
     # Add logout button
-    if st.button('Logout'):
+    if st.button(_('Logout')):
         log.debug('Logout button clicked')
 
         # Import here to avoid circular imports

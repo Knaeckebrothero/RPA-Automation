@@ -13,8 +13,8 @@ import cls
 from custom_logger import configure_global_logger
 from ui.navbar import navbar
 import ui.pages as page
-from workflow.audit import get_emails as workflow_get_emails
 import workflow.security as sec
+from ui.translations import translate as _
 
 
 # Set up logging
@@ -67,13 +67,13 @@ def main():
     """
     st.set_page_config(
         layout="wide",
-        page_title="Document Fetcher",
+        page_title=_("Document Fetcher"),
         initial_sidebar_state="collapsed",
         page_icon=":page_with_curl:",
         menu_items={
             'Get Help': 'https://www.extremelycoolapp.com/help',
             'Report a bug': "https://www.extremelycoolapp.com/bug",
-            'About': "# This is a header. This is an *extremely* cool app!"
+            'About': _("# This is a header. This is an *extremely* cool app!")
         }
     )
 
