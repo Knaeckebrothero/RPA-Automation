@@ -34,7 +34,8 @@ jobs:
           docker build -f deployment/Dockerfile -t docker.io/my-organization/my-app:${{ github.sha }} .
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@v0.20.0
+        # Updated to use the floating major version tag @0 for stability and updates.
+        uses: aquasecurity/trivy-action@0
         with:
           image-ref: 'docker.io/my-organization/my-app:${{ github.sha }}'
           format: 'template'
@@ -43,6 +44,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v4
+        # Updated to the latest stable major version, v3. v4 does not exist.
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'trivy-results.sarif'
