@@ -50,31 +50,31 @@ def navbar(database=None) -> int:
 
     # Description
     st.title('Navigation')
-    st.write('Please select an option from the list below.')
+    st.write('Bitte wählen Sie eine Option aus der Liste unten.')
 
     # Buttons
-    if st.button('Home'):
+    if st.button('Startseite'):
         log.debug('Home button clicked')
         page = 0
 
     # Show Active Cases for all users
-    if st.button('Active Cases'):
+    if st.button('Aktive Fälle'):
         log.debug('Active cases button clicked')
         page = 1
 
     # Show Settings only if user has access
     if AccessControl.can_access_feature(access_role, 'settings'):
-        if st.button('Settings'):
+        if st.button('Einstellungen'):
             log.debug('Settings button clicked')
             page = 2
 
     # About page is available to all
-    if st.button('About'):
+    if st.button('Über'):
         log.debug('About button clicked')
         page = 3
 
     # Table Detection Test page is available to all
-    if st.button('Table Detection Test'):
+    if st.button('Tabellen-Erkennungstest'):
         log.debug('Table Detection Test button clicked')
         page = 4
 
@@ -82,20 +82,20 @@ def navbar(database=None) -> int:
     st.markdown("---")
 
     # Show user information
-    st.markdown("### User Info")
-    st.write(f"**User:** {streamlit.session_state.get('username', 'Unknown')}")
-    st.write(f"**Role:** {access_role.title()}")
+    st.markdown("### Benutzer-Info")
+    st.write(f"**Benutzer:** {streamlit.session_state.get('username', 'Unbekannt')}")
+    st.write(f"**Rolle:** {access_role.title()}")
 
     # Show number of assigned clients for non-admin users
     if access_role != 'admin':
         accessible_clients = AccessControl.get_accessible_clients(user_id, access_role)
-        st.write(f"**Assigned Clients:** {len(accessible_clients)}")
+        st.write(f"**Zugewiesene Klienten:** {len(accessible_clients)}")
 
     # Add a separator before the logout button
     st.markdown("---")
 
     # Add logout button
-    if st.button('Logout'):
+    if st.button('Abmelden'):
         log.debug('Logout button clicked')
 
         # Import here to avoid circular imports

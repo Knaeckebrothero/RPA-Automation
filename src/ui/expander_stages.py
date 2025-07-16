@@ -48,17 +48,17 @@ def stage_1(case_id: int, current_stage: int, db: Database = Database.get_instan
     :rtype: None
     """
     with st.expander(
-            "Documents Received",
+            "Dokumente erhalten",
             expanded=(current_stage == 1),
             icon=_icon((current_stage > 1))):
         if current_stage == 1:
-            st.write("Waiting to receive documents.")
+            st.write("Warten auf Dokumenteneingang.")
 
             # Add the option to manually upload a document
-            uploaded_file = st.file_uploader("Upload document", type=["pdf"])
+            uploaded_file = st.file_uploader("Dokument hochladen", type=["pdf"])
 
             # Add the option to manually enter an email id
-            email_id = st.text_input("Enter email ID")
+            email_id = st.text_input("E-Mail-ID eingeben")
 
             # TODO: Implement the functionality
         elif current_stage > 1:
@@ -78,7 +78,7 @@ def stage_1(case_id: int, current_stage: int, db: Database = Database.get_instan
             # Display information about the received documents
             if document_info:
                 # Define column names for better display
-                columns = ["Email ID", "Filename", "Path", "Processing Date"]
+                columns = ["E-Mail-ID", "Dateiname", "Pfad", "Verarbeitungsdatum"]
 
                 # Convert to dataframe
                 df = pd.DataFrame(document_info, columns=columns)
@@ -88,10 +88,10 @@ def stage_1(case_id: int, current_stage: int, db: Database = Database.get_instan
 
                 # If there's only one document, just show it
                 if len(df) == 1:
-                    st.write("Document received and ready for verification.")
+                    st.write("Dokument erhalten und zur Verifizierung bereit.")
                     st.dataframe(df, use_container_width=True, hide_index=True)
                 else:
-                    st.write(f"{len(df)} documents received and ready for verification:")
+                    st.write(f"{len(df)} Dokumente erhalten und zur Verifizierung bereit:")
                     st.dataframe(df, use_container_width=True, hide_index=True)
 
                 # TODO: How can processed be no but processing_date be set?
@@ -104,7 +104,7 @@ def stage_1(case_id: int, current_stage: int, db: Database = Database.get_instan
                                       "rb") as file:  # TODO: This is a workaround and should be fixed
                                 st.download_button(
                                     # Add the filename to the button in case multiple documents have been received
-                                    label="Download Document" if len(df) == 1 else f"Download {filename}",
+                                    label="Dokument herunterladen" if len(df) == 1 else f"{filename} herunterladen",
                                     data=file,
                                     file_name=filename + ".pdf",
                                     #mime="application/pdf",
@@ -112,27 +112,27 @@ def stage_1(case_id: int, current_stage: int, db: Database = Database.get_instan
                                 )
                                 log.info(f"Document {filename} has been downloaded.")
                         else:
-                            st.error(f"Document file not found: {path}")
+                            st.error(f"Dokumentdatei nicht gefunden: {path}")
                             log.error(f"Document file not found: {path}")
                     except Exception as e:
-                        st.error(f"Error accessing document: {str(e)}")
+                        st.error(f"Fehler beim Zugriff auf das Dokument: {str(e)}")
                         log.error(f"Error accessing document: {str(e)}")
             else:
-                st.warning("No documents found for this case, even though it's in stage 2 or higher.")
+                st.warning("Keine Dokumente für diesen Fall gefunden, obwohl er in Stufe 2 oder höher ist.")
                 log.warning("No documents found for this case, even though it's in stage 2 or higher.")
 
         # Button to manually update the case
-        if current_stage == 1 and st.button("Update Case"):
+        if current_stage == 1 and st.button("Fall aktualisieren"):
             if uploaded_file and not email_id:
                 # TODO: Create a document from the uploaded file and add it to the case (docs need to be saved in the db)!
                 db.query("UPDATE audit_case SET stage = 2 WHERE id = ?", (case_id,))
-                st.success("Case updated successfully!")
+                st.success("Fall erfolgreich aktualisiert!")
             elif email_id and not uploaded_file:
                 # TODO: Check if the email id is valid and exists on the mailserver
                 db.query("UPDATE audit_case SET stage = 2 WHERE id = ?", (case_id,))
-                st.success("Case updated successfully!")
+                st.success("Fall erfolgreich aktualisiert!")
             else:
-                st.error("Please provide either an email ID OR upload a document!")
+                st.error("Bitte geben Sie entweder eine E-Mail-ID ein ODER laden Sie ein Dokument hoch!")
 
             # Clear cache and refresh
             st.cache_data.clear()
@@ -157,18 +157,18 @@ def stage_2(case_id: int, current_stage: int, db: Database = Database.get_instan
     :rtype: None
     """
     with st.expander(
-            "Data verification",
+            "Datenverifizierung",
             expanded=(current_stage == 2),
             icon=_icon((current_stage > 2))):
         if current_stage < 2:
-            st.write("Waiting for stage one to complete.")
+            st.write("Warten auf Abschluss der ersten Stufe.")
             #log.debug(f"Waiting for stage one to be completed for case: {case_id}")
         else:
             if current_stage > 2:
-                st.write("Client data has been verified against our records.")
+                st.write("Kundendaten wurden gegen unsere Aufzeichnungen verifiziert.")
                 #log.debug(f"Client data has been verified against our records for case: {case_id}")
             elif current_stage == 2:
-                st.write("Client data needs to be verified against our records.")
+                st.write("Kundendaten müssen gegen unsere Aufzeichnungen verifiziert werden.")
                 #log.debug(f"Client data needs to be verified against our records for case: {case_id}")
 
             # TODO: Why am I getting two documents here????
@@ -215,22 +215,22 @@ def stage_2(case_id: int, current_stage: int, db: Database = Database.get_instan
 
                     # Column 1: Match Percentage
                     with col1:
-                        st.metric("Match Percentage", f"{match_percentage:.1f}%",
-                                  help=f"{matches} of {total} fields match")
+                        st.metric("Übereinstimmungsgrad", f"{match_percentage:.1f}%",
+                                  help=f"{matches} von {total} Feldern stimmen überein")
 
                     # Column 2: Signature Status
                     with col2:
                         signature_icon = "✅" if completeness['has_signature'] else "❌"
-                        st.metric("Signature", signature_icon,
-                                  help="Document contains a signature" if completeness['has_signature']
-                                  else "No signature detected")
+                        st.metric("Signatur", signature_icon,
+                                  help="Dokument enthält eine Signatur" if completeness['has_signature']
+                                  else "Keine Signatur erkannt")
 
                     # Column 3: Date Status
                     with col3:
                         date_icon = "✅" if completeness['has_date'] else "❌"
-                        st.metric("Date", date_icon,
-                                  help="Document contains a date" if completeness['has_date']
-                                  else "No date detected")
+                        st.metric("Datum", date_icon,
+                                  help="Dokument enthält ein Datum" if completeness['has_date']
+                                  else "Kein Datum erkannt")
 
                     # Store match percentage for verification button logic
                     verification_result = {
@@ -266,11 +266,11 @@ def stage_2(case_id: int, current_stage: int, db: Database = Database.get_instan
                     # If match percentage is 100% AND document is complete, allow direct completion
                     if (verification_result['match_percentage'] == 100.0 and
                             verification_result['is_complete']):
-                        if st.button("Complete Verification"):
+                        if st.button("Verifizierung abschließen"):
                             db.query("UPDATE audit_case SET stage = 3 WHERE id = ?", (case_id,))
                             log.info(f"Data verification completed for case {case_id}. All fields matched and document is complete.",
                                      audit_log=True, case_id=case_id)
-                            st.success("Verification Completed! Proceeding to next stage.")
+                            st.success("Verifizierung abgeschlossen! Fahre mit der nächsten Stufe fort.")
                             # Clear cache and refresh
                             st.cache_data.clear()
                             st.rerun()
@@ -282,21 +282,21 @@ def stage_2(case_id: int, current_stage: int, db: Database = Database.get_instan
                         with col2:
                             issue_message = []
                             if verification_result['match_percentage'] < 100.0:
-                                issue_message.append("values do not match our database")
+                                issue_message.append("Werte stimmen nicht mit unserer Datenbank überein")
                             if not verification_result['has_signature']:
-                                issue_message.append("signature is missing")
+                                issue_message.append("Signatur fehlt")
                             if not verification_result['has_date']:
-                                issue_message.append("date is missing")
+                                issue_message.append("Datum fehlt")
 
                             issue_text = ", ".join(issue_message)
                             confirm_issues = st.checkbox(
-                                f"I am aware that {issue_text} and want to proceed regardless",
+                                f"Mir ist bewusst, dass {issue_text} und ich trotzdem fortfahren möchte",
                                 key=f"issues-confirm-{case_id}"
                             )
 
                         # Show the button in the first column
                         with col1:
-                            complete_button = st.button("Complete Verification", disabled=not confirm_issues)
+                            complete_button = st.button("Verifizierung abschließen", disabled=not confirm_issues)
 
                             if complete_button:
                                 db.query("UPDATE audit_case SET stage = 3 WHERE id = ?", (case_id,))
@@ -306,7 +306,7 @@ def stage_2(case_id: int, current_stage: int, db: Database = Database.get_instan
                                          f"Signature: {verification_result['has_signature']}, " +
                                          f"Date: {verification_result['has_date']}",
                                          audit_log=True, case_id=case_id)
-                                st.success("Verification Completed with manual override! Proceeding to next stage.")
+                                st.success("Verifizierung mit manueller Überschreibung abgeschlossen! Fahre mit der nächsten Stufe fort.")
                                 # Clear cache and refresh
                                 st.cache_data.clear()
                                 st.rerun()
@@ -315,7 +315,7 @@ def stage_2(case_id: int, current_stage: int, db: Database = Database.get_instan
                 #  Thouhgh a fallback option might be implemented here (something like set back to stage 1)
                 #   Or the error should be logged since a doc might went missing.
                 #    The code can still be used if put in expander stage_1()!
-                st.warning("No documents found for this case. Please upload or process a document first.")
+                st.warning("Keine Dokumente für diesen Fall gefunden. Bitte laden Sie zuerst ein Dokument hoch oder verarbeiten Sie es.")
                 log.error(f"No documents found for case: {case_id}, who is in stage 2.")
 
 
@@ -335,12 +335,12 @@ def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instan
     :type db: Database
     """
     with st.expander(
-            "Certificate issued",
+            "Zertifikat ausgestellt",
             expanded=(current_stage == 3),
             icon=_icon((current_stage > 3))):
 
         # Display audit history
-        st.subheader("Audit History")
+        st.subheader("Prüfprotokoll")
 
         # Get path to the audit log file
         case_log_path = os.path.join(
@@ -370,19 +370,19 @@ def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instan
 
                 # Display as a table
                 if history_data:
-                    history_df = pd.DataFrame(history_data, columns=["Action", "Date"])
+                    history_df = pd.DataFrame(history_data, columns=["Aktion", "Datum"])
                     st.dataframe(history_df, use_container_width=True, hide_index=True)
                 else:
-                    st.info("No audit history entries found for this case.")
+                    st.info("Keine Prüfprotokolleinträge für diesen Fall gefunden.")
             except Exception as e:
-                st.error(f"Error reading audit history: {str(e)}")
+                st.error(f"Fehler beim Lesen des Prüfprotokolls: {str(e)}")
         else:
-            st.info("No audit history available for this case.")
+            st.info("Kein Prüfprotokoll für diesen Fall verfügbar.")
 
         st.divider()
 
         if current_stage == 3:
-            st.write("Certificate generation and issuance.")
+            st.write("Zertifikatserstellung und -ausstellung.")
 
             # Check if the certificate already exists
             cert_path = os.path.join(
@@ -394,7 +394,7 @@ def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instan
 
             if os.path.exists(cert_path):
                 # Certificate exists, offer download
-                st.success("Certificate has been generated!")
+                st.success("Zertifikat wurde erstellt!")
 
                 try:
                     # Get the case folder path
@@ -412,7 +412,7 @@ def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instan
                     with col1:
                         with open(cert_path, "rb") as file:
                             download_button = st.download_button(
-                                label="Download Certificate",
+                                label="Zertifikat herunterladen",
                                 data=file,
                                 file_name=f"certificate_{case_id}.pdf",
                                 mime="application/pdf",
@@ -426,7 +426,7 @@ def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instan
                     # TODO: Refactor this since the button disappears once the stage is completed!
                     # Button to open the case folder
                     with col2:
-                        if st.button("Open Case Folder", key=f"open-folder-{case_id}"):
+                        if st.button("Fallordner öffnen", key=f"open-folder-{case_id}"):
                             # Check if folder exists
                             if os.path.exists(case_folder):
                                 import subprocess
@@ -444,53 +444,53 @@ def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instan
                                     log.info(f"Case folder for case {case_id} was opened.",
                                          audit_log=True, case_id=case_id)
                                 except Exception as e:
-                                    st.error(f"Error opening folder: {str(e)}")
+                                    st.error(f"Fehler beim Öffnen des Ordners: {str(e)}")
                                     log.error(f"Error opening folder for case {case_id}: {str(e)}",
                                          audit_log=True, case_id=case_id)
                             else:
-                                st.error(f"Case folder not found: {case_folder}")
+                                st.error(f"Fallordner nicht gefunden: {case_folder}")
 
                     # Button to manually complete the process
                     with col3:
-                        if st.button("Complete Process", key=f"complete-process-{case_id}"):
+                        if st.button("Prozess abschließen", key=f"complete-process-{case_id}"):
                             # Update the database to move to the next stage
                             db.query("UPDATE audit_case SET stage = 4 WHERE id = ?", (case_id,))
                             log.info(f"Certificate process manually completed for case {case_id}.",
                                  audit_log=True, case_id=case_id)
-                            st.success("Process completed successfully!")
+                            st.success("Prozess erfolgreich abgeschlossen!")
 
                             # Clear cache and refresh
                             st.cache_data.clear()
                             st.rerun()
                         
                 except Exception as e:
-                    st.error(f"Error accessing certificate: {str(e)}")
+                    st.error(f"Fehler beim Zugriff auf das Zertifikat: {str(e)}")
                     log.error(f"Error accessing certificate: {str(e)}",
                               audit_log=True, case_id=case_id)
             else:
                 # Certificate doesn't exist, show generate button
-                if st.button("Generate Certificate"):
+                if st.button("Zertifikat erstellen"):
                     # Import here to avoid circular imports
                     from workflow.audit import generate_certificate
 
                     # Generate certificate
-                    with st.spinner("Generating certificate..."):
+                    with st.spinner("Erstelle Zertifikat..."):
                         success = generate_certificate(case_id, db)
 
                     if success:
-                        st.success("Certificate generated successfully!")
+                        st.success("Zertifikat erfolgreich erstellt!")
                         log.info(f"Certificate for case {case_id} generated successfully.",
                                  audit_log=True, case_id=case_id)
                         # Clear cache and refresh
                         st.cache_data.clear()
                         st.rerun()
                     else:
-                        st.error("Failed to generate certificate. Please try again.")
+                        st.error("Zertifikat konnte nicht erstellt werden. Bitte versuchen Sie es erneut.")
                         log.error(f"Failed to generate certificate for case {case_id}.",
                                   audit_log=True, case_id=case_id)
 
         elif current_stage > 3:
-            st.write("Certificate has been issued and process is completed.")
+            st.write("Zertifikat wurde ausgestellt und Prozess ist abgeschlossen.")
 
             # Check if the certificate exists and provide a download button
             cert_path = os.path.join(
@@ -504,7 +504,7 @@ def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instan
                 try:
                     with open(cert_path, "rb") as file:
                         st.download_button(
-                            label="Download Certificate",
+                            label="Zertifikat herunterladen",
                             data=file,
                             file_name=f"certificate_{case_id}.pdf",
                             mime="application/pdf",
@@ -513,15 +513,15 @@ def stage_3(case_id: int, current_stage: int, db: Database = Database.get_instan
                         log.info(f"Certificate for case {case_id} has been downloaded.",
                                  audit_log=True, case_id=case_id)
                 except Exception as e:
-                    st.error(f"Error accessing certificate: {str(e)}")
+                    st.error(f"Fehler beim Zugriff auf das Zertifikat: {str(e)}")
                     log.error(f"Error accessing certificate: {str(e)}",
                               audit_log=True, case_id=case_id)
             else:
-                st.warning("Certificate file not found.")
+                st.warning("Zertifikatsdatei nicht gefunden.")
                 log.warning(f"Certificate file not found for case {case_id}",
                             audit_log=True, case_id=case_id)
         else:
-            st.write("Waiting for data verification to complete.")
+            st.write("Warten auf Abschluss der Datenverifizierung.")
 
 
 # Stage 4: Process completion
@@ -545,14 +545,14 @@ def stage_4(case_id: int, current_stage: int, db: Database = Database.get_instan
     :rtype: None
     """
     with st.expander(
-            "Process completed",
+            "Prozess abgeschlossen",
             expanded=(current_stage == 4),
             icon=_icon((current_stage > 4))):
 
         if current_stage < 4:
-            st.write("Waiting for certification to complete.")
+            st.write("Warten auf Abschluss der Zertifizierung.")
         else:
-            st.write("Audit process has been completed. All documents can be downloaded as a ZIP archive.")
+            st.write("Prüfprozess wurde abgeschlossen. Alle Dokumente können als ZIP-Archiv heruntergeladen werden.")
 
             # Get case folder path
             case_folder = os.path.join(
@@ -585,7 +585,7 @@ def stage_4(case_id: int, current_stage: int, db: Database = Database.get_instan
                                     log.warning(f"Error adding file {file_path} to ZIP: {str(e)}")
 
                         if file_count == 0:
-                            st.warning("No files found in case folder.")
+                            st.warning("Keine Dateien im Fallordner gefunden.")
                             log.warning(f"No files found in case folder for case {case_id}")
 
                     # Reset buffer position
@@ -593,7 +593,7 @@ def stage_4(case_id: int, current_stage: int, db: Database = Database.get_instan
 
                     # Create download button for ZIP
                     st.download_button(
-                        label="Download All Documents (ZIP)",
+                        label="Alle Dokumente herunterladen (ZIP)",
                         data=zip_buffer,
                         file_name=f"audit_case_{case_id}_documents.zip",
                         mime="application/zip",
@@ -601,16 +601,16 @@ def stage_4(case_id: int, current_stage: int, db: Database = Database.get_instan
                     )
                     log.info(f"Documents for case {case_id} have been downloaded as ZIP.")
                 except Exception as e:
-                    st.error(f"Error creating ZIP archive: {str(e)}")
+                    st.error(f"Fehler beim Erstellen des ZIP-Archivs: {str(e)}")
                     log.error(f"Error creating ZIP archive for case {case_id}: {str(e)}")
             else:
-                st.warning(f"No documents folder found for case {case_id}.")
+                st.warning(f"Kein Dokumentenordner für Fall {case_id} gefunden.")
                 log.warning(f"No documents folder found for case {case_id}")
 
             # Button to archive the case
-            if st.button("Archive Case"):
+            if st.button("Fall archivieren"):
                 db.query("UPDATE audit_case SET stage = 5 WHERE id = ?", (case_id,))
-                st.success("Case Archived!")
+                st.success("Fall archiviert!")
                 # Clear cache and refresh
                 st.cache_data.clear()
                 st.rerun()

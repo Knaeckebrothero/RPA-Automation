@@ -67,13 +67,13 @@ def main():
     """
     st.set_page_config(
         layout="wide",
-        page_title="Document Fetcher",
+        page_title="Dokumenten-Fetcher",
         initial_sidebar_state="collapsed",
         page_icon=":page_with_curl:",
         menu_items={
             'Get Help': 'https://www.extremelycoolapp.com/help',
             'Report a bug': "https://www.extremelycoolapp.com/bug",
-            'About': "# This is a header. This is an *extremely* cool app!"
+            'About': "# Dies ist ein Header. Das ist eine *extrem* coole App!"
         }
     )
 
@@ -94,7 +94,7 @@ def main():
         )
 
         if os.getenv('DEV_MODE') == 'true':
-            log.warning('DEV_MODE flag set, app is running in development mode.')
+            log.warning('DEV_MODE-Flag gesetzt, App läuft im Entwicklungsmodus.')
 
         # Initialize session state variables
         st.session_state['session_key'] = None

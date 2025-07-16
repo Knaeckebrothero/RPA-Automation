@@ -45,8 +45,8 @@ def home(mailclient: Mailclient = None, database: Database = Database.get_instan
     log.debug('Rendering home page')
 
     # Page title and description
-    st.header('Document Fetcher')
-    st.write('Welcome to the Document Fetcher application!')
+    st.header('Dokumenten-Fetcher')
+    st.write('Willkommen zur Dokumenten-Fetcher-Anwendung!')
 
     # Get user's accessible clients
     user_id = st.session_state.get('user_id')
@@ -69,24 +69,24 @@ def home(mailclient: Mailclient = None, database: Database = Database.get_instan
     # Display a table on the left
     with column_right:
         if emails.empty:
-            st.warning("No new emails to process.")
+            st.warning("Keine neuen E-Mails zur Verarbeitung.")
             return
 
         # Only show email processing buttons for admin and inspector roles
         if AccessControl.can_access_feature(user_role, 'process_emails'):
             # Display a multiselect box to select documents to process
-            docs_to_process = st.multiselect('Select documents to process', emails['ID'])
+            docs_to_process = st.multiselect('Zu verarbeitende Dokumente wählen', emails['ID'])
 
             # Process only the selected documents
-            if st.button('Process selected documents'):
-                with st.spinner(f'Processing mails'):
+            if st.button('Ausgewählte Dokumente verarbeiten'):
+                with st.spinner(f'Verarbeite E-Mails'):
                     auditflow.assess_emails(docs_to_process)
 
                 # Rerun the app to update the display
                 st.rerun()
 
             # Process all the documents
-            if st.button('Process all documents'):
+            if st.button('Alle Dokumente verarbeiten'):
                 # Check if the mailclient instance is provided, otherwise fetch the instance
                 if not mailclient:
                     mailclient = Mailclient.get_instance()
@@ -102,10 +102,10 @@ def home(mailclient: Mailclient = None, database: Database = Database.get_instan
 
                 # If no mails are in the database, fetch all mails
                 if len(already_processed_mails) > 0:
-                    with st.spinner(f'Processing mails'):
+                    with st.spinner(f'Verarbeite E-Mails'):
                         auditflow.assess_emails(mailclient.get_mails(excluded_ids=already_processed_mails)['ID'])
                 else:
-                    with st.spinner(f'Processing mails'):
+                    with st.spinner(f'Verarbeite E-Mails'):
                         auditflow.assess_emails(emails['ID'])
 
                 # Rerun the app to update the display
@@ -122,17 +122,17 @@ def home(mailclient: Mailclient = None, database: Database = Database.get_instan
 
     if active_cases_df.empty:
         if user_role == 'admin':
-            st.info("No active audit cases found. All cases have been completed and archived.")
+            st.info("Keine aktiven Prüffälle gefunden. Alle Fälle wurden abgeschlossen und archiviert.")
         else:
-            st.info("You have no active audit cases assigned to you.")
+            st.info("Sie haben keine aktiven Prüffälle zugewiesen.")
         return
 
     # Display a table of all active cases
-    st.subheader("Active Cases")
+    st.subheader("Aktive Fälle")
 
     # Create a more user-friendly display table
     display_df = active_cases_df[['case_id', 'bafin_id', 'institute', 'stage', 'created_at', 'last_updated_at']].copy()
-    display_df.columns = ['Case ID', 'BaFin ID', 'Institute', 'Stage', 'Created', 'Last Updated']
+    display_df.columns = ['Fall-ID', 'BaFin-ID', 'Institut', 'Stufe', 'Erstellt', 'Zuletzt aktualisiert']
 
     # Format dates
     display_df['Created'] = display_df['Created'].dt.strftime('%d.%m.%Y')
@@ -147,7 +147,7 @@ def home(mailclient: Mailclient = None, database: Database = Database.get_instan
     st.write(display_df.to_html(escape=False, index=False), unsafe_allow_html=True)
 
     # Add a button to refresh the data
-    if st.button("Refresh Cases"):
+    if st.button("Fälle aktualisieren"):
         st.cache_data.clear()
         st.rerun()
 
@@ -177,13 +177,13 @@ def active_cases(database: Database = Database.get_instance()):
         active_cases_df = database.get_active_client_cases(client_ids=accessible_clients)
 
     # Page title and description
-    st.header('Active Cases')
+    st.header('Aktive Fälle')
 
     if active_cases_df.empty:
         if user_role == 'admin':
-            st.info("No active audit cases found. All cases have been completed and archived.")
+            st.info("Keine aktiven Prüffälle gefunden. Alle Fälle wurden abgeschlossen und archiviert.")
         else:
-            st.info("You have no active audit cases assigned to you.")
+            st.info("Sie haben keine aktiven Prüffälle zugewiesen.")
         return
 
     # Setup session state for selected case if not already initialized
@@ -195,13 +195,13 @@ def active_cases(database: Database = Database.get_instance()):
 
     # Display a selectbox to select a case
     selected_option = st.selectbox(
-        'Select a case to view details',
+        'Wählen Sie einen Fall, um Details anzuzeigen',
         case_options,
         key='case_selector'
     )
 
     # Create tabs for different views
-    tab1, tab2 = st.tabs(["Case Details", "Document Values"])
+    tab1, tab2 = st.tabs(["Fall-Details", "Dokument-Werte"])
 
     with tab1:
         if selected_option:
@@ -214,12 +214,12 @@ def active_cases(database: Database = Database.get_instance()):
 
             # Verify user has access to this case
             if not AccessControl.can_access_client(user_id, selected_case['client_id'], user_role, database):
-                st.error("You don't have access to view this case.")
+                st.error("Sie haben keine Berechtigung, diesen Fall anzuzeigen.")
                 return
 
             # Display case information
             st.markdown(
-                f"**Case {selected_case['case_id']} Stage:** {visuals.stage_badge(selected_case['stage'])}",
+                f"**Fall {selected_case['case_id']} Stufe:** {visuals.stage_badge(selected_case['stage'])}",
                 unsafe_allow_html=True
             )
 
@@ -245,39 +245,39 @@ def active_cases(database: Database = Database.get_instance()):
 
             # Case details column
             with col1:
-                st.subheader("Case Details")
-                st.markdown(f"**Created:** {selected_case['created_at'].strftime('%Y-%m-%d')}")
-                st.markdown(f"**Last Updated:** {selected_case['last_updated_at'].strftime('%Y-%m-%d %H:%M')}")
+                st.subheader("Fall-Details")
+                st.markdown(f"**Erstellt:** {selected_case['created_at'].strftime('%Y-%m-%d')}")
+                st.markdown(f"**Zuletzt aktualisiert:** {selected_case['last_updated_at'].strftime('%Y-%m-%d %H:%M')}")
 
                 # Comments section with editing capability
-                st.subheader("Comments")
+                st.subheader("Kommentare")
                 current_comments = selected_case['comments'] if pd.notna(selected_case['comments']) else ""
-                new_comments = st.text_area("Edit Comments", value=current_comments, height=143)
+                new_comments = st.text_area("Kommentare bearbeiten", value=current_comments, height=143)
 
                 if new_comments != current_comments:
-                    if st.button("Save Comments"):
+                    if st.button("Kommentare speichern"):
                         # Update comments in database
                         database.insert(f"""
                             UPDATE audit_case 
                             SET comments = ? 
                             WHERE id = ?
                         """, (new_comments, case_id))
-                        st.success("Comments updated successfully!")
+                        st.success("Kommentare erfolgreich aktualisiert!")
                         # Clear cache and refresh
                         st.cache_data.clear()
                         st.rerun()
 
             # Client details column
             with col2:
-                st.subheader("Client Information")
-                st.markdown(f"**Institute:** {selected_case['institute']}")
-                st.markdown(f"**BaFin ID:** {selected_case['bafin_id']}")
-                st.markdown(f"**Address:** {selected_case['address']}")
-                st.markdown(f"**City:** {selected_case['city']}")
-                st.markdown(f"**Contact Person:** {selected_case['contact_person']}")
-                st.markdown(f"**Phone:** {selected_case['phone']}")
+                st.subheader("Kundeninformation")
+                st.markdown(f"**Institut:** {selected_case['institute']}")
+                st.markdown(f"**BaFin-ID:** {selected_case['bafin_id']}")
+                st.markdown(f"**Adresse:** {selected_case['address']}")
+                st.markdown(f"**Stadt:** {selected_case['city']}")
+                st.markdown(f"**Ansprechpartner:** {selected_case['contact_person']}")
+                st.markdown(f"**Telefon:** {selected_case['phone']}")
                 st.markdown(f"**Fax:** {selected_case['fax']}")
-                st.markdown(f"**Email:** {selected_case['email']}")
+                st.markdown(f"**E-Mail:** {selected_case['email']}")
 
     with tab2:
         if selected_option and st.session_state['selected_case_id']:
@@ -293,7 +293,7 @@ def active_cases(database: Database = Database.get_instance()):
             """, (case_id,))  # TODO: Do we still need the document_hash?
 
             if not document_data:
-                st.warning("No document found for this audit case.")
+                st.warning("Kein Dokument für diesen Prüffall gefunden.")
                 return
 
             # Create two columns - one for PDF display, one for editing values
@@ -304,7 +304,7 @@ def active_cases(database: Database = Database.get_instance()):
             doc = PDF.from_json(document_path)
 
             with col1:
-                st.subheader("Document Preview")
+                st.subheader("Dokument-Vorschau")
                 # Display PDF using iframe
                 if document_path and os.path.exists(document_path):
                     # Create a base64 representation of the PDF
@@ -314,17 +314,17 @@ def active_cases(database: Database = Database.get_instance()):
                     pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="1600px" type="application/pdf"></iframe>'
                     st.markdown(pdf_display, unsafe_allow_html=True)
                 else:
-                    st.error("PDF file not found.")
+                    st.error("PDF-Datei nicht gefunden.")
 
             with col2:
-                st.subheader("Edit Extracted Values")
+                st.subheader("Extrahierte Werte bearbeiten")
 
                 if not hasattr(doc, '_audit_values') or not doc._audit_values:
-                    st.warning("No audit values found for this document.")
+                    st.warning("Keine Prüfwerte für dieses Dokument gefunden.")
                     return
 
-                st.markdown("### Extracted Values")
-                st.markdown("Edit the values extracted from the document:")
+                st.markdown("### Extrahierte Werte")
+                st.markdown("Bearbeiten Sie die aus dem Dokument extrahierten Werte:")
 
                 # Create a form for editing the values
                 with st.form("edit_audit_values"):
@@ -349,13 +349,13 @@ def active_cases(database: Database = Database.get_instance()):
 
                     # Position values section
                     if positions:
-                        st.markdown("#### SONO-1 Positions")
+                        st.markdown("#### SONO-1 Positionen")
                         for key, value in positions.items():
                             position_number = key[1:]  # Extract the position number
-                            original_key = doc._audit_values.get(f"key_{key}", "Unknown")
+                            original_key = doc._audit_values.get(f"key_{key}", "Unbekannt")
 
                             # Add tooltip with original extracted text field name
-                            help_text = f"Original field: {original_key}"
+                            help_text = f"Ursprüngliches Feld: {original_key}"
 
                             # Edit field with label showing position number
                             edited_value = st.number_input(
@@ -377,10 +377,10 @@ def active_cases(database: Database = Database.get_instance()):
                             value = findag_entries[key]
                             # Extract the number (e.g., "01" from "ab2s1n01")
                             number = key[-2:]
-                            original_key = doc._audit_values.get(f"key_{key}", "Unknown")
+                            original_key = doc._audit_values.get(f"key_{key}", "Unbekannt")
 
                             # Add tooltip with original extracted text field name
-                            help_text = f"Original field: {original_key}"
+                            help_text = f"Ursprüngliches Feld: {original_key}"
 
                             # Edit field with label showing FinDAG reference
                             edited_value = st.number_input(
@@ -391,7 +391,7 @@ def active_cases(database: Database = Database.get_instance()):
                             edited_values[key] = edited_value
 
                     # Submit button
-                    submitted = st.form_submit_button("Save Changes")
+                    submitted = st.form_submit_button("Änderungen speichern")
 
                     if submitted:
                         # Update the audit values in the document
@@ -401,12 +401,12 @@ def active_cases(database: Database = Database.get_instance()):
 
                         # Save the document back to the database
                         doc.save_to_json()
-                        st.success("Audit values updated successfully!")
+                        st.success("Prüfwerte erfolgreich aktualisiert!")
 
                 # Display original text extraction for reference
-                with st.expander("Show original extracted field names"):
-                    st.markdown("### Original Field Names")
-                    st.markdown("These are the original fields from which values were extracted:")
+                with st.expander("Ursprüngliche extrahierte Feldnamen anzeigen"):
+                    st.markdown("### Ursprüngliche Feldnamen")
+                    st.markdown("Dies sind die ursprünglichen Felder, aus denen Werte extrahiert wurden:")
 
                     for key in doc._audit_values:
                         if key.startswith('key_'):
@@ -414,7 +414,7 @@ def active_cases(database: Database = Database.get_instance()):
                             if field_key in doc._audit_values:
                                 st.markdown(f"**{field_key}**: {doc._audit_values[key]}")
         else:
-            st.info("Please select a case to edit document values.")
+            st.info("Bitte wählen Sie einen Fall aus, um Dokumentwerte zu bearbeiten.")
 
 
 def settings(database: Database = Database().get_instance()):
@@ -430,109 +430,109 @@ def settings(database: Database = Database().get_instance()):
     # Check if user has access to settings
     user_role = st.session_state.get('user_role', 'auditor')
     if not AccessControl.can_access_feature(user_role, 'settings'):
-        st.error("You don't have permission to access settings.")
+        st.error("Sie haben keine Berechtigung, auf die Einstellungen zuzugreifen.")
         return
 
     # Page title and description
-    st.header('Settings')
-    st.write('Configure the application settings below.')
+    st.header('Einstellungen')
+    st.write('Konfigurieren Sie die Anwendungseinstellungen unten.')
 
     # Split the page into tabs
-    tabs = ["Application Settings", "Audit Settings", "User Management"]
+    tabs = ["Anwendungseinstellungen", "Prüfungseinstellungen", "Benutzerverwaltung"]
     if AccessControl.can_access_feature(user_role, 'user_management'):
-        tabs.append("Access Control")
+        tabs.append("Zugriffskontrolle")
 
     tab_objects = st.tabs(tabs)
 
     # Application Settings tab
     with tab_objects[0]:
-        st.subheader("Application Settings")
+        st.subheader("Anwendungseinstellungen")
 
         # Certificate Template Settings
-        with st.expander("Certificate Template Settings", expanded=True):
-            st.write("Configure the template used for generating certificates.")
+        with st.expander("Zertifikat-Vorlagen-Einstellungen", expanded=True):
+            st.write("Konfigurieren Sie die Vorlage für die Erstellung von Zertifikaten.")
 
             # Get current template path
             template_path = os.getenv('CERTIFICATE_TEMPLATE_PATH', './.filesystem/certificate_template.docx')
 
             # Upload new template
-            st.markdown("#### Upload New Template")
+            st.markdown("#### Neue Vorlage hochladen")
             st.write("""
-            Upload a new Word document (.docx) template for certificates. The template should contain the following placeholders:
-            - [DATE] - Current date
-            - [YEAR] - Current year
-            - [BAFIN_ID] - Client BaFin ID
-            - [INSTITUTE_NAME] - Client institute name
-            - [INSTITUTE_ADDRESS] - Client address
-            - [INSTITUTE_CITY] - Client city
-            - [FISCAL_YEAR_END] - End of fiscal year
-            - [VALIDATION_DATE] - Validation date
+            Laden Sie eine neue Word-Dokument-Vorlage (.docx) für Zertifikate hoch. Die Vorlage sollte die folgenden Platzhalter enthalten:
+            - [DATE] - Aktuelles Datum
+            - [YEAR] - Aktuelles Jahr
+            - [BAFIN_ID] - BaFin-ID des Kunden
+            - [INSTITUTE_NAME] - Name des Instituts
+            - [INSTITUTE_ADDRESS] - Adresse des Instituts
+            - [INSTITUTE_CITY] - Stadt des Instituts
+            - [FISCAL_YEAR_END] - Ende des Geschäftsjahres
+            - [VALIDATION_DATE] - Validierungsdatum
             """)
 
-            uploaded_template = st.file_uploader("Upload template file", type="docx", key="template_uploader")
+            uploaded_template = st.file_uploader("Vorlagendatei hochladen", type="docx", key="template_uploader")
 
             if uploaded_template is not None:
                 # Save the uploaded template
                 with open(template_path, "wb") as f:
                     f.write(uploaded_template.getvalue())
 
-                st.success(f"Template updated successfully: {os.path.basename(template_path)}")
+                st.success(f"Vorlage erfolgreich aktualisiert: {os.path.basename(template_path)}")
 
             # Display current template info
-            st.markdown("#### Current Template")
+            st.markdown("#### Aktuelle Vorlage")
             if os.path.exists(template_path):
-                st.success(f"Template is configured: {os.path.basename(template_path)}")
+                st.success(f"Vorlage ist konfiguriert: {os.path.basename(template_path)}")
 
                 # Option to download current template
                 with open(template_path, "rb") as file:
                     st.download_button(
-                        label="Download Current Template",
+                        label="Aktuelle Vorlage herunterladen",
                         data=file,
                         file_name=os.path.basename(template_path),
                         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                     )
             else:
-                st.warning(f"Template file not found at {template_path}")
+                st.warning(f"Vorlagendatei nicht gefunden unter {template_path}")
 
         # Terms and Conditions Settings
-        with st.expander("Terms and Conditions Settings", expanded=True):
-            st.write("Configure the Terms and Conditions PDF used for generating certificates.")
+        with st.expander("Allgemeine Geschäftsbedingungen Einstellungen", expanded=True):
+            st.write("Konfigurieren Sie das AGB-PDF, das für die Erstellung von Zertifikaten verwendet wird.")
 
             # Get current terms and conditions path
             terms_path = os.getenv('CERTIFICATE_TOS_PATH', './.filesystem/terms_conditions.pdf')
 
             # Upload new terms and conditions PDF
-            st.markdown("#### Upload New Terms and Conditions PDF")
-            st.write("Upload a new PDF document (.pdf) for the terms and conditions.")
+            st.markdown("#### Neue AGB-PDF hochladen")
+            st.write("Laden Sie ein neues PDF-Dokument (.pdf) für die Allgemeinen Geschäftsbedingungen hoch.")
 
-            uploaded_terms_pdf = st.file_uploader("Upload Terms and Conditions PDF", type="pdf", key="terms_uploader")
+            uploaded_terms_pdf = st.file_uploader("AGB-PDF hochladen", type="pdf", key="terms_uploader")
 
             if uploaded_terms_pdf is not None:
                 # Save the uploaded terms and conditions PDF
                 with open(terms_path, "wb") as f:
                     f.write(uploaded_terms_pdf.getvalue())
 
-                st.success(f"Terms and Conditions PDF updated successfully: {os.path.basename(terms_path)}")
+                st.success(f"AGB-PDF erfolgreich aktualisiert: {os.path.basename(terms_path)}")
 
             # Display current terms and conditions info
-            st.markdown("#### Current Terms and Conditions PDF")
+            st.markdown("#### Aktuelle AGB-PDF")
             if os.path.exists(terms_path):
-                st.success(f"Terms and Conditions PDF is configured: {os.path.basename(terms_path)}")
+                st.success(f"AGB-PDF ist konfiguriert: {os.path.basename(terms_path)}")
 
                 # Option to download current terms and conditions PDF
                 with open(terms_path, "rb") as file:
                     st.download_button(
-                        label="Download Current Terms and Conditions PDF",
+                        label="Aktuelle AGB-PDF herunterladen",
                         data=file,
                         file_name=os.path.basename(terms_path),
                         mime="application/pdf"
                     )
             else:
-                st.warning(f"Terms and Conditions PDF file not found at {terms_path}")
+                st.warning(f"AGB-PDF-Datei nicht gefunden unter {terms_path}")
 
         # Archive File Name Settings
-        with st.expander("Archive Settings", expanded=True):
-            st.write("Configure the naming convention for archive zip files.")
+        with st.expander("Archiv-Einstellungen", expanded=True):
+            st.write("Konfigurieren Sie die Namenskonvention für Archiv-ZIP-Dateien.")
 
             # Get the config handler instance
             config = ConfigHandler.get_instance()
@@ -543,22 +543,22 @@ def settings(database: Database = Database().get_instance()):
 
             # Input for archive file prefix
             new_prefix = st.text_input(
-                "Archive File Prefix",
+                "Archivdatei-Präfix",
                 value=current_prefix,
-                help="This prefix will be used for naming archive zip files. The final format will be: prefix_YYYY-MM-DD.zip"
+                help="Dieses Präfix wird für die Benennung von Archiv-ZIP-Dateien verwendet. Das finale Format wird sein: prefix_YYYY-MM-DD.zip"
             )
 
             # Display preview of the file name
             current_date = datetime.datetime.now().strftime("%Y-%m-%d")
-            st.write(f"Preview: `{new_prefix}_{current_date}.zip`")
+            st.write(f"Vorschau: `{new_prefix}_{current_date}.zip`")
 
-            if st.button("Save Archive Settings"):
+            if st.button("Archiv-Einstellungen speichern"):
                 # Save the prefix to the config
                 config.set("APP_SETTINGS", "archive_file_prefix", new_prefix)
-                st.success("Archive file prefix updated successfully!")
+                st.success("Archivdatei-Präfix erfolgreich aktualisiert!")
 
         # Application log settings
-        with st.expander("Application Logs", expanded=False):
+        with st.expander("Anwendungsprotokolle", expanded=False):
             log_path = os.path.join(os.getenv('LOG_PATH', ''), 'application.log')
             if os.path.exists(log_path):
                 try:
@@ -571,7 +571,7 @@ def settings(database: Database = Database().get_instance()):
                         last_lines = list(last_lines)
 
                     # Add a slider to control how many lines to display
-                    num_lines = st.slider('Number of log lines to display',
+                    num_lines = st.slider('Anzahl der anzuzeigenden Protokollzeilen',
                                           min_value=10,
                                           max_value=len(last_lines),
                                           value=min(100, len(last_lines)),
@@ -583,16 +583,16 @@ def settings(database: Database = Database().get_instance()):
                     # Join the lines into a single string
                     log_content = ''.join(displayed_lines)
 
-                    st.subheader(f'Application Logs (Last {num_lines} of {len(last_lines)} lines)')
+                    st.subheader(f'Anwendungsprotokolle (Letzte {num_lines} von {len(last_lines)} Zeilen)')
                     st.code(log_content)
                 except Exception as e:
-                    st.error(f"Error reading log file: {str(e)}")
+                    st.error(f"Fehler beim Lesen der Protokolldatei: {str(e)}")
             else:
-                st.warning(f"Log file not found at {log_path}")
+                st.warning(f"Protokolldatei nicht gefunden unter {log_path}")
 
     # Audit Settings tab
     with tab_objects[1]:
-        st.subheader("Audit Process")
+        st.subheader("Prüfprozess")
 
         # Updated Excel Import Section in settings() function from ui/pages.py
         # This replaces the Excel Import Section within the Audit Settings tab
@@ -1024,8 +1024,8 @@ def about():
                   lines from the end of the log file.
     :type deque: collections.deque
     """
-    st.header('About')
-    st.write('FinDAG Document Processing Application')
+    st.header('Über')
+    st.write('FinDAG Dokumentenverarbeitungsanwendung')
 
     # Display log file with configurable number of lines
     log_path = os.path.join(os.getenv('LOG_PATH', ''), 'application.log')
@@ -1052,27 +1052,27 @@ def about():
             # Join the lines into a single string
             log_content = ''.join(displayed_lines)
 
-            st.subheader(f'Application Logs (Last {num_lines} of {len(last_lines)} lines)')
+            st.subheader(f'Anwendungsprotokolle (Letzte {num_lines} von {len(last_lines)} Zeilen)')
             st.code(log_content)
         except Exception as e:
-            st.error(f"Error reading log file: {str(e)}")
+            st.error(f"Fehler beim Lesen der Protokolldatei: {str(e)}")
     else:
-        st.warning(f"Log file not found at {log_path}")
+        st.warning(f"Protokolldatei nicht gefunden unter {log_path}")
 
     # Bug report section
-    st.subheader('Report an Issue')
-    st.write('If you encounter any problems with the application, please describe the issue below:')
+    st.subheader('Problem melden')
+    st.write('Wenn Sie Probleme mit der Anwendung haben, beschreiben Sie das Problem bitte unten:')
 
-    issue_description = st.text_area('Issue Description', height=100)
+    issue_description = st.text_area('Problembeschreibung', height=100)
     # steps_to_reproduce = st.text_area('Steps to Reproduce', height=100)
 
-    if st.button('Submit Issue Report'):
+    if st.button('Problembericht senden'):
         if issue_description:
             # Here you would implement the logic to save or send the bug report
             # For now, just show a success message
-            st.success('Thank you for your report! The issue has been logged.')
+            st.success('Vielen Dank für Ihren Bericht! Das Problem wurde protokolliert.')
         else:
-            st.warning('Please provide a description of the issue.')
+            st.warning('Bitte geben Sie eine Beschreibung des Problems an.')
 
 
 def login(database: Database = None) -> bool:
@@ -1089,8 +1089,8 @@ def login(database: Database = None) -> bool:
 
     :raises Exception: If there is an error during the login process, such as database connection issues
     """
-    st.title("Document Fetcher - Login")
-    st.markdown("Please enter your credentials to access the application.")
+    st.title("Dokumenten-Fetcher - Anmeldung")
+    st.markdown("Bitte geben Sie Ihre Anmeldedaten ein, um auf die Anwendung zuzugreifen.")
 
     # Get client IP as early as possible
     client_ip = sec.get_client_ip()
@@ -1101,14 +1101,14 @@ def login(database: Database = None) -> bool:
     with col1:
         # Create a form for better UX
         with st.form("login_form"):
-            username = st.text_input("Username").strip()
-            password = st.text_input("Password", type="password").strip()
-            submit = st.form_submit_button("Login")
+            username = st.text_input("Benutzername").strip()
+            password = st.text_input("Passwort", type="password").strip()
+            submit = st.form_submit_button("Anmelden")
 
         if submit:
             if not username or not password:
                 log.warning(f"Login attempt with empty credentials from IP: {client_ip}")
-                st.error("Please enter both username and password")
+                st.error("Bitte geben Sie sowohl Benutzername als auch Passwort ein")
                 return False
 
             # Check if the database instance is provided, otherwise fetch the instance
@@ -1120,7 +1120,7 @@ def login(database: Database = None) -> bool:
             # Check for too many failed attempts from this IP
             if sec.check_login_attempts(client_ip, db):
                 log.warning(f"Too many failed login attempts from IP: {client_ip}")
-                st.error("Too many failed login attempts. Please try again later.")
+                st.error("Zu viele fehlgeschlagene Anmeldeversuche. Bitte versuchen Sie es später erneut.")
                 return False
 
             # Query for user with the given username
@@ -1135,7 +1135,7 @@ def login(database: Database = None) -> bool:
             if not user_data:
                 log.warning(f"Failed login attempt for username: {username} from IP: {client_ip}")
                 sec.record_failed_attempt(client_ip, username, db)
-                st.error("Invalid username or password")
+                st.error("Ungültiger Benutzername oder Passwort")
                 return False
 
             user_id, password_hash, password_salt, role = user_data[0]
@@ -1144,14 +1144,14 @@ def login(database: Database = None) -> bool:
             if not sec.verify_password(password_hash, password_salt, password):
                 log.warning(f"Failed login attempt for user: {user_id} from IP: {client_ip}")
                 sec.record_failed_attempt(client_ip, username, db)
-                st.error("Invalid username or password")
+                st.error("Ungültiger Benutzername oder Passwort")
                 return False
 
             # Create a new session
             session_key = sec.create_session(user_id, db)
             if not session_key:
                 log.error(f"Failed to create session for user: {user_id} from IP: {client_ip}")
-                st.error("Failed to create session")
+                st.error("Sitzung konnte nicht erstellt werden")
                 return False
 
             # Store session information in session state
@@ -1165,25 +1165,25 @@ def login(database: Database = None) -> bool:
             log.info(f"Successful login for user: {user_id} ({username}) from IP: {client_ip}")
             sec.record_successful_login(client_ip, user_id, db)
 
-            st.success(f"Welcome, {username}!")
+            st.success(f"Willkommen, {username}!")
             return True
 
     # Display demo accounts for testing
     with col2:
         st.markdown("""
-        ### Demo Accounts
+        ### Demo-Konten
 
-        **Admin User**  
-        Username: admin@example.com  
-        Password: admin123
+        **Administrator**  
+        Benutzername: admin@example.com  
+        Passwort: admin123
 
-        **Inspector User**  
-        Username: inspector@example.com  
-        Password: inspector123 
+        **Inspektor**  
+        Benutzername: inspector@example.com  
+        Passwort: inspector123 
 
-        **Auditor User**  
-        Username: auditor@example.com  
-        Password: auditor123 
+        **Prüfer**  
+        Benutzername: auditor@example.com  
+        Passwort: auditor123 
         """)
 
     return False
@@ -1204,14 +1204,14 @@ def table_detection():
     log.debug('Rendering table detection page')
 
     # Page title and description
-    st.header('Table Detection Test')
-    st.write('Upload a PDF document to test the table detection functionality.')
+    st.header('Tabellen-Erkennungstest')
+    st.write('Laden Sie ein PDF-Dokument hoch, um die Tabellenerkennung zu testen.')
 
     # File upload
-    pdf_document = st.file_uploader(label="Upload PDF here", type=["pdf"])
-    display_tables = st.checkbox("Show tables")
-    display_signatures = st.checkbox("Show signatures")
-    display_dates = st.checkbox("Show dates")
+    pdf_document = st.file_uploader(label="PDF hier hochladen", type=["pdf"])
+    display_tables = st.checkbox("Tabellen anzeigen")
+    display_signatures = st.checkbox("Signaturen anzeigen")
+    display_dates = st.checkbox("Datumsangaben anzeigen")
 
     if pdf_document is not None:
         pdf_content_bytes = pdf_document.read()  # Read content once
