@@ -8,21 +8,17 @@ class PythonProjectCopier:
     # Files and paths to be copied (relative to repository root)
     # Can include files from any location in the repository
     CONFIG_FILES = [
-        'requirements.txt',  # Files at repository root
-        'setup.py',
+        'setup.py',  # Files at repository root
         'pyproject.toml',
         '.env.example',
-        'README.md',
-        'table_detection.py',
-        'db_init.py',
         'app_init.py',
-        'email_downloader.py',
         'CLAUDE.md',
-        'pytest.ini',
+        'db_init.py',
         'email_downloader.py',
+        'pytest.ini',
+        'README.md',
+        'requirements.txt',
         'run_existing_tests.py',
-        #'examples/email_templates/reminder_template.html',
-        #'examples/email_templates/response_template.html',
         # Add any other files you want to copy (use relative paths)
     ]
 

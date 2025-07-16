@@ -7,6 +7,8 @@ import streamlit as st
 import logging
 import base64
 import datetime
+import cv2
+import numpy as np
 
 # Custom imports
 import ui.visuals as visuals
@@ -19,6 +21,9 @@ from cls.document import PDF
 from cls.config import ConfigHandler
 from cls.accesscontrol import AccessControl
 from workflow.excel_import import ExcelImporter
+import processing.detect as dtct
+from processing.ocr import ocr_cell, create_ocr_reader
+from processing.files import get_images_from_pdf
 
 
 # Set up logging
@@ -277,7 +282,7 @@ def active_cases(database: Database = Database.get_instance()):
     with tab2:
         if selected_option and st.session_state['selected_case_id']:
             case_id = st.session_state['selected_case_id']
-            
+
             # Get document details for the selected case
             document_data = database.query("""
                 SELECT document_path, document_hash 
@@ -286,18 +291,18 @@ def active_cases(database: Database = Database.get_instance()):
                 ORDER BY processing_date DESC 
                 LIMIT 1
             """, (case_id,))  # TODO: Do we still need the document_hash?
-            
+
             if not document_data:
                 st.warning("No document found for this audit case.")
                 return
-                
+
             # Create two columns - one for PDF display, one for editing values
             col1, col2 = st.columns([6, 3])
 
             # Load the document with audit values
             document_path = document_data[0][0]
             doc = PDF.from_json(document_path)
-            
+
             with col1:
                 st.subheader("Document Preview")
                 # Display PDF using iframe
@@ -313,45 +318,45 @@ def active_cases(database: Database = Database.get_instance()):
 
             with col2:
                 st.subheader("Edit Extracted Values")
-                
+
                 if not hasattr(doc, '_audit_values') or not doc._audit_values:
                     st.warning("No audit values found for this document.")
                     return
-                
+
                 st.markdown("### Extracted Values")
                 st.markdown("Edit the values extracted from the document:")
-                
+
                 # Create a form for editing the values
                 with st.form("edit_audit_values"):
                     edited_values = {}
-                    
+
                     # Group values by type
                     positions = {}
                     findag_entries = {}
-                    
+
                     # Organize values into categories for better display
                     for key, value in doc._audit_values.items():
                         # Skip metadata keys
                         if key.startswith('raw_') or key.startswith('key_') or key.startswith('error_'):
                             continue
-                            
+
                         # Display position values
                         if key.startswith('p0'):
                             positions[key] = value
                         # Display FinDAG values
                         elif key.startswith('ab2s1n'):
                             findag_entries[key] = value
-                    
+
                     # Position values section
                     if positions:
                         st.markdown("#### SONO-1 Positions")
                         for key, value in positions.items():
                             position_number = key[1:]  # Extract the position number
                             original_key = doc._audit_values.get(f"key_{key}", "Unknown")
-                            
+
                             # Add tooltip with original extracted text field name
                             help_text = f"Original field: {original_key}"
-                            
+
                             # Edit field with label showing position number
                             edited_value = st.number_input(
                                 f"Position {position_number}", 
@@ -359,24 +364,24 @@ def active_cases(database: Database = Database.get_instance()):
                                 help=help_text
                             )
                             edited_values[key] = edited_value
-                    
+
                     # FinDAG values section
                     if findag_entries:
                         st.markdown("#### FinDAG § 16j Abs. 2 Satz 1")
-                        
+
                         # Sort keys numerically by extracting the number portion
                         sorted_keys = sorted(findag_entries.keys(), 
                                              key=lambda k: int(k[-2:]))  # Sort by the last two digits
-                        
+
                         for key in sorted_keys:
                             value = findag_entries[key]
                             # Extract the number (e.g., "01" from "ab2s1n01")
                             number = key[-2:]
                             original_key = doc._audit_values.get(f"key_{key}", "Unknown")
-                            
+
                             # Add tooltip with original extracted text field name
                             help_text = f"Original field: {original_key}"
-                            
+
                             # Edit field with label showing FinDAG reference
                             edited_value = st.number_input(
                                 f"Nr. {number.lstrip('0')}", 
@@ -384,25 +389,25 @@ def active_cases(database: Database = Database.get_instance()):
                                 help=help_text
                             )
                             edited_values[key] = edited_value
-                    
+
                     # Submit button
                     submitted = st.form_submit_button("Save Changes")
-                    
+
                     if submitted:
                         # Update the audit values in the document
                         for key, value in edited_values.items():
                             doc._audit_values[key] = value
                             # TODO: Implement a get method for the audit values!
-                        
+
                         # Save the document back to the database
                         doc.save_to_json()
                         st.success("Audit values updated successfully!")
-                        
+
                 # Display original text extraction for reference
                 with st.expander("Show original extracted field names"):
                     st.markdown("### Original Field Names")
                     st.markdown("These are the original fields from which values were extracted:")
-                    
+
                     for key in doc._audit_values:
                         if key.startswith('key_'):
                             field_key = key[4:]  # Remove the 'key_' prefix
@@ -600,9 +605,9 @@ def settings(database: Database = Database().get_instance()):
             - **Inspector 1**: Name or email of the first inspector
             - **Inspector 2**: Name or email of the second inspector
             - **Auditor**: Name or email of the auditor
-            
+
             Additional columns like Nr, Name, PLZ, City or Comment will be ignored.
-            
+
             **Note:** If users don't exist in the system, they will be created automatically with:
             - Username generated from their name (all spaces removed, lowercase) + @example.com
             - Secure random password
@@ -1167,18 +1172,184 @@ def login(database: Database = None) -> bool:
     with col2:
         st.markdown("""
         ### Demo Accounts
-        
+
         **Admin User**  
         Username: admin@example.com  
         Password: admin123
-        
+
         **Inspector User**  
         Username: inspector@example.com  
         Password: inspector123 
-        
+
         **Auditor User**  
         Username: auditor@example.com  
         Password: auditor123 
         """)
 
     return False
+
+
+def table_detection():
+    """
+    Renders the table detection test page that allows users to upload PDF documents
+    and detect tables, signatures, and dates within them. This page is for testing
+    purposes and does not store any data in the database.
+
+    The page provides functionality to:
+    1. Upload PDF documents
+    2. Display the PDF pages as images
+    3. Detect and highlight tables, signatures, and dates
+    4. Extract and display table data using OCR
+    """
+    log.debug('Rendering table detection page')
+
+    # Page title and description
+    st.header('Table Detection Test')
+    st.write('Upload a PDF document to test the table detection functionality.')
+
+    # File upload
+    pdf_document = st.file_uploader(label="Upload PDF here", type=["pdf"])
+    display_tables = st.checkbox("Show tables")
+    display_signatures = st.checkbox("Show signatures")
+    display_dates = st.checkbox("Show dates")
+
+    if pdf_document is not None:
+        pdf_content_bytes = pdf_document.read()  # Read content once
+        images = get_images_from_pdf(pdf_content_bytes)
+
+        for image in images:
+            st.image(image, width=350)
+
+        ocr_reader = create_ocr_reader(use_gpu=True)
+
+        # Instantiate PDF class and determine signature page
+        pdf_doc_object = PDF(content=pdf_content_bytes)
+        pdf_doc_object.extract_table_data(ocr_reader=ocr_reader)  # This should populate _signature_page_index
+
+        signature_page_idx = pdf_doc_object._signature_page_index if hasattr(pdf_doc_object, '_signature_page_index') else -1
+        if signature_page_idx != -1:
+            st.info(f"The application logic identified Page {signature_page_idx + 1} as the signature page.")
+        else:
+            st.warning("Signature page could not be determined by the PDF class logic.")
+
+        ### Test code goes here ###
+        for i, image in enumerate(images):
+            # Convert the image to a NumPy array
+            np_image_array = np.array(image)
+
+            # Convert to BGR format for OpenCV
+            bgr_image_array = cv2.cvtColor(np_image_array, cv2.COLOR_RGB2BGR)
+            # Normalize image resolution
+            bgr_image_array = dtct.normalize_image_resolution(bgr_image_array)
+
+            ### DISPLAY EDGES ###
+            edges = cv2.Canny(bgr_image_array, 80, 200, apertureSize=3)
+            # Convert your BGR back to RGB for display
+            original_rgb = cv2.cvtColor(bgr_image_array, cv2.COLOR_BGR2RGB)
+
+            # Convert edges to RGB
+            edges_rgb = cv2.cvtColor(edges, cv2.COLOR_GRAY2RGB)
+
+            # Display both
+            col1, col2 = st.columns(2)
+            with col1:
+                st.image(original_rgb, caption="Original", width=350)
+            with col2:
+                st.image(edges_rgb, caption="Edges", width=350)
+            ### END DISPLAY EDGES ###
+
+            result_image = bgr_image_array.copy()
+
+            # Always detect tables for consistent data, regardless of display_tables for drawing
+            table_contours = dtct.tables(bgr_image_array)
+
+            if display_tables:
+                st.write(f"Number of tables detected on page {i + 1}: {len(table_contours)}")
+                cv2.drawContours(result_image, table_contours, -1, (0, 255, 0), 3)  # Green for tables
+
+            if display_signatures:
+                if i == signature_page_idx:
+                    st.write(f"Attempting to detect signature regions on identified signature Page {i + 1}...")
+                    # Convert to grayscale for signature detection
+                    gray_image_array = cv2.cvtColor(bgr_image_array, cv2.COLOR_BGR2GRAY)
+                    # Detect potential signature regions using the function from detect.py
+                    signature_regions = dtct._detect_potential_signature_regions(gray_image_array)
+                    st.write(f"Number of potential signature regions detected: {len(signature_regions)}")
+
+                    if not signature_regions:
+                        st.write("No signature regions detected by the dynamic function.")
+                    else:
+                        # Visualize detected signature regions
+                        for region in signature_regions:
+                            x_sig, y_sig, w_sig, h_sig = region  # Renamed to avoid conflict with table loop vars
+                            cv2.rectangle(result_image, (x_sig, y_sig), (x_sig + w_sig, y_sig + h_sig), (0, 0, 255), 2)  # Red for signatures
+
+                elif signature_page_idx != -1:  # Only show if a signature page was determined
+                    st.write(f"Page {i + 1} is not the identified signature page. Skipping signature detection.")
+                # If signature_page_idx is -1, this loop won't execute the main signature logic, which is fine.
+
+            if display_dates:
+                if i == signature_page_idx:
+                    st.write(f"Attempting to detect date regions on identified signature Page {i + 1}...")
+                    # Convert to grayscale for date detection if not already done
+                    if 'gray_image_array' not in locals():
+                        gray_image_array = cv2.cvtColor(bgr_image_array, cv2.COLOR_BGR2GRAY)
+                    # Detect potential date regions using the function from detect.py
+                    date_regions = dtct._detect_potential_date_regions(gray_image_array)
+                    st.write(f"Number of potential date regions detected: {len(date_regions)}")
+
+                    if not date_regions:
+                        st.write("No date regions detected by the dynamic function.")
+                    else:
+                        # Visualize detected date regions
+                        for region in date_regions:
+                            x_date, y_date, w_date, h_date = region  # Renamed to avoid conflict with other loop vars
+                            cv2.rectangle(result_image, (x_date, y_date), (x_date + w_date, y_date + h_date), (255, 0, 0), 2)  # Blue for dates
+
+                elif signature_page_idx != -1:  # Only show if a signature page was determined
+                    st.write(f"Page {i + 1} is not the identified signature page. Skipping date detection.")
+                # If signature_page_idx is -1, this loop won't execute the main date logic, which is fine.
+
+            # Display the original and result images if any detection is enabled
+            if display_tables or (display_signatures and i == signature_page_idx and signature_regions) or (display_dates and i == signature_page_idx and 'date_regions' in locals() and date_regions):  # Ensure regions were found to display
+                st.image(image, caption=f"Original - Page {i + 1}", use_column_width=False, width=350)
+                st.image(cv2.cvtColor(result_image, cv2.COLOR_BGR2RGB),
+                         caption=f"Detected Areas - Page {i + 1}",
+                         use_column_width=False, width=350)
+            elif i == 0 and not display_tables and not (display_signatures and i == signature_page_idx) and not (display_dates and i == signature_page_idx):  # Show original if nothing else is displayed on first page
+                st.image(image, caption=f"Original - Page {i + 1}", use_column_width=False, width=350)
+
+            # Detailed table processing logic
+            if not display_tables and table_contours:
+                st.write(f"Number of tables detected for processing on page {i + 1}: {len(table_contours)}")
+                for j, contour_item in enumerate(table_contours):
+                    table_data = []
+                    x_tbl, y_tbl, w_tbl, h_tbl = cv2.boundingRect(contour_item)  # Renamed to avoid conflict
+                    table_roi = bgr_image_array[y_tbl:y_tbl + h_tbl, x_tbl:x_tbl + w_tbl]
+
+                    st.image(cv2.cvtColor(table_roi, cv2.COLOR_BGR2RGB),
+                             caption=f"Image: {i + 1}, Table: {j + 1}",
+                             use_column_width=False, width=500)
+
+                    rows = dtct.rows(table_roi)
+                    st.write(f"Number of rows detected: {len(rows)}, Image: {i + 1}, Table: {j + 1}")
+
+                    for k, (y1, y2) in enumerate(rows):
+                        row_image = table_roi[y1:y2, :]
+                        row_data = []
+                        st.image(cv2.cvtColor(row_image, cv2.COLOR_BGR2RGB),
+                                 caption=f"Row {k + 1}",
+                                 use_column_width=True)
+                        cells = dtct.cells(row_image)
+                        for m, (x1, x2) in enumerate(cells):
+                            cell_image = row_image[:, x1:x2]
+                            st.image(cv2.cvtColor(cell_image, cv2.COLOR_BGR2RGB),
+                                     caption=f"Cell",
+                                     use_column_width=False, width=350)
+                            cell_text = ocr_cell(cell_image, ocr_reader)
+                            row_data.append(cell_text)
+                        table_data.append(row_data)
+                    st.write("Extracted Table Data:")
+                    st.table(table_data)
+            elif display_tables and not table_contours:
+                st.write(f"No tables detected on page {i + 1}")

@@ -73,6 +73,11 @@ def navbar(database=None) -> int:
         log.debug('About button clicked')
         page = 3
 
+    # Table Detection Test page is available to all
+    if st.button('Table Detection Test'):
+        log.debug('Table Detection Test button clicked')
+        page = 4
+
     # Add a separator before user info and logout
     st.markdown("---")
 

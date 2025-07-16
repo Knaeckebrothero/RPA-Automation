@@ -146,6 +146,9 @@ def main():
         case 3:
             log.debug('About page selected')
             page.about()
+        case 4:
+            log.debug('Detection test page selected')
+            page.table_detection()
         case _:
             log.warning(f'Invalid page selected: {st.session_state.page}, defaulting to home page.')
             page.home(mailclient=_get_mailclient(), database=_get_database())
