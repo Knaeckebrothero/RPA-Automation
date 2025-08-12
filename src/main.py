@@ -13,7 +13,6 @@ import cls
 from custom_logger import configure_global_logger
 from ui.navbar import navbar
 import ui.pages as page
-from ui.theme_switcher import theme_switcher, apply_theme
 from workflow.audit import get_emails as workflow_get_emails
 import workflow.security as sec
 
@@ -78,9 +77,10 @@ def main():
         }
     )
 
-    # Initialize theme switcher and apply selected theme
-    theme_switcher()
-    apply_theme()
+    # Load the basic Genoverband theme
+    #if os.path.exists('src/ui/genoverband_theme.css'):
+    #    with open('src/ui/genoverband_theme.css', 'r') as f:
+    #        st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
 
     # TODO: Replace with company logo
     st.logo(image=".streamlit/logo.png", size="large", link=None, icon_image=None)
