@@ -1,0 +1,16 @@
+[theme]
+base = "dark"
+primaryColor = "#7B68EE"  # Genoverband violet
+backgroundColor = "#0F172A"  # Dark background
+secondaryBackgroundColor = "#1E293B"  # Dark surface
+textColor = "#F1F5F9"  # Light text for dark mode
+font = "sans serif"
+
+[server]
+address = "127.0.0.1"
+# enableCORS = false
+# port = 8501
+# headless = true
+
+# [client]
+# gatherUsageStats = false

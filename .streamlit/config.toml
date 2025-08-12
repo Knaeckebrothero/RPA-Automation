@@ -1,10 +1,10 @@
-#[theme]
-#base = "light"
-#primaryColor = "#003664"
-#backgroundColor = "#ffffff"
-#secondaryBackgroundColor = "#4bb8e7"
-#textColor = "#003664"
-# font = "sans serif"
+[theme]
+base = "light"
+primaryColor = "#7B68EE"  # Genoverband violet
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#E6E0FF"  # Light violet for secondary areas
+textColor = "#2C3E50"  # Professional dark blue-gray
+font = "sans serif"
 
 [server]
 address = "127.0.0.1"
@@ -12,5 +12,5 @@ address = "127.0.0.1"
 # port = 8501
 # headless = true
 
-[client]
-gatherUsageStats = false
+# [client]
+# gatherUsageStats = false

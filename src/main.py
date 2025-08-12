@@ -13,6 +13,7 @@ import cls
 from custom_logger import configure_global_logger
 from ui.navbar import navbar
 import ui.pages as page
+from ui.theme_switcher import theme_switcher, apply_theme
 from workflow.audit import get_emails as workflow_get_emails
 import workflow.security as sec
 
@@ -76,6 +77,10 @@ def main():
             'About': "# Dies ist ein Header. Das ist eine *extrem* coole App!"
         }
     )
+
+    # Initialize theme switcher and apply selected theme
+    theme_switcher()
+    apply_theme()
 
     # TODO: Replace with company logo
     st.logo(image=".streamlit/logo.png", size="large", link=None, icon_image=None)

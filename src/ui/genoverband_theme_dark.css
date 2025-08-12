@@ -1,0 +1,385 @@
+/* Genoverband Dark Theme for Streamlit */
+
+/* Dark Mode Color Palette */
+:root {
+    --genoverband-deep-blue: #1E3A8A;
+    --genoverband-blue: #3B82F6;
+    --genoverband-violet: #7B68EE;
+    --genoverband-turquoise: #06B6D4;
+    --genoverband-light-violet: #4C3D8F;
+    --genoverband-light-blue: #1E293B;
+    --genoverband-dark-bg: #0F172A;
+    --genoverband-dark-surface: #1E293B;
+    --genoverband-dark-surface-2: #334155;
+    --genoverband-dark-text: #F1F5F9;
+    --genoverband-dark-text-secondary: #CBD5E1;
+}
+
+/* Override Streamlit's default dark theme colors */
+.stApp {
+    background-color: var(--genoverband-dark-bg) !important;
+}
+
+/* Main container background */
+.main .block-container {
+    background-color: var(--genoverband-dark-bg) !important;
+}
+
+/* Text color overrides */
+.stApp p, .stApp span, .stApp label, .stApp div {
+    color: var(--genoverband-dark-text) !important;
+}
+
+/* Main header styling */
+.stApp > header {
+    background: linear-gradient(135deg, var(--genoverband-violet) 0%, var(--genoverband-turquoise) 100%);
+    height: 2px;
+}
+
+/* Sidebar styling for dark mode */
+section[data-testid="stSidebar"] {
+    background-color: var(--genoverband-dark-surface) !important;
+    border-right: 2px solid var(--genoverband-violet);
+}
+
+section[data-testid="stSidebar"] > div {
+    background-color: var(--genoverband-dark-surface) !important;
+}
+
+/* Button styling for dark mode */
+.stButton > button {
+    background-color: var(--genoverband-violet);
+    color: white;
+    border: 1px solid var(--genoverband-violet);
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.stButton > button:hover {
+    background-color: var(--genoverband-blue);
+    border-color: var(--genoverband-blue);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(123, 104, 238, 0.4);
+}
+
+/* Primary button styling */
+.stButton > button[kind="primary"] {
+    background: linear-gradient(135deg, var(--genoverband-violet) 0%, var(--genoverband-turquoise) 100%);
+    border: none;
+}
+
+/* Secondary button styling */
+.stButton > button[kind="secondary"] {
+    background-color: transparent;
+    color: var(--genoverband-violet);
+    border: 2px solid var(--genoverband-violet);
+}
+
+.stButton > button[kind="secondary"]:hover {
+    background-color: var(--genoverband-violet);
+    color: white;
+}
+
+/* Input fields styling for dark mode */
+.stTextInput > div > div > input,
+.stSelectbox > div > div > select,
+.stTextArea > div > div > textarea {
+    background-color: var(--genoverband-dark-surface) !important;
+    color: var(--genoverband-dark-text) !important;
+    border: 2px solid var(--genoverband-dark-surface-2);
+    border-radius: 8px;
+    transition: border-color 0.3s ease;
+}
+
+.stTextInput > div > div > input:focus,
+.stSelectbox > div > div > select:focus,
+.stTextArea > div > div > textarea:focus {
+    border-color: var(--genoverband-violet);
+    box-shadow: 0 0 0 3px rgba(123, 104, 238, 0.2);
+    background-color: var(--genoverband-dark-surface) !important;
+}
+
+/* Metric cards styling for dark mode */
+div[data-testid="metric-container"] {
+    background-color: var(--genoverband-dark-surface);
+    border: 1px solid var(--genoverband-violet);
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+div[data-testid="metric-container"] label {
+    color: var(--genoverband-dark-text-secondary) !important;
+}
+
+div[data-testid="metric-container"] [data-testid="metric-value"] {
+    color: var(--genoverband-dark-text) !important;
+}
+
+/* Headers styling for dark mode */
+h1, h2, h3 {
+    color: var(--genoverband-dark-text) !important;
+    font-family: 'Helvetica Now', Helvetica, Arial, sans-serif;
+}
+
+/* Links styling for dark mode */
+a {
+    color: var(--genoverband-turquoise) !important;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+a:hover {
+    color: var(--genoverband-violet) !important;
+    text-decoration: underline;
+}
+
+/* Expander styling for dark mode */
+.streamlit-expanderHeader {
+    background-color: var(--genoverband-dark-surface) !important;
+    border: 1px solid var(--genoverband-dark-surface-2);
+    border-radius: 8px;
+    color: var(--genoverband-dark-text) !important;
+    font-weight: 500;
+}
+
+.streamlit-expanderHeader:hover {
+    background-color: var(--genoverband-dark-surface-2) !important;
+    border-color: var(--genoverband-violet);
+}
+
+.streamlit-expanderContent {
+    background-color: var(--genoverband-dark-surface) !important;
+    border: 1px solid var(--genoverband-dark-surface-2);
+    border-top: none;
+}
+
+/* Tab styling for dark mode */
+.stTabs [data-baseweb="tab-list"] {
+    background-color: var(--genoverband-dark-bg) !important;
+    border-bottom: 2px solid var(--genoverband-dark-surface-2);
+}
+
+.stTabs [data-baseweb="tab"] {
+    color: var(--genoverband-dark-text-secondary) !important;
+    font-weight: 500;
+    padding-bottom: 10px;
+    border-bottom: 2px solid transparent;
+    transition: all 0.3s ease;
+    background-color: transparent !important;
+}
+
+.stTabs [aria-selected="true"] {
+    color: var(--genoverband-violet) !important;
+    border-bottom: 2px solid var(--genoverband-violet);
+}
+
+.stTabs [data-baseweb="tab-panel"] {
+    background-color: var(--genoverband-dark-bg) !important;
+}
+
+/* Success, warning, error messages for dark mode */
+.stAlert[data-baseweb="notification"] {
+    border-radius: 8px;
+    border-left: 4px solid;
+    background-color: var(--genoverband-dark-surface) !important;
+}
+
+div[data-testid="stNotification"][kind="success"] {
+    border-left-color: var(--genoverband-turquoise);
+    background-color: rgba(6, 182, 212, 0.1) !important;
+}
+
+div[data-testid="stNotification"][kind="warning"] {
+    border-left-color: #F59E0B;
+    background-color: rgba(245, 158, 11, 0.1) !important;
+}
+
+div[data-testid="stNotification"][kind="error"] {
+    border-left-color: #EF4444;
+    background-color: rgba(239, 68, 68, 0.1) !important;
+}
+
+/* Progress bar styling for dark mode */
+.stProgress > div > div > div {
+    background-color: var(--genoverband-dark-surface-2) !important;
+}
+
+.stProgress > div > div > div > div {
+    background: linear-gradient(90deg, var(--genoverband-violet), var(--genoverband-turquoise));
+}
+
+/* Checkbox and radio button styling for dark mode */
+.stCheckbox > label {
+    color: var(--genoverband-dark-text) !important;
+}
+
+.stCheckbox > label > div[data-testid="stCheckbox"] > div,
+.stRadio > div > label > div > div {
+    border-color: var(--genoverband-dark-surface-2);
+    background-color: var(--genoverband-dark-surface) !important;
+}
+
+.stCheckbox > label > div[data-testid="stCheckbox"] > div[aria-checked="true"],
+.stRadio > div > label > div > div[aria-checked="true"] {
+    background-color: var(--genoverband-violet) !important;
+    border-color: var(--genoverband-violet);
+}
+
+/* DataFrame styling for dark mode */
+.dataframe {
+    background-color: var(--genoverband-dark-surface) !important;
+    border: 1px solid var(--genoverband-dark-surface-2);
+    border-radius: 8px;
+}
+
+.dataframe thead th {
+    background-color: var(--genoverband-dark-surface-2) !important;
+    color: var(--genoverband-dark-text) !important;
+    font-weight: 600;
+}
+
+.dataframe tbody td {
+    background-color: var(--genoverband-dark-surface) !important;
+    color: var(--genoverband-dark-text) !important;
+    border-color: var(--genoverband-dark-surface-2) !important;
+}
+
+.dataframe tbody tr:hover {
+    background-color: var(--genoverband-dark-surface-2) !important;
+}
+
+/* Card/container styling for dark mode */
+div[data-testid="stVerticalBlock"] > div:has(> div[data-testid="stExpander"]),
+div[data-testid="stVerticalBlock"] > div:has(> div[data-testid="column"]) {
+    background-color: var(--genoverband-dark-surface);
+    border: 1px solid var(--genoverband-dark-surface-2);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+}
+
+/* Code blocks for dark mode */
+.stCodeBlock {
+    background-color: var(--genoverband-dark-surface) !important;
+    border: 1px solid var(--genoverband-dark-surface-2);
+}
+
+code {
+    background-color: var(--genoverband-dark-surface-2) !important;
+    color: var(--genoverband-turquoise) !important;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+/* Custom scrollbar for dark mode */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--genoverband-dark-surface);
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--genoverband-violet);
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--genoverband-turquoise);
+}
+
+/* Plotly/Matplotlib chart backgrounds for dark mode */
+.js-plotly-plot .plotly {
+    background-color: var(--genoverband-dark-surface) !important;
+}
+
+/* Select box dropdown for dark mode */
+[data-baseweb="select"] {
+    background-color: var(--genoverband-dark-surface) !important;
+}
+
+[data-baseweb="select"] > div {
+    background-color: var(--genoverband-dark-surface) !important;
+    border-color: var(--genoverband-dark-surface-2) !important;
+}
+
+[data-baseweb="select"] [data-baseweb="menu"] {
+    background-color: var(--genoverband-dark-surface) !important;
+    border: 1px solid var(--genoverband-dark-surface-2);
+}
+
+[data-baseweb="select"] [role="option"] {
+    background-color: var(--genoverband-dark-surface) !important;
+    color: var(--genoverband-dark-text) !important;
+}
+
+[data-baseweb="select"] [role="option"]:hover {
+    background-color: var(--genoverband-dark-surface-2) !important;
+}
+
+/* File uploader for dark mode */
+[data-testid="stFileUploadDropzone"] {
+    background-color: var(--genoverband-dark-surface) !important;
+    border: 2px dashed var(--genoverband-dark-surface-2);
+}
+
+[data-testid="stFileUploadDropzone"]:hover {
+    border-color: var(--genoverband-violet);
+    background-color: var(--genoverband-dark-surface-2) !important;
+}
+
+/* Slider for dark mode */
+.stSlider > div > div {
+    background-color: var(--genoverband-dark-surface-2) !important;
+}
+
+.stSlider [data-baseweb="slider"] [role="slider"] {
+    background-color: var(--genoverband-violet) !important;
+}
+
+/* Date input for dark mode */
+.stDateInput > div > div > input {
+    background-color: var(--genoverband-dark-surface) !important;
+    color: var(--genoverband-dark-text) !important;
+}
+
+/* Multiselect for dark mode */
+[data-baseweb="tag"] {
+    background-color: var(--genoverband-violet) !important;
+    color: white !important;
+}
+
+/* Column borders for dark mode */
+[data-testid="column"] {
+    background-color: transparent !important;
+}
+
+/* Form styling for dark mode */
+[data-testid="stForm"] {
+    background-color: var(--genoverband-dark-surface);
+    padding: 1.5rem;
+    border-radius: 8px;
+    border: 1px solid var(--genoverband-dark-surface-2);
+}
+
+/* Widget label styling */
+.stWidgetLabel {
+    color: var(--genoverband-dark-text) !important;
+}
+
+/* Download button specific styling */
+.stDownloadButton > button {
+    background-color: var(--genoverband-turquoise) !important;
+    color: white !important;
+}
+
+.stDownloadButton > button:hover {
+    background-color: var(--genoverband-blue) !important;
+}

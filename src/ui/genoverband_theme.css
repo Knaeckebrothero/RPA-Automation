@@ -1,0 +1,255 @@
+/* Genoverband Custom Theme for Streamlit */
+
+/* Color Palette based on Genoverband brand */
+:root {
+    --genoverband-deep-blue: #1E3A8A;
+    --genoverband-blue: #3B82F6;
+    --genoverband-violet: #7B68EE;
+    --genoverband-turquoise: #06B6D4;
+    --genoverband-light-violet: #E6E0FF;
+    --genoverband-light-blue: #EBF5FF;
+    --genoverband-dark-gray: #2C3E50;
+    --genoverband-gray: #6B7280;
+}
+
+/* Main header styling */
+.stApp > header {
+    background: linear-gradient(135deg, var(--genoverband-violet) 0%, var(--genoverband-blue) 100%);
+    height: 2px;
+}
+
+/* Sidebar styling */
+section[data-testid="stSidebar"] {
+    background-color: var(--genoverband-light-blue);
+    border-right: 2px solid var(--genoverband-violet);
+}
+
+section[data-testid="stSidebar"] .css-1d391kg {
+    background-color: var(--genoverband-light-blue);
+}
+
+/* Button styling */
+.stButton > button {
+    background-color: var(--genoverband-violet);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.stButton > button:hover {
+    background-color: var(--genoverband-deep-blue);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(123, 104, 238, 0.3);
+}
+
+/* Primary button styling */
+.stButton > button[kind="primary"] {
+    background: linear-gradient(135deg, var(--genoverband-violet) 0%, var(--genoverband-blue) 100%);
+}
+
+/* Secondary button styling */
+.stButton > button[kind="secondary"] {
+    background-color: transparent;
+    color: var(--genoverband-violet);
+    border: 2px solid var(--genoverband-violet);
+}
+
+.stButton > button[kind="secondary"]:hover {
+    background-color: var(--genoverband-violet);
+    color: white;
+}
+
+/* Input fields styling */
+.stTextInput > div > div > input,
+.stSelectbox > div > div > select,
+.stTextArea > div > div > textarea {
+    border: 2px solid var(--genoverband-light-violet);
+    border-radius: 8px;
+    transition: border-color 0.3s ease;
+}
+
+.stTextInput > div > div > input:focus,
+.stSelectbox > div > div > select:focus,
+.stTextArea > div > div > textarea:focus {
+    border-color: var(--genoverband-violet);
+    box-shadow: 0 0 0 3px rgba(123, 104, 238, 0.1);
+}
+
+/* Metric cards styling */
+div[data-testid="metric-container"] {
+    background-color: var(--genoverband-light-blue);
+    border: 1px solid var(--genoverband-violet);
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* Headers styling */
+h1, h2, h3 {
+    color: var(--genoverband-deep-blue);
+    font-family: 'Helvetica Now', Helvetica, Arial, sans-serif;
+}
+
+/* Links styling */
+a {
+    color: var(--genoverband-violet);
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+a:hover {
+    color: var(--genoverband-deep-blue);
+    text-decoration: underline;
+}
+
+/* Expander styling */
+.streamlit-expanderHeader {
+    background-color: var(--genoverband-light-violet);
+    border-radius: 8px;
+    color: var(--genoverband-deep-blue);
+    font-weight: 500;
+}
+
+.streamlit-expanderHeader:hover {
+    background-color: var(--genoverband-violet);
+    color: white;
+}
+
+/* Tab styling */
+.stTabs [data-baseweb="tab-list"] {
+    border-bottom: 2px solid var(--genoverband-light-violet);
+}
+
+.stTabs [data-baseweb="tab"] {
+    color: var(--genoverband-gray);
+    font-weight: 500;
+    padding-bottom: 10px;
+    border-bottom: 2px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.stTabs [aria-selected="true"] {
+    color: var(--genoverband-violet);
+    border-bottom: 2px solid var(--genoverband-violet);
+}
+
+/* Success, warning, error messages */
+.stAlert[data-baseweb="notification"] {
+    border-radius: 8px;
+    border-left: 4px solid;
+}
+
+div[data-testid="stNotification"][kind="success"] {
+    border-left-color: var(--genoverband-turquoise);
+    background-color: rgba(6, 182, 212, 0.1);
+}
+
+div[data-testid="stNotification"][kind="warning"] {
+    border-left-color: #F59E0B;
+    background-color: rgba(245, 158, 11, 0.1);
+}
+
+div[data-testid="stNotification"][kind="error"] {
+    border-left-color: #EF4444;
+    background-color: rgba(239, 68, 68, 0.1);
+}
+
+/* Progress bar styling */
+.stProgress > div > div > div > div {
+    background-color: var(--genoverband-violet);
+}
+
+/* Checkbox and radio button styling */
+.stCheckbox > label > div[data-testid="stCheckbox"] > div,
+.stRadio > div > label > div > div {
+    border-color: var(--genoverband-violet);
+}
+
+.stCheckbox > label > div[data-testid="stCheckbox"] > div[aria-checked="true"],
+.stRadio > div > label > div > div[aria-checked="true"] {
+    background-color: var(--genoverband-violet);
+    border-color: var(--genoverband-violet);
+}
+
+/* DataFrame styling */
+.dataframe {
+    border: 1px solid var(--genoverband-light-violet);
+    border-radius: 8px;
+}
+
+.dataframe thead th {
+    background-color: var(--genoverband-light-violet);
+    color: var(--genoverband-deep-blue);
+    font-weight: 600;
+}
+
+/* Card/container styling */
+div[data-testid="stVerticalBlock"] > div:has(> div[data-testid="stExpander"]),
+div[data-testid="stVerticalBlock"] > div:has(> div[data-testid="column"]) {
+    background-color: white;
+    border: 1px solid var(--genoverband-light-violet);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+/* Custom quadrant logo element (can be used for branding) */
+.genoverband-logo-quadrant {
+    width: 40px;
+    height: 40px;
+    position: relative;
+    display: inline-block;
+}
+
+.genoverband-logo-quadrant::before,
+.genoverband-logo-quadrant::after {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+}
+
+.genoverband-logo-quadrant::before {
+    bottom: 0;
+    left: 0;
+    background-color: var(--genoverband-violet);
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+}
+
+.genoverband-logo-quadrant::after {
+    top: 0;
+    right: 0;
+    background-color: var(--genoverband-turquoise);
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+}
+
+/* Typography using Helvetica Now Variable if available */
+body {
+    font-family: 'Helvetica Now', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    color: var(--genoverband-dark-gray);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--genoverband-light-blue);
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--genoverband-violet);
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--genoverband-deep-blue);
+}
