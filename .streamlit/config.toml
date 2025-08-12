@@ -1,9 +1,9 @@
 [theme]
-base = "light"
-primaryColor = "#7B68EE"  # Genoverband violet
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#E6E0FF"  # Light violet for secondary areas
-textColor = "#2C3E50"  # Professional dark blue-gray
+base = "dark"
+primaryColor = "#ffffff"  # Genoverband violet
+backgroundColor = "#2365fe"  # Dark background
+secondaryBackgroundColor = "#0095fe"  # Dark surface
+textColor = "#001478"  # Light text for dark mode
 font = "sans serif"
 
 [server]

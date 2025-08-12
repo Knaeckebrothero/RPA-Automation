@@ -1,0 +1,16 @@
+[theme]
+base = "light"
+primaryColor = "#3B82F6"  # Clean blue
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F3F4F6"  # Light gray for secondary areas
+textColor = "#1F2937"  # Dark gray text
+font = "sans serif"
+
+[server]
+address = "127.0.0.1"
+# enableCORS = false
+# port = 8501
+# headless = true
+
+# [client]
+# gatherUsageStats = false
