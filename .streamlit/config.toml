@@ -1,7 +1,7 @@
 [theme]
 base = "dark"
-primaryColor = "#ffffff"  # Genoverband violet
-backgroundColor = "#2365fe"  # Dark background
+primaryColor = "#001478"  # Genoverband violet
+backgroundColor = "#ffffff" #"#2365fe"  # Dark background
 secondaryBackgroundColor = "#0095fe"  # Dark surface
 textColor = "#001478"  # Light text for dark mode
 font = "sans serif"

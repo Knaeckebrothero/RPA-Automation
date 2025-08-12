@@ -1,22 +1,39 @@
-/* Genoverband Basic Theme - Clean and Professional */
+/* Genoverband Theme - White Text with Dark Blue Titles */
 
 /* Define brand colors as CSS variables */
 :root {
-    --genoverband-primary: #3B82F6;     /* Clean blue */
-    --genoverband-secondary: #F3F4F6;   /* Light gray background */
-    --genoverband-text: #1F2937;        /* Dark gray text */
-    --genoverband-border: #E5E7EB;      /* Light gray border */
-    --genoverband-hover: #2563EB;       /* Darker blue for hover */
+    --genoverband-title: #001478;       /* Dark blue for titles */
+    --genoverband-text: #FFFFFF;        /* White text */
+    --genoverband-primary: #0095FE;     /* Bright blue */
+    --genoverband-bg: #2365FE;          /* Blue background */
+    --genoverband-secondary-bg: #0095FE; /* Secondary blue background */
+    --genoverband-border: rgba(255, 255, 255, 0.2); /* Semi-transparent white border */
+    --genoverband-hover: #001478;       /* Dark blue for hover */
     --genoverband-success: #10B981;     /* Green */
     --genoverband-warning: #F59E0B;     /* Orange */
     --genoverband-error: #EF4444;       /* Red */
 }
 
+/* Apply white text globally */
+.stApp, .stApp * {
+    color: var(--genoverband-text) !important;
+}
+
+/* Dark blue titles */
+h1, h2, h3, h4, h5, h6,
+.css-10trblm, .css-1629p8f,
+[data-testid="stMarkdownContainer"] h1,
+[data-testid="stMarkdownContainer"] h2,
+[data-testid="stMarkdownContainer"] h3 {
+    color: var(--genoverband-title) !important;
+    font-weight: 600;
+}
+
 /* Clean button styling - minimal and professional */
 .stButton > button {
     background-color: var(--genoverband-primary);
-    color: white;
-    border: none;
+    color: white !important;
+    border: 1px solid rgba(255, 255, 255, 0.3);
     border-radius: 4px;
     padding: 0.5rem 1rem;
     font-weight: 500;
@@ -32,6 +49,8 @@
 .stTextArea > div > div > textarea,
 .stSelectbox > div > div > select,
 .stNumberInput > div > div > input {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: white !important;
     border: 1px solid var(--genoverband-border);
     border-radius: 4px;
 }
@@ -40,18 +59,13 @@
 .stTextArea > div > div > textarea:focus,
 .stSelectbox > div > div > select:focus,
 .stNumberInput > div > div > input:focus {
-    border-color: var(--genoverband-primary);
+    border-color: rgba(255, 255, 255, 0.5);
     outline: none;
 }
 
-/* Clean sidebar styling */
+/* Sidebar with semi-transparent background */
 section[data-testid="stSidebar"] {
-    background-color: #FAFAFA;
-}
-
-/* Headers with brand color */
-h1, h2, h3 {
-    color: var(--genoverband-text);
+    background-color: rgba(0, 20, 120, 0.3);
 }
 
 /* Links */
